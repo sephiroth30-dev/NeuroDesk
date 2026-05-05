@@ -19,6 +19,22 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [9.4] - 2026-05-05
+
+### Responsive real + rediseño portal
+
+- **Topbar mobile corregido**: el topbar ya no se convierte en `display: grid` en mobile — mantiene layout flex con hamburger + título + acciones en una línea
+- **Shell con padding horizontal**: `padding: 12px` en mobile (antes `0`); `overflow-x: clip` para evitar desbordamiento
+- **Topbar compacto en mobile**: se ocultan `.eyebrow`, `.version` y `.userName`; h1 reducido a 1rem; `topBarRight` ocupa el espacio restante con `flex: 1`
+- **ticketDetailOverlay en mobile**: ahora es full-width sin márgenes laterales
+- **Portal rediseñado** (`/portal`):
+  - Layout split 2 columnas en desktop (≥860px): panel izquierdo oscuro con branding + features, panel derecho con formulario
+  - Mobile: panel izquierdo oculto, header sticky con logo ND, formulario full-screen blanco sin bordes
+  - Logo "ND" en lugar de "N"
+  - Diseño oscuro en el panel izquierdo (gradiente `#1e293b → #200e14`)
+
+---
+
 ## [9.3] - 2026-05-05
 
 ### Responsive y sidebar compacto

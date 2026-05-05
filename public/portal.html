@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="es">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Mesa de Ayuda — Neurofic</title>
     <style>
       :root {
@@ -14,173 +14,346 @@
         --soft: #f5f7fb;
         --text: #1a2232;
         --muted: #6b7a90;
-        --graphite: #252d3a;
+        --graphite: #1e293b;
         --line: #e1e6ef;
-        --ok: #059669;
-        --shadow: 0 4px 32px rgba(26, 32, 50, 0.10);
+        --shadow: 0 4px 32px rgba(26, 32, 50, 0.1);
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
       }
 
-      *, *::before, *::after { box-sizing: border-box; }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
 
+      html,
       body {
         margin: 0;
-        min-height: 100vh;
-        background: var(--bg);
+        padding: 0;
+        height: 100%;
         color: var(--text);
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      /* ── Layout ── */
+      .portalWrapper {
+        display: grid;
+        grid-template-columns: 400px 1fr;
+        min-height: 100vh;
+      }
+
+      /* ── Left Panel ── */
+      .portalLeft {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        overflow: hidden;
+        background: linear-gradient(160deg, #1e293b 0%, #200e14 100%);
+        padding: 40px 36px;
         display: flex;
         flex-direction: column;
+        gap: 0;
+      }
+
+      .portalLeftTop {
+        display: flex;
         align-items: center;
-        justify-content: flex-start;
-        padding: 40px 16px 60px;
+        gap: 10px;
+        margin-bottom: auto;
       }
 
-      h1, h2, h3, p { margin: 0; }
-
-      /* ── Header ── */
-      .portalHeader {
-        text-align: center;
-        margin-bottom: 32px;
-      }
-
-      .brandRow {
-        display: inline-flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 20px;
-      }
-
-      .brandMark {
-        width: 44px;
-        height: 44px;
-        border-radius: 12px;
+      .portalNdIcon {
+        width: 40px;
+        height: 40px;
+        border-radius: 9px;
         background: linear-gradient(135deg, var(--brand), var(--brand-dark));
         display: grid;
         place-items: center;
         color: #fff;
-        font-size: 1.3rem;
+        font-size: 0.65rem;
         font-weight: 900;
-        letter-spacing: -0.02em;
+        letter-spacing: 0.04em;
+        flex-shrink: 0;
+        box-shadow: 0 4px 12px rgba(200, 32, 50, 0.45);
+      }
+
+      .portalNdLabel {
+        font-size: 0.9rem;
+        font-weight: 800;
+        color: #f1f5f9;
+        line-height: 1.2;
+      }
+
+      .portalNdSub {
+        font-size: 0.7rem;
+        color: #64748b;
+      }
+
+      .portalLeftBody {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 24px;
+        padding-bottom: 24px;
+      }
+
+      .portalHeroTitle {
+        font-size: clamp(1.55rem, 2.8vw, 2.1rem);
+        font-weight: 900;
+        color: #f8fafc;
+        line-height: 1.18;
+        letter-spacing: -0.025em;
+      }
+
+      .portalHeroSub {
+        font-size: 0.9rem;
+        color: #94a3b8;
+        line-height: 1.65;
+      }
+
+      .portalFeatures {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 12px;
+      }
+
+      .portalFeatures li {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        font-size: 0.855rem;
+        color: #cbd5e1;
+        font-weight: 500;
+      }
+
+      .featureIcon {
+        display: grid;
+        place-items: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: rgba(200, 32, 50, 0.18);
         flex-shrink: 0;
       }
 
-      .brandName {
-        font-size: 1.15rem;
+      .featureIcon svg {
+        color: #fb7185;
+      }
+
+      .portalLeftFooter {
+        font-size: 0.7rem;
+        color: #334155;
+        padding-top: 20px;
+        border-top: 1px solid #1e2d3d;
+      }
+
+      /* ── Right Panel ── */
+      .portalRight {
+        background: var(--bg);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 40px 28px 60px;
+        min-height: 100vh;
+      }
+
+      .portalRightInner {
+        width: 100%;
+        max-width: 500px;
+      }
+
+      /* ── Mobile header (hidden on desktop) ── */
+      .mobilePortalHeader {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 20px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      .mobileNdIcon {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-size: 0.6rem;
         font-weight: 900;
+        letter-spacing: 0.04em;
+        flex-shrink: 0;
+        box-shadow: 0 2px 8px rgba(200, 32, 50, 0.35);
+      }
+
+      .mobilePortalHeader p {
+        font-size: 0.88rem;
+        font-weight: 800;
         color: var(--graphite);
       }
 
-      .brandSub {
-        font-size: 0.78rem;
+      .mobilePortalHeader span {
+        font-size: 0.7rem;
         color: var(--muted);
-        margin-top: 1px;
-      }
-
-      .portalTitle {
-        font-size: clamp(1.6rem, 4vw, 2.4rem);
-        font-weight: 900;
-        color: var(--graphite);
-        line-height: 1.1;
-        margin-bottom: 10px;
-      }
-
-      .portalSubtitle {
-        font-size: 1rem;
-        color: var(--muted);
-        max-width: 400px;
-        margin: 0 auto;
-        line-height: 1.5;
+        display: block;
       }
 
       /* ── Card ── */
       .portalCard {
         width: 100%;
-        max-width: 480px;
         background: var(--panel);
         border: 1px solid var(--line);
-        border-radius: 16px;
+        border-radius: 14px;
         box-shadow: var(--shadow);
-        padding: 32px;
+        padding: 28px 28px 32px;
+      }
+
+      .portalCardHeader {
+        margin-bottom: 20px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .portalCardHeader h2 {
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: var(--graphite);
+        letter-spacing: -0.01em;
+        margin-bottom: 3px;
+      }
+
+      .portalCardHeader p {
+        font-size: 0.81rem;
+        color: var(--muted);
       }
 
       /* ── Form ── */
       form {
         display: grid;
-        gap: 18px;
+        gap: 14px;
       }
 
       label {
         display: grid;
-        gap: 7px;
-        font-size: 0.875rem;
+        gap: 5px;
+        font-size: 0.8rem;
         font-weight: 700;
         color: #344050;
+        letter-spacing: 0.01em;
       }
 
-      input, select, textarea {
+      input,
+      select,
+      textarea {
         width: 100%;
-        min-height: 44px;
-        padding: 10px 13px;
+        min-height: 42px;
+        padding: 9px 12px;
         border: 1px solid var(--line);
-        border-radius: 9px;
+        border-radius: 8px;
         background: var(--soft);
         color: var(--text);
         font: inherit;
-        font-size: 0.95rem;
-        transition: border-color 0.15s, box-shadow 0.15s;
+        font-size: 0.9rem;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s,
+          background 0.15s;
       }
 
       textarea {
-        min-height: 100px;
+        min-height: 88px;
         resize: vertical;
       }
 
-      input:focus, select:focus, textarea:focus {
+      input:focus,
+      select:focus,
+      textarea:focus {
         outline: none;
         border-color: var(--brand);
-        box-shadow: 0 0 0 3px rgba(200, 32, 50, 0.12);
+        box-shadow: 0 0 0 3px rgba(200, 32, 50, 0.1);
+        background: #fff;
       }
 
-      input::placeholder, textarea::placeholder { color: var(--muted); }
+      input::placeholder,
+      textarea::placeholder {
+        color: #94a3b8;
+        font-weight: 400;
+      }
 
-      button[type="submit"], .btnPrimary {
+      button[type="submit"] {
         width: 100%;
-        min-height: 48px;
-        padding: 12px;
+        min-height: 46px;
+        padding: 11px;
         border: 0;
-        border-radius: 10px;
+        border-radius: 9px;
         background: linear-gradient(135deg, var(--brand), var(--brand-dark));
         color: #fff;
         font: inherit;
-        font-size: 1rem;
+        font-size: 0.95rem;
         font-weight: 700;
         cursor: pointer;
-        transition: opacity 0.15s, transform 0.1s;
+        transition:
+          opacity 0.15s,
+          transform 0.12s,
+          box-shadow 0.15s;
+        box-shadow: 0 2px 8px rgba(200, 32, 50, 0.3);
         margin-top: 4px;
       }
 
-      button[type="submit"]:hover { opacity: 0.92; transform: translateY(-1px); }
-      button[type="submit"]:active { opacity: 1; transform: translateY(0); }
-      button[type="submit"]:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+      button[type="submit"]:hover {
+        opacity: 0.91;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 16px rgba(200, 32, 50, 0.38);
+      }
+
+      button[type="submit"]:active {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      button[type="submit"]:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+      }
 
       .btnSecondary {
         width: 100%;
-        min-height: 44px;
-        padding: 10px;
+        min-height: 42px;
+        padding: 9px;
         border: 1px solid var(--line);
-        border-radius: 9px;
+        border-radius: 8px;
         background: var(--panel);
         color: var(--graphite);
         font: inherit;
         font-size: 0.9rem;
         font-weight: 700;
         cursor: pointer;
+        transition: background 0.13s;
+      }
+
+      .btnSecondary:hover {
+        background: var(--soft);
       }
 
       .portalMessage {
-        font-size: 0.875rem;
+        font-size: 0.84rem;
         color: var(--brand);
-        min-height: 20px;
+        min-height: 18px;
       }
 
       /* ── Success state ── */
@@ -188,132 +361,266 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 12px;
+        gap: 14px;
         text-align: center;
-        padding: 40px 32px;
+        padding: 36px 20px 40px;
       }
 
       .successRing {
-        width: 72px;
-        height: 72px;
+        width: 66px;
+        height: 66px;
         border-radius: 50%;
         background: linear-gradient(135deg, #10b981, #059669);
         display: grid;
         place-items: center;
         color: #fff;
-        font-size: 2rem;
-        box-shadow: 0 8px 24px rgba(16, 185, 129, 0.28);
+        font-size: 1.5rem;
+        font-weight: 700;
+        box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
       }
 
       .successTitle {
-        font-size: 1.4rem;
+        font-size: 1.25rem;
         font-weight: 900;
         color: var(--graphite);
       }
 
       .successBody {
         color: var(--muted);
-        line-height: 1.5;
-        font-size: 0.95rem;
+        line-height: 1.55;
+        font-size: 0.88rem;
+        max-width: 320px;
       }
 
       .ticketBadge {
         display: inline-block;
-        padding: 6px 18px;
+        padding: 5px 18px;
         background: var(--brand-soft);
-        border: 1px solid rgba(200, 32, 50, 0.2);
+        border: 1px solid rgba(200, 32, 50, 0.18);
         border-radius: 999px;
         color: var(--brand);
-        font-size: 1.1rem;
+        font-size: 1rem;
         font-weight: 900;
-        letter-spacing: 0.04em;
-        margin: 4px 0;
-      }
-
-      /* ── Footer ── */
-      .portalFooter {
-        margin-top: 28px;
-        text-align: center;
-        font-size: 0.78rem;
-        color: var(--muted);
+        letter-spacing: 0.05em;
       }
 
       /* ── Responsive ── */
-      @media (max-width: 520px) {
-        body { padding: 24px 16px 48px; }
-        .portalCard { padding: 24px 20px; }
+      @media (max-width: 860px) {
+        .portalWrapper {
+          grid-template-columns: 1fr;
+          min-height: auto;
+        }
+
+        .portalLeft {
+          display: none;
+        }
+
+        .mobilePortalHeader {
+          display: flex;
+        }
+
+        .portalRight {
+          padding: 0;
+          min-height: 100vh;
+          background: var(--panel);
+          justify-content: flex-start;
+          align-items: stretch;
+        }
+
+        .portalRightInner {
+          max-width: 100%;
+        }
+
+        .portalCard {
+          border: none;
+          border-radius: 0;
+          box-shadow: none;
+          padding: 20px 20px 32px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .portalCard {
+          padding: 16px 16px 28px;
+        }
       }
     </style>
   </head>
   <body>
-    <header class="portalHeader">
-      <div class="brandRow">
-        <div class="brandMark">N</div>
-        <div>
-          <p class="brandName">Neurofic</p>
-          <p class="brandSub">Centro de soporte</p>
+    <div class="portalWrapper">
+      <!-- ── Left Panel (desktop) ── -->
+      <aside class="portalLeft">
+        <div class="portalLeftTop">
+          <div class="portalNdIcon">ND</div>
+          <div>
+            <p class="portalNdLabel">Neurofic</p>
+            <p class="portalNdSub">Centro de soporte</p>
+          </div>
         </div>
-      </div>
-      <h1 class="portalTitle">¿En qué te ayudamos?</h1>
-      <p class="portalSubtitle">Contanos qué pasó y un agente se comunicará contigo lo antes posible.</p>
-    </header>
 
-    <div class="portalCard" id="formSection">
-      <form id="portalTicketForm" autocomplete="off" novalidate>
-        <label>
-          Nombre completo
-          <input id="portalName" name="name" type="text" placeholder="Tu nombre" required>
-        </label>
+        <div class="portalLeftBody">
+          <h1 class="portalHeroTitle">¿En qué te podemos ayudar hoy?</h1>
+          <p class="portalHeroSub">
+            Contanos qué ocurrió y un agente del equipo Neurofic se comunicará contigo a la brevedad.
+          </p>
+          <ul class="portalFeatures">
+            <li>
+              <span class="featureIcon">
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </span>
+              Respuesta el mismo día
+            </li>
+            <li>
+              <span class="featureIcon">
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </span>
+              Seguimiento en tiempo real
+            </li>
+            <li>
+              <span class="featureIcon">
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </span>
+              Soporte personalizado
+            </li>
+          </ul>
+        </div>
 
-        <label id="portalContactRow">
-          <span class="fieldLabel">Contacto</span>
-          <input id="portalContact" name="contact" type="text" placeholder="Correo o teléfono">
-        </label>
+        <p class="portalLeftFooter">Powered by NeuroDesk · Neurofic</p>
+      </aside>
 
-        <label id="portalAreaRow">
-          <span class="fieldLabel">Área</span>
-          <input id="portalArea" name="area" type="text" placeholder="Ej. Facturación, Agenda, Acceso">
-        </label>
+      <!-- ── Right Panel ── -->
+      <section class="portalRight">
+        <!-- Mobile-only header -->
+        <header class="mobilePortalHeader">
+          <div class="mobileNdIcon">ND</div>
+          <div>
+            <p>Neurofic</p>
+            <span>Centro de soporte</span>
+          </div>
+        </header>
 
-        <label>
-          Asunto
-          <input id="portalSubject" name="subject" type="text" placeholder="¿Qué problema tienes? (breve resumen)">
-        </label>
+        <div class="portalRightInner">
+          <div class="portalCard" id="formSection">
+            <div class="portalCardHeader">
+              <h2>Nueva solicitud</h2>
+              <p>Completá los datos y te ayudamos lo antes posible.</p>
+            </div>
+            <form id="portalTicketForm" autocomplete="off" novalidate>
+              <label>
+                Nombre completo
+                <input id="portalName" name="name" type="text" placeholder="Tu nombre" required />
+              </label>
 
-        <label>
-          Descripción
-          <textarea id="portalDescription" name="description" rows="4" placeholder="Describe con más detalle qué pasó, cuándo ocurrió y cómo te afecta…"></textarea>
-        </label>
+              <label id="portalContactRow">
+                <span class="fieldLabel">Contacto</span>
+                <input
+                  id="portalContact"
+                  name="contact"
+                  type="text"
+                  placeholder="Correo o teléfono"
+                />
+              </label>
 
-        <label>
-          Nivel de urgencia
-          <select id="portalUrgency" name="urgency">
-            <option value="baja">Normal — puedo esperar</option>
-            <option value="media" selected>Moderada — necesito ayuda hoy</option>
-            <option value="alta">Urgente — está afectando mi trabajo</option>
-            <option value="critica">Crítica — no puedo operar</option>
-          </select>
-        </label>
+              <label id="portalAreaRow">
+                <span class="fieldLabel">Área</span>
+                <input
+                  id="portalArea"
+                  name="area"
+                  type="text"
+                  placeholder="Ej. Facturación, Agenda, Acceso"
+                />
+              </label>
 
-        <button type="submit" id="portalSubmitBtn">Enviar solicitud</button>
-        <p id="portalMessage" class="portalMessage" role="status"></p>
-      </form>
+              <label>
+                Asunto
+                <input
+                  id="portalSubject"
+                  name="subject"
+                  type="text"
+                  placeholder="¿Qué problema tenés? (breve resumen)"
+                />
+              </label>
+
+              <label>
+                Descripción
+                <textarea
+                  id="portalDescription"
+                  name="description"
+                  rows="4"
+                  placeholder="Describe con más detalle qué pasó, cuándo ocurrió y cómo te afecta…"
+                ></textarea>
+              </label>
+
+              <label>
+                Nivel de urgencia
+                <select id="portalUrgency" name="urgency">
+                  <option value="baja">Normal — puedo esperar</option>
+                  <option value="media" selected>Moderada — necesito ayuda hoy</option>
+                  <option value="alta">Urgente — está afectando mi trabajo</option>
+                  <option value="critica">Crítica — no puedo operar</option>
+                </select>
+              </label>
+
+              <button type="submit" id="portalSubmitBtn">Enviar solicitud</button>
+              <p id="portalMessage" class="portalMessage" role="status"></p>
+            </form>
+          </div>
+
+          <div class="portalCard" id="successSection" hidden>
+            <div class="successCard">
+              <div class="successRing">✓</div>
+              <h2 class="successTitle">Solicitud recibida</h2>
+              <p class="successBody">Tu ticket fue creado exitosamente.</p>
+              <span class="ticketBadge" id="successTicketId">ND-XXXX</span>
+              <p class="successBody">
+                Un agente revisará tu caso y te contactará al correo o teléfono registrado.
+              </p>
+              <button
+                class="btnSecondary"
+                id="portalNewTicketBtn"
+                type="button"
+                style="margin-top: 8px"
+              >
+                Crear otra solicitud
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
-
-    <div class="portalCard" id="successSection" hidden>
-      <div class="successCard">
-        <div class="successRing">✓</div>
-        <h2 class="successTitle">Solicitud recibida</h2>
-        <p class="successBody">Tu ticket fue creado exitosamente.</p>
-        <span class="ticketBadge" id="successTicketId">ND-XXXX</span>
-        <p class="successBody">Un agente revisará tu caso y te contactará al correo o teléfono registrado.</p>
-        <button class="btnSecondary" id="portalNewTicketBtn" type="button" style="margin-top: 8px;">
-          Crear otra solicitud
-        </button>
-      </div>
-    </div>
-
-    <p class="portalFooter">Powered by NeuroDesk · Neurofic</p>
 
     <script>
       (async function () {
@@ -329,7 +636,7 @@
 
         // Apply field config from server
         try {
-          const cfg = await fetch("/api/config").then(r => r.json());
+          const cfg = await fetch("/api/config").then((r) => r.json());
 
           if (!cfg.fields.contact.enabled) {
             contactRow.hidden = true;
@@ -356,12 +663,12 @@
 
           const fd = new FormData(form);
           const body = {
-            name:        (fd.get("name") || "").trim(),
-            contact:     (fd.get("contact") || "").trim(),
-            area:        (fd.get("area") || "").trim() || "General",
-            urgency:     fd.get("urgency") || "media",
-            subject:     (fd.get("subject") || "").trim(),
-            description: (fd.get("description") || "").trim()
+            name: (fd.get("name") || "").trim(),
+            contact: (fd.get("contact") || "").trim(),
+            area: (fd.get("area") || "").trim() || "General",
+            urgency: fd.get("urgency") || "media",
+            subject: (fd.get("subject") || "").trim(),
+            description: (fd.get("description") || "").trim(),
           };
 
           if (!body.name) {
@@ -375,7 +682,7 @@
             const res = await fetch("/api/tickets", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body)
+              body: JSON.stringify(body),
             });
             const data = await res.json();
 

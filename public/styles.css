@@ -1202,31 +1202,54 @@ tbody tr:last-child td {
   body.sidebarCollapsed .shell {
     width: 100%;
     margin-left: 0;
-    padding: 14px 0;
+    padding: 12px;
+    overflow-x: clip;
   }
 
   .ticketDetailOverlay,
   body.sidebarCollapsed .ticketDetailOverlay {
-    width: calc(100% - 32px);
-    margin-left: auto;
-    margin-right: auto;
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
     padding: 0;
+    border-radius: 0;
   }
 
-  .topbar,
+  .topbar {
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .topbar .eyebrow,
+  .topbar .version,
+  .userName {
+    display: none;
+  }
+
+  .topbar h1 {
+    font-size: 1rem;
+  }
+
+  .topBarRight {
+    flex: 1;
+    min-width: 0;
+    gap: 6px;
+    justify-content: flex-end;
+  }
+
   .boardHeader,
   .sectionHeader {
     display: grid;
   }
 
-  .topActions,
   .boardTools,
   .viewToggle,
   .sectionActions {
     width: 100%;
   }
 
-  .topActions button,
   .viewToggle button,
   .boardTools label {
     flex: 1;
