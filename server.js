@@ -1,22 +1,29 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const { DatabaseSync } = require("node:sqlite");
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
+const DATA_DIR = path.join(__dirname, "data");
+const DB_PATH = path.join(DATA_DIR, "neurodesk.sqlite");
 const packageInfo = require("./package.json");
 
-const tickets = [
-  {
-    id: "ND-1001",
-    name: "Paciente demo",
-    area: "Agenda",
-    urgency: "media",
-    status: "abierto",
-    source: "web",
-    createdAt: new Date(Date.now() - 42 * 60 * 1000).toISOString()
-  }
-];
+fs.mkdirSync(DATA_DIR, { recursive: true });
+
+const db = new DatabaseSync(DB_PATH);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS tickets (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    area TEXT NOT NULL,
+    urgency TEXT NOT NULL,
+    status TEXT NOT NULL,
+    source TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+`);
 
 const urgencySlaHours = {
   baja: 24,
@@ -32,6 +39,31 @@ const contentTypes = {
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml"
 };
+
+const countTicketsStmt = db.prepare("SELECT COUNT(*) AS total FROM tickets");
+const listTicketsStmt = db.prepare(`
+  SELECT
+    id,
+    name,
+    area,
+    urgency,
+    status,
+    source,
+    created_at AS createdAt
+  FROM tickets
+  ORDER BY created_at DESC
+`);
+const nextTicketNumberStmt = db.prepare(`
+  SELECT COALESCE(MAX(CAST(SUBSTR(id, 4) AS INTEGER)), 1000) + 1 AS nextNumber
+  FROM tickets
+  WHERE id LIKE 'ND-%'
+`);
+const insertTicketStmt = db.prepare(`
+  INSERT INTO tickets (id, name, area, urgency, status, source, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?)
+`);
+
+seedDemoTicket();
 
 function sendJson(res, status, data) {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
@@ -99,7 +131,7 @@ function normalizeTicket(input, source = "web") {
   }
 
   return {
-    id: `ND-${1001 + tickets.length}`,
+    id: getNextTicketId(),
     name,
     area,
     urgency,
@@ -107,6 +139,46 @@ function normalizeTicket(input, source = "web") {
     source,
     createdAt: new Date().toISOString()
   };
+}
+
+function seedDemoTicket() {
+  const { total } = countTicketsStmt.get();
+
+  if (total > 0) {
+    return;
+  }
+
+  insertTicket({
+    id: "ND-1001",
+    name: "Paciente demo",
+    area: "Agenda",
+    urgency: "media",
+    status: "abierto",
+    source: "web",
+    createdAt: new Date(Date.now() - 42 * 60 * 1000).toISOString()
+  });
+}
+
+function getNextTicketId() {
+  const { nextNumber } = nextTicketNumberStmt.get();
+  return `ND-${nextNumber}`;
+}
+
+function insertTicket(ticket) {
+  insertTicketStmt.run(
+    ticket.id,
+    ticket.name,
+    ticket.area,
+    ticket.urgency,
+    ticket.status,
+    ticket.source,
+    ticket.createdAt
+  );
+  return ticket;
+}
+
+function getTickets() {
+  return listTicketsStmt.all();
 }
 
 function getSlaState(ticket) {
@@ -123,6 +195,7 @@ function getSlaState(ticket) {
 }
 
 function getStats() {
+  const tickets = getTickets();
   const openTickets = tickets.filter(ticket => ticket.status === "abierto");
   const breachedTickets = openTickets.filter(ticket => getSlaState(ticket).breached);
 
@@ -144,6 +217,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "GET" && req.url === "/api/tickets") {
+    const tickets = getTickets();
     sendJson(res, 200, tickets.map(ticket => ({ ...ticket, sla: getSlaState(ticket) })));
     return;
   }
@@ -163,8 +237,7 @@ async function handleApi(req, res) {
         return;
       }
 
-      tickets.unshift(ticket);
-      sendJson(res, 201, ticket);
+      sendJson(res, 201, insertTicket(ticket));
     } catch (error) {
       sendJson(res, 400, { error: "No se pudo leer la solicitud." });
     }
@@ -188,8 +261,7 @@ async function handleApi(req, res) {
         return;
       }
 
-      tickets.unshift(ticket);
-      sendJson(res, 201, ticket);
+      sendJson(res, 201, insertTicket(ticket));
     } catch (error) {
       sendJson(res, 400, { error: "No se pudo procesar el correo entrante." });
     }

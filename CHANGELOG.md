@@ -2,6 +2,19 @@
 
 Todas las versiones importantes de NeuroDesk quedaran documentadas en este archivo.
 
+## [0.1.3] - 2026-05-04
+
+### Agregado
+
+- Se agrega base de datos local SQLite en `data/neurodesk.sqlite`.
+- Se agrega persistencia de tickets para que no se pierdan al reiniciar el servidor.
+- Se ignora la base de datos local en Git para evitar subir datos operativos al repositorio.
+
+### Cambiado
+
+- La API ahora lista, crea y calcula estadisticas desde SQLite.
+- Se actualiza la version visible de la app a `0.1.3`.
+
 ## [0.1.2] - 2026-05-04
 
 ### Agregado
