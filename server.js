@@ -26,14 +26,22 @@ db.exec(`
   );
 `);
 
-migrateDatabase();
+db.exec(`
+  CREATE TABLE IF NOT EXISTS config (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+`);
 
-const urgencySlaHours = {
-  baja: 24,
-  media: 8,
-  alta: 4,
-  critica: 1
+const DEFAULT_CONFIG = {
+  sla: { baja: 24, media: 8, alta: 4, critica: 1 },
+  fields: {
+    contact: { enabled: true, label: "Contacto" },
+    area: { enabled: true, label: "Área" }
+  }
 };
+
+let appConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 
 const ticketStatuses = ["abierto", "en_proceso", "en_espera", "resuelto"];
 
@@ -69,7 +77,17 @@ const insertTicketStmt = db.prepare(`
   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `);
 const updateTicketStatusStmt = db.prepare("UPDATE tickets SET status = ? WHERE id = ?");
+const updateTicketFullStmt = db.prepare(`
+  UPDATE tickets SET name = ?, contact = ?, area = ?, urgency = ?, status = ? WHERE id = ?
+`);
+const upsertConfigStmt = db.prepare(`
+  INSERT INTO config (key, value) VALUES (?, ?)
+  ON CONFLICT(key) DO UPDATE SET value = excluded.value
+`);
+const getConfigStmt = db.prepare("SELECT value FROM config WHERE key = 'app_config'");
 
+migrateDatabase();
+loadConfig();
 seedDemoTicket();
 
 function sendJson(res, status, data) {
@@ -128,13 +146,65 @@ function readBody(req) {
   });
 }
 
+function deepMerge(defaults, overrides) {
+  const result = JSON.parse(JSON.stringify(defaults));
+  if (!overrides || typeof overrides !== "object") return result;
+
+  for (const key of Object.keys(result)) {
+    if (key in overrides) {
+      if (typeof result[key] === "object" && result[key] !== null && !Array.isArray(result[key])) {
+        result[key] = deepMerge(result[key], overrides[key]);
+      } else {
+        result[key] = overrides[key];
+      }
+    }
+  }
+
+  return result;
+}
+
+function loadConfig() {
+  const row = getConfigStmt.get();
+  if (!row) return;
+
+  try {
+    appConfig = deepMerge(DEFAULT_CONFIG, JSON.parse(row.value));
+  } catch (_) {
+    // corrupted config — keep defaults
+  }
+}
+
+function saveConfig(incoming) {
+  const sla = incoming.sla || {};
+  const fields = incoming.fields || {};
+
+  const validatedSla = Object.keys(DEFAULT_CONFIG.sla).reduce((acc, key) => {
+    const val = Number(sla[key]);
+    acc[key] = isFinite(val) && val > 0 ? val : DEFAULT_CONFIG.sla[key];
+    return acc;
+  }, {});
+
+  const validatedFields = Object.keys(DEFAULT_CONFIG.fields).reduce((acc, key) => {
+    const src = fields[key] || {};
+    acc[key] = {
+      enabled: typeof src.enabled === "boolean" ? src.enabled : DEFAULT_CONFIG.fields[key].enabled,
+      label: String(src.label || DEFAULT_CONFIG.fields[key].label).trim().slice(0, 40) || DEFAULT_CONFIG.fields[key].label
+    };
+    return acc;
+  }, {});
+
+  appConfig = { sla: validatedSla, fields: validatedFields };
+  upsertConfigStmt.run("app_config", JSON.stringify(appConfig));
+  return appConfig;
+}
+
 function normalizeTicket(input, source = "web") {
   const name = String(input.name || "").trim();
   const contact = String(input.contact || "").trim();
-  const area = String(input.area || "").trim();
+  const area = String(input.area || "").trim() || "General";
   const urgency = String(input.urgency || "").trim().toLowerCase();
 
-  if (!name || !contact || !area || !urgencySlaHours[urgency]) {
+  if (!name || !appConfig.sla[urgency]) {
     return null;
   }
 
@@ -215,10 +285,30 @@ function updateTicketStatus(id, status) {
   return getTickets().find(ticket => ticket.id === id);
 }
 
+function updateTicketFull(id, data) {
+  const name = String(data.name || "").trim();
+  const contact = String(data.contact || "").trim();
+  const area = String(data.area || "").trim() || "General";
+  const urgency = String(data.urgency || "").trim().toLowerCase();
+  const status = String(data.status || "").trim();
+
+  if (!name || !appConfig.sla[urgency] || !ticketStatuses.includes(status)) {
+    return null;
+  }
+
+  const result = updateTicketFullStmt.run(name, contact, area, urgency, status, id);
+
+  if (result.changes === 0) {
+    return null;
+  }
+
+  return getTickets().find(ticket => ticket.id === id);
+}
+
 function getSlaState(ticket) {
   const createdAt = new Date(ticket.createdAt).getTime();
   const elapsedHours = (Date.now() - createdAt) / 36e5;
-  const limitHours = urgencySlaHours[ticket.urgency];
+  const limitHours = appConfig.sla[ticket.urgency] || 8;
   const remainingHours = Math.max(limitHours - elapsedHours, 0);
 
   return {
@@ -236,7 +326,7 @@ function getStats() {
     summary[status] = tickets.filter(ticket => ticket.status === status).length;
     return summary;
   }, {});
-  const byUrgency = Object.keys(urgencySlaHours).reduce((summary, urgency) => {
+  const byUrgency = Object.keys(appConfig.sla).reduce((summary, urgency) => {
     summary[urgency] = tickets.filter(ticket => ticket.urgency === urgency).length;
     return summary;
   }, {});
@@ -270,6 +360,22 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "GET" && req.url === "/api/config") {
+    sendJson(res, 200, appConfig);
+    return;
+  }
+
+  if (req.method === "PUT" && req.url === "/api/config") {
+    try {
+      const body = await readBody(req);
+      const updated = saveConfig(body);
+      sendJson(res, 200, updated);
+    } catch (error) {
+      sendJson(res, 400, { error: "No se pudo guardar la configuración." });
+    }
+    return;
+  }
+
   if (req.method === "GET" && req.url === "/api/tickets") {
     const tickets = getTickets();
     sendJson(res, 200, tickets.map(ticket => ({ ...ticket, sla: getSlaState(ticket) })));
@@ -287,7 +393,7 @@ async function handleApi(req, res) {
       const ticket = normalizeTicket(body, "web");
 
       if (!ticket) {
-        sendJson(res, 400, { error: "Nombre, contacto, area y urgencia valida son obligatorios." });
+        sendJson(res, 400, { error: "Nombre y urgencia válida son obligatorios." });
         return;
       }
 
@@ -306,13 +412,31 @@ async function handleApi(req, res) {
       const ticket = updateTicketStatus(id, status);
 
       if (!ticket) {
-        sendJson(res, 400, { error: "Ticket no encontrado o estado invalido." });
+        sendJson(res, 400, { error: "Ticket no encontrado o estado inválido." });
         return;
       }
 
       sendJson(res, 200, { ...ticket, sla: getSlaState(ticket) });
     } catch (error) {
       sendJson(res, 400, { error: "No se pudo actualizar el estado." });
+    }
+    return;
+  }
+
+  if (req.method === "PATCH" && /^\/api\/tickets\/[^/]+$/.test(req.url)) {
+    try {
+      const id = decodeURIComponent(req.url.split("/")[3] || "");
+      const body = await readBody(req);
+      const ticket = updateTicketFull(id, body);
+
+      if (!ticket) {
+        sendJson(res, 400, { error: "Ticket no encontrado o datos inválidos." });
+        return;
+      }
+
+      sendJson(res, 200, { ...ticket, sla: getSlaState(ticket) });
+    } catch (error) {
+      sendJson(res, 400, { error: "No se pudo actualizar el ticket." });
     }
     return;
   }
@@ -351,9 +475,23 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.method === "GET" && req.url === "/portal") {
+    fs.readFile(path.join(PUBLIC_DIR, "portal.html"), (error, data) => {
+      if (error) {
+        res.writeHead(404);
+        res.end("Not found");
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(data);
+    });
+    return;
+  }
+
   sendStatic(req, res);
 });
 
 server.listen(PORT, () => {
   console.log(`NeuroDesk listo en http://localhost:${PORT}`);
+  console.log(`Portal público en http://localhost:${PORT}/portal`);
 });

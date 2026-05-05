@@ -730,6 +730,27 @@ th {
     padding: 24px 12px 20px;
     gap: 10px;
   }
+
+  .slaInputsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fieldConfigRow {
+    grid-template-columns: 1fr;
+  }
+
+  .bulkBar {
+    flex-wrap: wrap;
+    bottom: 16px;
+    width: calc(100% - 32px);
+    left: 16px;
+    transform: none;
+    border-radius: 12px;
+  }
+
+  .modalPanel {
+    max-height: 95vh;
+  }
 }
 
 @media (max-width: 480px) {
@@ -780,6 +801,312 @@ th {
   }
 }
 
+/* ========== MODAL ========== */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 32, 50, 0.48);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+  padding: 16px;
+  backdrop-filter: blur(2px);
+}
+
+.modalOverlay[hidden] {
+  display: none;
+}
+
+.modalPanel {
+  width: min(520px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  display: grid;
+  gap: 20px;
+  border-radius: 16px;
+  animation: modalIn 0.18s ease-out;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.modalTicketId {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--brand);
+  margin-top: 2px;
+}
+
+.iconButton {
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+/* ========== SETTINGS TABS ========== */
+
+.tabBar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 2px solid var(--line);
+  padding-bottom: 0;
+  overflow-x: auto;
+}
+
+.tabButton {
+  padding: 9px 18px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 0.875rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+
+.tabButton.active {
+  border-bottom-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.tabButton:not(.active):hover {
+  color: var(--text);
+}
+
+.tabPanel {
+  display: grid;
+  gap: 0;
+}
+
+.tabPanel[hidden] {
+  display: none;
+}
+
+/* ========== SLA SETTINGS ========== */
+
+.presetButtons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.presetLabel {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.presetBtn {
+  font-size: 0.82rem;
+  min-height: 34px;
+  padding: 6px 14px;
+}
+
+.slaInputsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+/* ========== FIELD CONFIG ========== */
+
+.fieldConfigGrid {
+  display: grid;
+  gap: 12px;
+}
+
+.fieldConfigRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+  padding: 20px;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  transition: border-color 0.15s;
+}
+
+.fieldConfigRow:has(input[type="checkbox"]:checked) {
+  border-color: rgba(200, 32, 50, 0.25);
+  background: var(--brand-soft);
+}
+
+.fieldConfigMeta {
+  display: grid;
+  gap: 6px;
+}
+
+.toggleLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--graphite);
+  cursor: pointer;
+}
+
+.toggleLabel input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: unset;
+  accent-color: var(--brand);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.fieldConfigDesc {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.fieldLabelInput {
+  font-size: 0.8rem;
+}
+
+/* ========== PORTAL LINK ========== */
+
+.portalLinkBox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+
+.portalLinkBox code {
+  flex: 1;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 0.88rem;
+  color: var(--graphite);
+  word-break: break-all;
+}
+
+/* ========== EDIT BUTTON ON CARDS ========== */
+
+.editTicketButton {
+  border: 1px solid var(--line);
+  background: var(--soft);
+  color: var(--muted);
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.editTicketButton:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+/* ========== BULK CHECKBOXES ========== */
+
+.bulkCheckbox {
+  width: 16px;
+  height: 16px;
+  min-height: unset;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+/* ========== BULK ACTION BAR ========== */
+
+.bulkBar {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: var(--graphite);
+  color: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 8px 36px rgba(26, 32, 50, 0.32);
+  z-index: 90;
+  white-space: nowrap;
+  animation: barIn 0.2s ease-out;
+}
+
+@keyframes barIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0);    }
+}
+
+.bulkBar[hidden] {
+  display: none;
+}
+
+#bulkCount {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.bulkLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.bulkLabel select {
+  min-height: 34px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 7px;
+  width: auto;
+  padding: 5px 10px;
+  font-size: 0.82rem;
+}
+
+.bulkCancel {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.75);
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+}
+
+/* ========== FORM FIELD LABEL ========== */
+
+label .fieldLabel {
+  display: block;
+}
+
 /* ========== PRINT ========== */
 
 @media print {
@@ -790,6 +1117,9 @@ th {
   body.printing-sla .topbar,
   body.printing-sla #overviewView,
   body.printing-sla #createView,
+  body.printing-sla #settingsView,
+  body.printing-sla .modalOverlay,
+  body.printing-sla .bulkBar,
   body.printing-sla .filterPanel,
   body.printing-sla .sectionActions {
     display: none;

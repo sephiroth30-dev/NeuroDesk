@@ -8,18 +8,22 @@
   </head>
   <body>
     <main class="shell">
+
+      <!-- ── Topbar ── -->
       <section class="topbar" aria-label="Encabezado de NeuroDesk">
         <div>
           <p class="eyebrow">Neurofic</p>
           <h1>NeuroDesk</h1>
-          <p id="appVersion" class="version">v0.3.1</p>
+          <p id="appVersion" class="version">–</p>
         </div>
         <div class="topActions" aria-label="Acciones principales">
           <button id="createTicketButton" class="primaryAction" type="button">Crear ticket</button>
           <button id="slaButton" class="secondaryAction" type="button">SLA</button>
+          <button id="settingsButton" class="ghostButton" type="button" aria-label="Ajustes">⚙ Ajustes</button>
         </div>
       </section>
 
+      <!-- ── Overview ── -->
       <section id="overviewView" class="view active" aria-label="Vista inicial de soporte">
         <section class="donutsHero" aria-label="Indicadores de salud operativa">
           <article class="donutCard">
@@ -73,30 +77,31 @@
         </section>
       </section>
 
+      <!-- ── Create ticket ── -->
       <section id="createView" class="view" aria-label="Creación de ticket">
         <form id="ticketForm" class="panel ticketForm" autocomplete="off">
-          <div class="panelHeader">
+          <div class="panelHeader" style="margin-bottom: 20px;">
             <h2>Crear ticket</h2>
             <p>Datos mínimos para iniciar atención.</p>
           </div>
 
           <label>
-            Nombre
+            <span class="fieldLabel">Nombre</span>
             <input id="name" name="name" type="text" placeholder="Nombre del solicitante" required>
           </label>
 
-          <label>
-            Contacto
-            <input id="contact" name="contact" type="text" placeholder="Correo o teléfono" required>
+          <label id="createContactRow">
+            <span class="fieldLabel" id="contactFieldLabel">Contacto</span>
+            <input id="contact" name="contact" type="text" placeholder="Correo o teléfono">
+          </label>
+
+          <label id="createAreaRow">
+            <span class="fieldLabel" id="areaFieldLabel">Área</span>
+            <input id="area" name="area" type="text" placeholder="Ej. Agenda, Facturación, Soporte">
           </label>
 
           <label>
-            Área
-            <input id="area" name="area" type="text" placeholder="Ej. Agenda, Facturación, Soporte" required>
-          </label>
-
-          <label>
-            Urgencia
+            <span class="fieldLabel">Urgencia</span>
             <select id="urgency" name="urgency" required>
               <option value="baja">Baja</option>
               <option value="media" selected>Media</option>
@@ -113,11 +118,12 @@
         </form>
       </section>
 
+      <!-- ── SLA stats ── -->
       <section id="slaView" class="view" aria-label="Estadísticas SLA">
         <div class="sectionHeader">
           <div>
             <h2>Estadísticas SLA</h2>
-            <p>Vista dedicada para revisar cumplimiento, vencidos y distribución.</p>
+            <p>Cumplimiento, vencidos y distribución.</p>
           </div>
           <div class="sectionActions">
             <button id="exportSlaButton" class="primaryAction" type="button">Exportar PDF</button>
@@ -221,7 +227,189 @@
           <div id="slaTicketTable"></div>
         </section>
       </section>
+
+      <!-- ── Settings ── -->
+      <section id="settingsView" class="view" aria-label="Ajustes de NeuroDesk">
+        <div class="sectionHeader">
+          <div>
+            <h2>Ajustes</h2>
+            <p>Configura SLA, campos del formulario y portal público.</p>
+          </div>
+          <div class="sectionActions">
+            <button id="saveSettingsButton" class="primaryAction" type="button">Guardar cambios</button>
+            <button id="backFromSettingsButton" class="ghostButton" type="button">Volver</button>
+          </div>
+        </div>
+
+        <div class="tabBar" role="tablist">
+          <button class="tabButton active" data-tab="slaTab" role="tab" aria-selected="true" type="button">Tiempos SLA</button>
+          <button class="tabButton" data-tab="fieldsTab" role="tab" aria-selected="false" type="button">Formulario</button>
+          <button class="tabButton" data-tab="portalTab" role="tab" aria-selected="false" type="button">Portal público</button>
+        </div>
+
+        <!-- Tab: SLA -->
+        <div id="slaTab" class="tabPanel panel" role="tabpanel">
+          <div class="panelHeader" style="margin-bottom: 20px;">
+            <h2>Tiempos de respuesta por urgencia</h2>
+            <p>Horas máximas para resolver cada nivel antes de que el SLA se marque como vencido.</p>
+          </div>
+          <div class="presetButtons">
+            <span class="presetLabel">Presets:</span>
+            <button class="ghostButton presetBtn" data-preset="standard" type="button">Estándar</button>
+            <button class="ghostButton presetBtn" data-preset="relaxed" type="button">Relajado</button>
+            <button class="ghostButton presetBtn" data-preset="strict" type="button">Exigente</button>
+          </div>
+          <div class="slaInputsGrid">
+            <label>
+              <span class="badge" style="justify-self: start; margin-bottom: 4px;">Baja</span>
+              Horas máximas
+              <input id="slaBaja" name="slaBaja" type="number" min="1" max="720" step="1" value="24">
+            </label>
+            <label>
+              <span class="badge" style="justify-self: start; margin-bottom: 4px;">Media</span>
+              Horas máximas
+              <input id="slaMedia" name="slaMedia" type="number" min="1" max="720" step="1" value="8">
+            </label>
+            <label>
+              <span class="badge alta" style="justify-self: start; margin-bottom: 4px;">Alta</span>
+              Horas máximas
+              <input id="slaAlta" name="slaAlta" type="number" min="0.5" max="720" step="0.5" value="4">
+            </label>
+            <label>
+              <span class="badge critica" style="justify-self: start; margin-bottom: 4px;">Crítica</span>
+              Horas máximas
+              <input id="slaCritica" name="slaCritica" type="number" min="0.5" max="720" step="0.5" value="1">
+            </label>
+          </div>
+          <p id="slaSettingsMessage" class="message" role="status" style="margin-top: 16px;"></p>
+        </div>
+
+        <!-- Tab: Fields -->
+        <div id="fieldsTab" class="tabPanel panel" role="tabpanel" hidden>
+          <div class="panelHeader" style="margin-bottom: 20px;">
+            <h2>Campos del formulario</h2>
+            <p>Activa o desactiva campos y personaliza sus etiquetas. El nombre y la urgencia son siempre requeridos.</p>
+          </div>
+          <div class="fieldConfigGrid">
+            <div class="fieldConfigRow">
+              <div class="fieldConfigMeta">
+                <label class="toggleLabel">
+                  <input id="fieldContactEnabled" type="checkbox" checked>
+                  <span>Campo: Contacto</span>
+                </label>
+                <p class="fieldConfigDesc">Correo o teléfono del solicitante. Útil para hacer seguimiento.</p>
+              </div>
+              <label class="fieldLabelInput">
+                Etiqueta visible
+                <input id="fieldContactLabel" type="text" maxlength="40" value="Contacto" placeholder="Ej. Correo electrónico">
+              </label>
+            </div>
+            <div class="fieldConfigRow">
+              <div class="fieldConfigMeta">
+                <label class="toggleLabel">
+                  <input id="fieldAreaEnabled" type="checkbox" checked>
+                  <span>Campo: Área</span>
+                </label>
+                <p class="fieldConfigDesc">Departamento o tema del ticket. Facilita la categorización y filtros SLA.</p>
+              </div>
+              <label class="fieldLabelInput">
+                Etiqueta visible
+                <input id="fieldAreaLabel" type="text" maxlength="40" value="Área" placeholder="Ej. Departamento">
+              </label>
+            </div>
+          </div>
+          <p id="fieldsSettingsMessage" class="message" role="status" style="margin-top: 16px;"></p>
+        </div>
+
+        <!-- Tab: Portal -->
+        <div id="portalTab" class="tabPanel panel" role="tabpanel" hidden>
+          <div class="panelHeader" style="margin-bottom: 20px;">
+            <h2>Portal público de tickets</h2>
+            <p>Comparte este enlace para que tus clientes puedan abrir tickets directamente sin acceder al panel interno.</p>
+          </div>
+          <div class="portalLinkBox">
+            <code id="portalUrlDisplay"></code>
+            <button id="copyPortalUrl" class="secondaryAction" type="button">Copiar</button>
+          </div>
+          <div style="margin-top: 16px;">
+            <a id="openPortalLink" href="/portal" target="_blank" class="secondaryAction" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
+              Abrir portal ↗
+            </a>
+          </div>
+          <p class="message" style="margin-top: 12px; color: var(--muted);">
+            El portal respeta la configuración de campos definida en la pestaña "Formulario".
+          </p>
+        </div>
+      </section>
+
     </main>
+
+    <!-- ── Edit ticket modal ── -->
+    <div id="editModal" class="modalOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+      <div class="modalPanel panel">
+        <div class="modalHeader">
+          <div>
+            <h2 id="editModalTitle">Editar ticket</h2>
+            <p id="editModalTicketId" class="modalTicketId"></p>
+          </div>
+          <button id="closeEditModal" class="ghostButton iconButton" type="button" aria-label="Cerrar modal">✕</button>
+        </div>
+        <form id="editTicketForm" autocomplete="off">
+          <input type="hidden" id="editTicketId">
+          <label>
+            <span class="fieldLabel">Nombre</span>
+            <input id="editName" name="name" type="text" required>
+          </label>
+          <label id="editContactRow">
+            <span class="fieldLabel">Contacto</span>
+            <input id="editContact" name="contact" type="text">
+          </label>
+          <label id="editAreaRow">
+            <span class="fieldLabel">Área</span>
+            <input id="editArea" name="area" type="text">
+          </label>
+          <label>
+            <span class="fieldLabel">Urgencia</span>
+            <select id="editUrgency" name="urgency">
+              <option value="baja">Baja</option>
+              <option value="media">Media</option>
+              <option value="alta">Alta</option>
+              <option value="critica">Crítica</option>
+            </select>
+          </label>
+          <label>
+            <span class="fieldLabel">Estado</span>
+            <select id="editStatus" name="status">
+              <option value="abierto">Abierto</option>
+              <option value="en_proceso">En proceso</option>
+              <option value="en_espera">En espera</option>
+              <option value="resuelto">Resuelto</option>
+            </select>
+          </label>
+          <div class="formActions">
+            <button type="submit">Guardar cambios</button>
+            <button id="cancelEditButton" class="ghostButton" type="button">Cancelar</button>
+          </div>
+          <p id="editModalMessage" class="message" role="status"></p>
+        </form>
+      </div>
+    </div>
+
+    <!-- ── Bulk action bar ── -->
+    <div id="bulkBar" class="bulkBar" hidden aria-live="polite">
+      <span id="bulkCount">0 seleccionados</span>
+      <label class="bulkLabel">
+        Cambiar a
+        <select id="bulkStatusSelect">
+          <option value="abierto">Abierto</option>
+          <option value="en_proceso">En proceso</option>
+          <option value="en_espera">En espera</option>
+          <option value="resuelto">Resuelto</option>
+        </select>
+      </label>
+      <button id="bulkApplyButton" class="primaryAction" type="button">Aplicar</button>
+      <button id="bulkCancelButton" class="ghostButton bulkCancel" type="button">Cancelar</button>
+    </div>
 
     <script src="/app.js" defer></script>
   </body>
