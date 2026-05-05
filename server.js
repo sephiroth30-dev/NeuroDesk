@@ -438,7 +438,18 @@ async function testEmailConnection(cfg) {
     logger: false
   });
   try { await client.connect(); await client.logout(); return { ok: true }; }
-  catch (err) { return { ok: false, error: err.message }; }
+  catch (err) {
+    const msg = err.message || "";
+    let hint = msg;
+    if (/command failed|authentication failed|invalid credentials|login failed/i.test(msg)) {
+      hint = "Credenciales incorrectas. Para Gmail debes usar una Contraseña de Aplicación (App Password) con IMAP habilitado en la cuenta.";
+    } else if (/ECONNREFUSED|ETIMEDOUT|ENOTFOUND/i.test(msg)) {
+      hint = `No se pudo conectar al servidor ${cfg.host}:${cfg.port}. Verifica el host y el puerto.`;
+    } else if (/self.signed|certificate/i.test(msg)) {
+      hint = "Error de certificado SSL. Intenta desactivar la conexión segura.";
+    }
+    return { ok: false, error: hint };
+  }
 }
 
 function startEmailPoller() {

@@ -117,7 +117,7 @@
         color: #344050;
       }
 
-      input, select {
+      input, select, textarea {
         width: 100%;
         min-height: 44px;
         padding: 10px 13px;
@@ -130,13 +130,18 @@
         transition: border-color 0.15s, box-shadow 0.15s;
       }
 
-      input:focus, select:focus {
+      textarea {
+        min-height: 100px;
+        resize: vertical;
+      }
+
+      input:focus, select:focus, textarea:focus {
         outline: none;
         border-color: var(--brand);
         box-shadow: 0 0 0 3px rgba(200, 32, 50, 0.12);
       }
 
-      input::placeholder { color: var(--muted); }
+      input::placeholder, textarea::placeholder { color: var(--muted); }
 
       button[type="submit"], .btnPrimary {
         width: 100%;
@@ -271,6 +276,16 @@
         </label>
 
         <label>
+          Asunto
+          <input id="portalSubject" name="subject" type="text" placeholder="¿Qué problema tienes? (breve resumen)">
+        </label>
+
+        <label>
+          Descripción
+          <textarea id="portalDescription" name="description" rows="4" placeholder="Describe con más detalle qué pasó, cuándo ocurrió y cómo te afecta…"></textarea>
+        </label>
+
+        <label>
           Nivel de urgencia
           <select id="portalUrgency" name="urgency">
             <option value="baja">Normal — puedo esperar</option>
@@ -341,10 +356,12 @@
 
           const fd = new FormData(form);
           const body = {
-            name: (fd.get("name") || "").trim(),
-            contact: (fd.get("contact") || "").trim(),
-            area: (fd.get("area") || "").trim() || "General",
-            urgency: fd.get("urgency") || "media"
+            name:        (fd.get("name") || "").trim(),
+            contact:     (fd.get("contact") || "").trim(),
+            area:        (fd.get("area") || "").trim() || "General",
+            urgency:     fd.get("urgency") || "media",
+            subject:     (fd.get("subject") || "").trim(),
+            description: (fd.get("description") || "").trim()
           };
 
           if (!body.name) {

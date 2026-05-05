@@ -18,6 +18,19 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [7.4] - 2026-05-05
+
+### Portal con campos Asunto y Descripción + mensajes IMAP claros
+
+- Portal público (`/portal`) ahora incluye campos "Asunto" y "Descripción" en el formulario
+- Textarea con estilos correctos en el portal (resize vertical, foco con ring de marca)
+- Error IMAP "Command failed" reemplazado por mensajes explicativos:
+  - Credenciales incorrectas → instrucciones de App Password para Gmail
+  - Fallo de conexión → indica host y puerto problemáticos
+  - Error SSL → sugiere desactivar SSL
+
+---
+
 ## [7.3] - 2026-05-05
 
 ### Fix: ReferenceError emailPollerTimer antes de inicialización
