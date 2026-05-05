@@ -7,6 +7,19 @@
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebarBrand">
+        <span class="brandIcon">N</span>
+        <strong>Support Desk</strong>
+      </div>
+      <nav class="sidebarNav" aria-label="Menu principal">
+        <button class="sidebarItem active" id="sidebarOverviewButton" type="button" title="Panel de informacion"><span>◉</span><b>Panel de informacion</b></button>
+        <button class="sidebarItem" id="adminButton" type="button" title="Tickets"><span>▤</span><b>Tickets</b></button>
+        <button class="sidebarItem" id="slaButton" type="button" title="Analisis"><span>▥</span><b>Indicadores</b></button>
+        <button class="sidebarItem" id="settingsButton" type="button" title="Administracion"><span>⚙</span><b>Configuracion</b></button>
+      </nav>
+      <button class="sidebarItem sidebarCollapse" id="sidebarToggle" type="button" title="Contraer"><span>⇤</span><b>Contraer</b></button>
+    </aside>
     <main class="shell">
 
       <!-- ── Topbar ── -->
@@ -59,36 +72,6 @@
           </article>
         </section>
 
-        <section class="infoPanel" aria-label="Panel de informacion">
-          <div class="infoPanelHeader">
-            <h2>Panel de informacion</h2>
-            <p>Accesos rapidos y estado operativo.</p>
-          </div>
-          <div class="infoGrid">
-            <article class="infoCard">
-              <div>
-                <h3>Tickets sin resolver</h3>
-                <p>Revisa la cola completa con filtros.</p>
-              </div>
-              <button id="adminButton" class="secondaryAction" type="button">Ver detalles</button>
-            </article>
-            <article class="infoCard">
-              <div>
-                <h3>Indicadores SLA</h3>
-                <p>Analiza vencidos, tiempos y cumplimiento.</p>
-              </div>
-              <button id="slaButton" class="secondaryAction" type="button">Abrir SLA</button>
-            </article>
-            <article class="infoCard">
-              <div>
-                <h3>Configuracion</h3>
-                <p>Correo entrante, portal y reglas de formulario.</p>
-              </div>
-              <button id="settingsButton" class="secondaryAction" type="button">Configurar</button>
-            </article>
-          </div>
-        </section>
-
         <section id="ticketBoard" class="ticketBoard" aria-label="Tablero de tickets">
           <div class="boardHeader">
             <div class="panelHeader">
@@ -104,6 +87,7 @@
                   <option value="en_proceso">En proceso</option>
                   <option value="en_espera">En espera</option>
                   <option value="resuelto">Resuelto</option>
+                  <option value="cerrado">Cerrado</option>
                 </select>
               </label>
               <div class="viewToggle" aria-label="Modo de visualización">
@@ -197,6 +181,7 @@
               <option value="en_proceso">En proceso</option>
               <option value="en_espera">En espera</option>
               <option value="resuelto">Resuelto</option>
+              <option value="cerrado">Cerrado</option>
             </select>
           </label>
           <label>
@@ -368,6 +353,14 @@
                 <input id="fieldAreaLabel" type="text" maxlength="40" value="Área" placeholder="Ej. Departamento">
               </label>
             </div>
+            <div class="customFieldsBuilder">
+              <div class="panelHeader">
+                <h2>Campos personalizados</h2>
+                <p>Crea campos adicionales para datos propios del ticket.</p>
+              </div>
+              <div id="customFieldsList" class="customFieldsList"></div>
+              <button id="addCustomFieldButton" class="secondaryAction" type="button">+ Agregar campo</button>
+            </div>
           </div>
           <p id="fieldsSettingsMessage" class="message" role="status" style="margin-top: 16px;"></p>
         </div>
@@ -438,6 +431,10 @@
                 <input id="emailPollInterval" type="number" value="5" min="1" max="60">
               </label>
               <label>
+                Remitentes ignorados
+                <input id="emailIgnoreSenders" type="text" placeholder="no-reply@accounts.google.com, noreply@google.com">
+              </label>
+              <label>
                 Área por defecto
                 <input id="emailDefaultArea" type="text" value="Correo">
               </label>
@@ -501,6 +498,7 @@
               <option value="en_proceso">En proceso</option>
               <option value="en_espera">En espera</option>
               <option value="resuelto">Resuelto</option>
+              <option value="cerrado">Cerrado</option>
             </select>
           </label>
           <label>Urgencia
@@ -585,6 +583,7 @@
               <option value="en_proceso">En proceso</option>
               <option value="en_espera">En espera</option>
               <option value="resuelto">Resuelto</option>
+              <option value="cerrado">Cerrado</option>
             </select>
           </label>
           <div class="formActions">
@@ -593,6 +592,52 @@
           </div>
           <p id="editModalMessage" class="message" role="status"></p>
         </form>
+      </div>
+    </div>
+
+    <div id="ticketDetailModal" class="ticketDetailOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="ticketDetailTitle">
+      <div class="ticketDetailShell">
+        <header class="ticketDetailTop">
+          <div>
+            <p id="ticketDetailId" class="modalTicketId"></p>
+            <h2 id="ticketDetailTitle">Detalle del ticket</h2>
+          </div>
+          <div class="detailActions">
+            <button id="detailDeleteButton" class="dangerButton" type="button">Eliminar</button>
+            <button id="closeTicketDetail" class="ghostButton iconButton" type="button" aria-label="Cerrar">x</button>
+          </div>
+        </header>
+        <div class="ticketDetailLayout">
+          <section class="ticketConversation">
+            <h3 id="detailSubject"></h3>
+            <p id="detailDescription" class="detailDescription"></p>
+            <div class="resolutionBox">
+              <label>
+                Que se realizo / nota de cierre
+                <textarea id="detailResolution" rows="6" placeholder="Describe la gestion realizada antes de resolver o cerrar..."></textarea>
+              </label>
+              <p id="detailMessage" class="message"></p>
+            </div>
+          </section>
+          <aside class="ticketProperties">
+            <div class="propertyAvatar" id="detailAvatar">N</div>
+            <h3 id="detailName"></h3>
+            <p id="detailContact"></p>
+            <label>Estado
+              <select id="detailStatus"></select>
+            </label>
+            <label>Urgencia
+              <select id="detailUrgency"></select>
+            </label>
+            <label>Area
+              <input id="detailArea" type="text">
+            </label>
+            <div id="detailCustomFields" class="detailCustomFields"></div>
+            <button id="saveTicketDetail" class="primaryAction" type="button">Guardar ticket</button>
+            <button id="resolveTicketDetail" class="secondaryAction" type="button">Marcar resuelto</button>
+            <button id="closeTicketDetailStatus" class="secondaryAction" type="button">Cerrar ticket</button>
+          </aside>
+        </div>
       </div>
     </div>
 
@@ -606,6 +651,7 @@
           <option value="en_proceso">En proceso</option>
           <option value="en_espera">En espera</option>
           <option value="resuelto">Resuelto</option>
+          <option value="cerrado">Cerrado</option>
         </select>
       </label>
       <button id="bulkApplyButton" class="primaryAction" type="button">Aplicar</button>

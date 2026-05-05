@@ -50,6 +50,30 @@ const contactFieldLabel    = document.querySelector("#contactFieldLabel");
 const areaFieldLabel       = document.querySelector("#areaFieldLabel");
 const currentUser          = document.querySelector("#currentUser");
 const logoutButton         = document.querySelector("#logoutButton");
+const sidebar              = document.querySelector("#sidebar");
+const sidebarToggle        = document.querySelector("#sidebarToggle");
+const sidebarOverviewButton = document.querySelector("#sidebarOverviewButton");
+const addCustomFieldButton = document.querySelector("#addCustomFieldButton");
+const customFieldsList     = document.querySelector("#customFieldsList");
+
+const ticketDetailModal    = document.querySelector("#ticketDetailModal");
+const closeTicketDetail    = document.querySelector("#closeTicketDetail");
+const ticketDetailId       = document.querySelector("#ticketDetailId");
+const detailSubject        = document.querySelector("#detailSubject");
+const detailDescription    = document.querySelector("#detailDescription");
+const detailName           = document.querySelector("#detailName");
+const detailContact        = document.querySelector("#detailContact");
+const detailAvatar         = document.querySelector("#detailAvatar");
+const detailStatus         = document.querySelector("#detailStatus");
+const detailUrgency        = document.querySelector("#detailUrgency");
+const detailArea           = document.querySelector("#detailArea");
+const detailResolution     = document.querySelector("#detailResolution");
+const detailMessage        = document.querySelector("#detailMessage");
+const detailCustomFields   = document.querySelector("#detailCustomFields");
+const saveTicketDetail     = document.querySelector("#saveTicketDetail");
+const resolveTicketDetail  = document.querySelector("#resolveTicketDetail");
+const closeTicketDetailStatus = document.querySelector("#closeTicketDetailStatus");
+const detailDeleteButton   = document.querySelector("#detailDeleteButton");
 
 // Edit modal
 const editModal         = document.querySelector("#editModal");
@@ -97,6 +121,7 @@ let selectedTickets = new Set();
 let adminSelected   = new Set();
 let refreshInFlight = null;
 let liveEvents      = null;
+let activeTicketId  = null;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -104,7 +129,8 @@ const statuses = [
   { key: "abierto",    label: "Abierto"    },
   { key: "en_proceso", label: "En proceso" },
   { key: "en_espera",  label: "En espera"  },
-  { key: "resuelto",   label: "Resuelto"   }
+  { key: "resuelto",   label: "Resuelto"   },
+  { key: "cerrado",    label: "Cerrado"    }
 ];
 
 const urgencies = [
@@ -152,6 +178,11 @@ function showView(name) {
 
   if (name !== "overview") { selectedTickets.clear(); updateBulkBar(); }
   if (name !== "admin")    { adminSelected.clear(); }
+  document.querySelectorAll(".sidebarItem").forEach(btn => btn.classList.remove("active"));
+  if (name === "overview") sidebarOverviewButton?.classList.add("active");
+  if (name === "admin") adminButton?.classList.add("active");
+  if (name === "sla") slaButton?.classList.add("active");
+  if (name === "settings") settingsButton?.classList.add("active");
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -196,10 +227,50 @@ function populateSettingsPanel() {
   document.querySelector("#fieldContactLabel").value     = appConfig.fields.contact.label;
   document.querySelector("#fieldAreaEnabled").checked    = appConfig.fields.area.enabled;
   document.querySelector("#fieldAreaLabel").value        = appConfig.fields.area.label;
+  renderCustomFieldsBuilder();
 
   const portalUrl = `${window.location.origin}/portal`;
   document.querySelector("#portalUrlDisplay").textContent = portalUrl;
   document.querySelector("#openPortalLink").href = "/portal";
+}
+
+function renderCustomFieldsBuilder() {
+  if (!customFieldsList) return;
+  const fields = appConfig?.customFields || [];
+  customFieldsList.innerHTML = fields.map((field, index) => `
+    <div class="customFieldRow" data-field-index="${index}">
+      <label>Etiqueta<input class="customFieldLabel" type="text" value="${escapeHtml(field.label)}" maxlength="60"></label>
+      <label>Tipo<select class="customFieldType"><option value="text" ${field.type !== "select" ? "selected" : ""}>Texto</option><option value="select" ${field.type === "select" ? "selected" : ""}>Lista</option></select></label>
+      <label>Opciones<input class="customFieldOptions" type="text" value="${escapeHtml(field.options || "")}" placeholder="Opcion 1, Opcion 2"></label>
+      <label class="toggleRow"><span>Activo</span><input class="customFieldEnabled" type="checkbox" ${field.enabled !== false ? "checked" : ""}></label>
+      <button class="ghostButton removeCustomField" type="button">Eliminar</button>
+    </div>
+  `).join("") || '<p class="empty compact">Sin campos personalizados.</p>';
+}
+
+function collectCustomFieldsConfig() {
+  return [...document.querySelectorAll(".customFieldRow")].map((row, index) => {
+    const label = row.querySelector(".customFieldLabel").value.trim() || `Campo ${index + 1}`;
+    return {
+      label,
+      key: label.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, ""),
+      type: row.querySelector(".customFieldType").value,
+      options: row.querySelector(".customFieldOptions").value.trim(),
+      enabled: row.querySelector(".customFieldEnabled").checked
+    };
+  });
+}
+
+function renderCustomFieldInputs(ticket = {}) {
+  const fields = (appConfig?.customFields || []).filter(f => f.enabled);
+  const values = ticket.customFields || {};
+  detailCustomFields.innerHTML = fields.map(field => {
+    if (field.type === "select") {
+      const options = String(field.options || "").split(",").map(opt => opt.trim()).filter(Boolean);
+      return `<label>${escapeHtml(field.label)}<select data-custom-field="${escapeHtml(field.key)}"><option value=""></option>${options.map(opt => `<option value="${escapeHtml(opt)}" ${values[field.key] === opt ? "selected" : ""}>${escapeHtml(opt)}</option>`).join("")}</select></label>`;
+    }
+    return `<label>${escapeHtml(field.label)}<input data-custom-field="${escapeHtml(field.key)}" type="text" value="${escapeHtml(values[field.key] || "")}"></label>`;
+  }).join("");
 }
 
 // ── Stats & charts ────────────────────────────────────────────────────────────
@@ -298,7 +369,8 @@ function renderTicketCard(ticket) {
       <div class="ticketTitle">
         <span>${escapeHtml(ticket.id)}</span>
         <span class="badge ${escapeHtml(ticket.urgency)}">${escapeHtml(ticket.urgency)}</span>
-        <button class="editTicketButton" data-edit-id="${escapeHtml(ticket.id)}" type="button" title="Editar">✎ Editar</button>
+        <button class="openTicketButton" data-open-id="${escapeHtml(ticket.id)}" type="button" title="Abrir">Abrir</button>
+        <button class="deleteTicketButton" data-delete-id="${escapeHtml(ticket.id)}" type="button" title="Eliminar">Eliminar</button>
       </div>
       <p class="ticketName">${escapeHtml(ticket.name)}</p>
       ${ticket.subject ? `<p class="ticketSubject">${escapeHtml(ticket.subject)}</p>` : ""}
@@ -332,14 +404,15 @@ function renderTicketList(tickets) {
             return `
               <tr>
                 <td><input type="checkbox" class="bulkCheckbox rowCheckbox" data-ticket-id="${escapeHtml(ticket.id)}" ${selectedTickets.has(ticket.id) ? "checked" : ""}></td>
-                <td>${escapeHtml(ticket.id)}</td>
+                <td><button class="linkButton" data-open-id="${escapeHtml(ticket.id)}" type="button">${escapeHtml(ticket.id)}</button></td>
+                <td class="subjectCell">${escapeHtml(ticket.subject || ticket.description || "(sin asunto)")}</td>
                 <td>${escapeHtml(ticket.name)}</td>
                 <td>${escapeHtml(ticket.contact)}</td>
                 <td>${escapeHtml(ticket.area)}</td>
                 <td><span class="badge ${escapeHtml(ticket.urgency)}">${escapeHtml(ticket.urgency)}</span></td>
                 <td><span class="sla ${ticket.sla.breached ? "breached" : ""}">${slaText}</span></td>
                 <td>${renderStatusSelect(ticket)}</td>
-                <td><button class="editTicketButton" data-edit-id="${escapeHtml(ticket.id)}" type="button">✎ Editar</button></td>
+                <td class="rowActions"><button class="openTicketButton" data-open-id="${escapeHtml(ticket.id)}" type="button">Abrir</button><button class="deleteTicketButton" data-delete-id="${escapeHtml(ticket.id)}" type="button">Eliminar</button></td>
               </tr>
             `;
           }).join("")}
@@ -521,7 +594,7 @@ function getFilteredSlaTickets() {
 }
 
 function summarizeTickets(tickets) {
-  const active   = tickets.filter(t => t.status !== "resuelto");
+  const active   = tickets.filter(t => t.status !== "resuelto" && t.status !== "cerrado");
   const breached = active.filter(t => t.sla.breached);
   const byStatus  = statuses.reduce((acc, s)  => { acc[s.key] = tickets.filter(t => t.status === s.key).length;  return acc; }, {});
   const byUrgency = urgencies.reduce((acc, u) => { acc[u.key] = tickets.filter(t => t.urgency === u.key).length; return acc; }, {});
@@ -604,7 +677,10 @@ function closeModal() {
 closeEditModal.addEventListener("click", closeModal);
 cancelEditButton.addEventListener("click", closeModal);
 editModal.addEventListener("click", e => { if (e.target === editModal) closeModal(); });
-document.addEventListener("keydown", e => { if (e.key === "Escape" && !editModal.hidden) closeModal(); });
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && !editModal.hidden) closeModal();
+  if (e.key === "Escape" && !ticketDetailModal.hidden) closeTicketDetailModal();
+});
 
 editTicketForm.addEventListener("submit", async e => {
   e.preventDefault();
@@ -632,6 +708,78 @@ document.addEventListener("click", e => {
   if (!editBtn) return;
   const ticket = cachedTickets.find(t => t.id === editBtn.dataset.editId);
   if (ticket) openEditModal(ticket);
+});
+
+function openTicketDetail(ticket) {
+  activeTicketId = ticket.id;
+  ticketDetailId.textContent = ticket.id;
+  detailSubject.textContent = ticket.subject || "(sin asunto)";
+  detailDescription.textContent = ticket.description || "Sin descripcion registrada.";
+  detailName.textContent = ticket.name;
+  detailContact.textContent = ticket.contact || "Sin contacto";
+  detailAvatar.textContent = (ticket.name || "N").trim().charAt(0).toUpperCase();
+  detailStatus.innerHTML = statuses.map(s => `<option value="${s.key}" ${ticket.status === s.key ? "selected" : ""}>${s.label}</option>`).join("");
+  detailUrgency.innerHTML = urgencies.map(u => `<option value="${u.key}" ${ticket.urgency === u.key ? "selected" : ""}>${u.label}</option>`).join("");
+  detailArea.value = ticket.area || "";
+  detailResolution.value = ticket.resolution || "";
+  detailMessage.textContent = "";
+  renderCustomFieldInputs(ticket);
+  ticketDetailModal.hidden = false;
+  detailResolution.focus();
+}
+
+function closeTicketDetailModal() {
+  ticketDetailModal.hidden = true;
+  activeTicketId = null;
+}
+
+function collectDetailPayload(statusOverride) {
+  const ticket = cachedTickets.find(t => t.id === activeTicketId);
+  if (!ticket) return null;
+  const customFields = {};
+  detailCustomFields.querySelectorAll("[data-custom-field]").forEach(input => {
+    customFields[input.dataset.customField] = input.value;
+  });
+  return {
+    name: ticket.name,
+    contact: ticket.contact || "",
+    area: detailArea.value.trim() || "General",
+    subject: ticket.subject || "",
+    description: ticket.description || "",
+    urgency: detailUrgency.value,
+    status: statusOverride || detailStatus.value,
+    resolution: detailResolution.value.trim(),
+    customFields
+  };
+}
+
+async function saveDetail(statusOverride) {
+  const payload = collectDetailPayload(statusOverride);
+  if (!payload) return;
+  if ((payload.status === "resuelto" || payload.status === "cerrado") && !payload.resolution) {
+    detailMessage.textContent = "Agrega la nota de lo realizado antes de resolver o cerrar.";
+    return;
+  }
+  await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}`, { method: "PATCH", body: JSON.stringify(payload) });
+  await refresh();
+  closeTicketDetailModal();
+}
+
+document.addEventListener("click", e => {
+  const openBtn = e.target.closest("[data-open-id]");
+  if (!openBtn) return;
+  const ticket = cachedTickets.find(t => t.id === openBtn.dataset.openId);
+  if (ticket) openTicketDetail(ticket);
+});
+
+closeTicketDetail.addEventListener("click", closeTicketDetailModal);
+saveTicketDetail.addEventListener("click", () => saveDetail().catch(err => { detailMessage.textContent = err.message; }));
+resolveTicketDetail.addEventListener("click", () => saveDetail("resuelto").catch(err => { detailMessage.textContent = err.message; }));
+closeTicketDetailStatus.addEventListener("click", () => saveDetail("cerrado").catch(err => { detailMessage.textContent = err.message; }));
+detailDeleteButton.addEventListener("click", async () => {
+  if (!activeTicketId) return;
+  await deleteTicket(activeTicketId);
+  closeTicketDetailModal();
 });
 
 document.addEventListener("click", e => {
@@ -717,6 +865,25 @@ document.querySelectorAll(".tabButton").forEach(btn => {
   });
 });
 
+addCustomFieldButton?.addEventListener("click", () => {
+  const fields = collectCustomFieldsConfig();
+  fields.push({ label: `Campo ${fields.length + 1}`, key: `campo_${fields.length + 1}`, type: "text", options: "", enabled: true });
+  appConfig.customFields = fields;
+  renderCustomFieldsBuilder();
+});
+
+customFieldsList?.addEventListener("click", e => {
+  if (!e.target.closest(".removeCustomField")) return;
+  const row = e.target.closest(".customFieldRow");
+  row?.remove();
+});
+
+sidebarToggle?.addEventListener("click", () => {
+  document.body.classList.toggle("sidebarCollapsed");
+});
+
+sidebarOverviewButton?.addEventListener("click", () => showView("overview"));
+
 document.querySelectorAll(".presetBtn").forEach(btn => {
   btn.addEventListener("click", () => {
     const preset = SLA_PRESETS[btn.dataset.preset];
@@ -750,6 +917,7 @@ async function loadEmailSettings() {
     document.querySelector("#emailPassword").value          = cfg.password || "";
     document.querySelector("#emailFolder").value            = cfg.folder || "INBOX";
     document.querySelector("#emailPollInterval").value      = cfg.pollIntervalMinutes || 5;
+    document.querySelector("#emailIgnoreSenders").value     = cfg.ignoreSenders || "";
     document.querySelector("#emailDefaultArea").value       = cfg.defaultArea || "Correo";
     document.querySelector("#emailDefaultUrgency").value    = cfg.defaultUrgency || "media";
     await loadEmailStatus();
@@ -801,6 +969,7 @@ document.querySelector("#emailConfigForm").addEventListener("submit", async e =>
     password:             document.querySelector("#emailPassword").value,
     folder:               document.querySelector("#emailFolder").value.trim() || "INBOX",
     pollIntervalMinutes:  parseInt(document.querySelector("#emailPollInterval").value) || 5,
+    ignoreSenders:        document.querySelector("#emailIgnoreSenders").value.trim(),
     defaultArea:          document.querySelector("#emailDefaultArea").value.trim() || "Correo",
     defaultUrgency:       document.querySelector("#emailDefaultUrgency").value
   };
@@ -883,7 +1052,8 @@ saveSettingsButton.addEventListener("click", async () => {
     fields: {
       contact: { enabled: document.querySelector("#fieldContactEnabled").checked, label: document.querySelector("#fieldContactLabel").value.trim() || "Contacto" },
       area:    { enabled: document.querySelector("#fieldAreaEnabled").checked,    label: document.querySelector("#fieldAreaLabel").value.trim()    || "Área"    }
-    }
+    },
+    customFields: collectCustomFieldsConfig()
   };
   try {
     appConfig = await requestJson("/api/config", { method: "PUT", body: JSON.stringify(newConfig) });
@@ -1007,6 +1177,13 @@ document.addEventListener("change", async e => {
 // ── Data refresh ──────────────────────────────────────────────────────────────
 
 async function moveTicket(ticketId, status) {
+  if (status === "resuelto" || status === "cerrado") {
+    const ticket = cachedTickets.find(t => t.id === ticketId);
+    if (ticket) {
+      openTicketDetail({ ...ticket, status });
+      return;
+    }
+  }
   await requestJson(`/api/tickets/${encodeURIComponent(ticketId)}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
   await refresh();
 }

@@ -18,6 +18,22 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [9.0] - 2026-05-05
+
+### Detalle profesional de tickets, sidebar y sincronizacion IMAP segura
+
+- Nuevo menu lateral izquierdo colapsable con accesos a Panel, Tickets, Indicadores y Configuracion
+- La lista de tickets muestra el asunto y permite abrir cada ticket en una vista de detalle a pantalla completa
+- La vista de detalle permite revisar descripcion, propiedades, campos personalizados y nota de resolucion
+- Se agrega estado `Cerrado` y se exige nota de lo realizado al resolver o cerrar desde el detalle
+- Se agrega boton de eliminar directamente en tarjetas/lista para borrar tickets basura o pruebas
+- Configuracion de formulario ahora permite crear campos personalizados simples de texto o lista
+- El sondeo IMAP marca como leidos los correos procesados y registra sus `Message-ID` para evitar duplicados
+- Se agregan remitentes ignorados para filtrar mensajes automaticos como alertas de Google
+- Version visible actualizada a `9.0`
+
+---
+
 ## [8.0] - 2026-05-05
 
 ### Diagnostico IMAP y panel inicial compacto

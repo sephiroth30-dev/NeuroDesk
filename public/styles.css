@@ -58,6 +58,94 @@ body {
   color: var(--text);
 }
 
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 248px;
+  padding: 16px 10px;
+  background: #f7f9fc;
+  border-right: 1px solid var(--line);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  transition: width 0.18s ease;
+}
+
+.sidebarBrand,
+.sidebarItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebarBrand {
+  min-height: 42px;
+  padding: 0 6px;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.brandIcon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  background: #22c55e;
+  color: #fff;
+  font-weight: 900;
+}
+
+.sidebarNav {
+  display: grid;
+  gap: 8px;
+}
+
+.sidebarItem {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #516174;
+  font-weight: 800;
+  text-align: left;
+}
+
+.sidebarItem span {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  flex: 0 0 22px;
+  color: #0f2a3d;
+}
+
+.sidebarItem.active,
+.sidebarItem:hover {
+  background: #e8eef5;
+  color: var(--text);
+}
+
+.sidebarCollapse {
+  margin-top: auto;
+}
+
+body.sidebarCollapsed .sidebar {
+  width: 58px;
+}
+
+body.sidebarCollapsed .sidebar b,
+body.sidebarCollapsed .sidebarBrand strong {
+  display: none;
+}
+
+body.sidebarCollapsed .sidebarItem {
+  justify-content: center;
+  padding-inline: 8px;
+}
+
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 h1, h2, h3, p { margin: 0; }
@@ -65,7 +153,13 @@ h1, h2, h3, p { margin: 0; }
 .shell {
   width: min(1300px, calc(100% - 32px));
   margin: 0 auto;
+  margin-left: calc(248px + max(16px, (100vw - 1548px) / 2));
   padding: 24px 0;
+  transition: margin-left 0.18s ease;
+}
+
+body.sidebarCollapsed .shell {
+  margin-left: calc(58px + max(16px, (100vw - 1358px) / 2));
 }
 
 /* ── Shared panel base ── */
@@ -342,6 +436,29 @@ button[type="submit"]:active {
 .infoCard p {
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.customFieldsBuilder {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.customFieldsList {
+  display: grid;
+  gap: 10px;
+}
+
+.customFieldRow {
+  display: grid;
+  grid-template-columns: 1.2fr 120px 1fr auto auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
 }
 
 /* ── SLA Detail View ── */
@@ -835,10 +952,16 @@ tbody tr:last-child td { border-bottom: 0; }
 @media (max-width: 900px) {
   .donutsHero, .infoGrid { grid-template-columns: 1fr; }
   .donutCard { gap: 12px; padding: 14px 16px; }
+  .customFieldRow { grid-template-columns: 1fr; }
+  .ticketDetailLayout { grid-template-columns: 1fr; }
+  .ticketProperties { border-top: 1px solid var(--line); }
 }
 
 @media (max-width: 760px) {
-  .shell { width: min(100% - 22px, 680px); padding: 14px 0; }
+  .sidebar { width: 58px; }
+  .sidebar b, .sidebarBrand strong { display: none; }
+  .sidebarItem { justify-content: center; padding-inline: 8px; }
+  .shell, body.sidebarCollapsed .shell { width: calc(100% - 76px); margin-left: 68px; padding: 14px 0; }
   .topbar, .boardHeader, .sectionHeader { display: grid; }
   .topActions, .boardTools, .viewToggle, .sectionActions { width: 100%; }
   .topActions button, .viewToggle button, .boardTools label { flex: 1; }
@@ -900,6 +1023,107 @@ tbody tr:last-child td { border-bottom: 0; }
   border-radius: 16px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
   animation: modalIn 0.18s ease-out;
+}
+
+.ticketDetailOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: #eef2f7;
+}
+
+.ticketDetailOverlay[hidden] { display: none; }
+
+.ticketDetailShell {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.ticketDetailTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 24px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+
+.detailActions,
+.rowActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ticketDetailLayout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  min-height: 0;
+}
+
+.ticketConversation {
+  padding: 32px 40px;
+  overflow: auto;
+  background: #fff;
+  border-right: 1px solid var(--line);
+}
+
+.ticketConversation h3 {
+  font-size: 1.35rem;
+  margin-bottom: 14px;
+}
+
+.detailDescription {
+  white-space: pre-wrap;
+  color: #344050;
+  line-height: 1.55;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.resolutionBox { margin-top: 24px; }
+
+.ticketProperties {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 24px;
+  overflow: auto;
+  background: #f8fafc;
+}
+
+.propertyAvatar {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #e6ebf2;
+  color: #425466;
+  font-size: 2rem;
+  font-weight: 900;
+}
+
+.detailCustomFields {
+  display: grid;
+  gap: 12px;
+}
+
+.linkButton {
+  border: 0;
+  background: transparent;
+  color: var(--info);
+  font-weight: 800;
+  padding: 0;
+}
+
+.subjectCell {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @keyframes modalIn {

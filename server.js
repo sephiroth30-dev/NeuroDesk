@@ -57,6 +57,8 @@ db.exec(`
   if (!cols.includes("contact"))     db.exec("ALTER TABLE tickets ADD COLUMN contact TEXT");
   if (!cols.includes("subject"))     db.exec("ALTER TABLE tickets ADD COLUMN subject TEXT");
   if (!cols.includes("description")) db.exec("ALTER TABLE tickets ADD COLUMN description TEXT");
+  if (!cols.includes("resolution"))  db.exec("ALTER TABLE tickets ADD COLUMN resolution TEXT");
+  if (!cols.includes("custom_fields")) db.exec("ALTER TABLE tickets ADD COLUMN custom_fields TEXT");
 })();
 
 // ── Sessions (in-memory, 24 h) ────────────────────────────────────────────────
@@ -110,6 +112,7 @@ const DEFAULT_EMAIL_CONFIG = {
   folder: "INBOX",
   pollIntervalMinutes: 5,
   connectedAt: null,
+  ignoreSenders: "no-reply@accounts.google.com, noreply@google.com",
   defaultArea: "Correo",
   defaultUrgency: "media"
 };
@@ -125,12 +128,13 @@ const DEFAULT_CONFIG = {
   fields: {
     contact: { enabled: true, label: "Contacto" },
     area: { enabled: true, label: "Área" }
-  }
+  },
+  customFields: []
 };
 
 let appConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 
-const ticketStatuses = ["abierto", "en_proceso", "en_espera", "resuelto"];
+const ticketStatuses = ["abierto", "en_proceso", "en_espera", "resuelto", "cerrado"];
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -143,11 +147,11 @@ const contentTypes = {
 // ── Prepared statements ───────────────────────────────────────────────────────
 
 const countTicketsStmt       = db.prepare("SELECT COUNT(*) AS total FROM tickets");
-const listTicketsStmt        = db.prepare(`SELECT id, name, contact, area, urgency, status, source, subject, description, created_at AS createdAt FROM tickets ORDER BY created_at DESC`);
+const listTicketsStmt        = db.prepare(`SELECT id, name, contact, area, urgency, status, source, subject, description, resolution, custom_fields AS customFields, created_at AS createdAt FROM tickets ORDER BY created_at DESC`);
 const nextTicketNumberStmt   = db.prepare(`SELECT COALESCE(MAX(CAST(SUBSTR(id, 4) AS INTEGER)), 1000) + 1 AS nextNumber FROM tickets WHERE id LIKE 'ND-%'`);
-const insertTicketStmt       = db.prepare(`INSERT INTO tickets (id, name, contact, area, urgency, status, source, subject, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+const insertTicketStmt       = db.prepare(`INSERT INTO tickets (id, name, contact, area, urgency, status, source, subject, description, resolution, custom_fields, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 const updateTicketStatusStmt = db.prepare("UPDATE tickets SET status = ? WHERE id = ?");
-const updateTicketFullStmt   = db.prepare(`UPDATE tickets SET name = ?, contact = ?, area = ?, urgency = ?, status = ?, subject = ?, description = ? WHERE id = ?`);
+const updateTicketFullStmt   = db.prepare(`UPDATE tickets SET name = ?, contact = ?, area = ?, urgency = ?, status = ?, subject = ?, description = ?, resolution = ?, custom_fields = ? WHERE id = ?`);
 const deleteTicketStmt       = db.prepare("DELETE FROM tickets WHERE id = ?");
 const upsertConfigStmt       = db.prepare(`INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
 const getConfigStmt          = db.prepare("SELECT value FROM config WHERE key = 'app_config'");
@@ -259,6 +263,7 @@ function loadConfig() {
 function saveConfig(incoming) {
   const sla = incoming.sla || {};
   const fields = incoming.fields || {};
+  const customFields = Array.isArray(incoming.customFields) ? incoming.customFields : [];
 
   const validatedSla = Object.keys(DEFAULT_CONFIG.sla).reduce((acc, key) => {
     const val = Number(sla[key]);
@@ -275,7 +280,25 @@ function saveConfig(incoming) {
     return acc;
   }, {});
 
-  appConfig = { sla: validatedSla, fields: validatedFields };
+  const validatedCustomFields = customFields.slice(0, 12).map((field, index) => {
+    const key = String(field.key || field.label || `campo_${index + 1}`)
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "")
+      .slice(0, 40) || `campo_${index + 1}`;
+    const type = field.type === "select" ? "select" : "text";
+    const options = type === "select"
+      ? String(field.options || "").split(",").map(opt => opt.trim()).filter(Boolean).slice(0, 20).join(", ")
+      : "";
+    return {
+      key,
+      label: String(field.label || key).trim().slice(0, 60) || key,
+      type,
+      options,
+      enabled: field.enabled !== false
+    };
+  });
+
+  appConfig = { sla: validatedSla, fields: validatedFields, customFields: validatedCustomFields };
   upsertConfigStmt.run("app_config", JSON.stringify(appConfig));
   return appConfig;
 }
@@ -289,10 +312,21 @@ function normalizeTicket(input, source = "web") {
   const urgency     = String(input.urgency || "").trim().toLowerCase();
   const subject     = String(input.subject || "").trim().slice(0, 200);
   const description = String(input.description || "").trim().slice(0, 4000);
+  const customFields = normalizeCustomFields(input.customFields || input.custom_fields || {});
 
   if (!name || !appConfig.sla[urgency]) return null;
 
-  return { id: getNextTicketId(), name, contact, area, urgency, status: "abierto", source, subject, description, createdAt: new Date().toISOString() };
+  return { id: getNextTicketId(), name, contact, area, urgency, status: "abierto", source, subject, description, resolution: "", customFields, createdAt: new Date().toISOString() };
+}
+
+function normalizeCustomFields(values) {
+  const allowed = appConfig.customFields || [];
+  const src = values && typeof values === "object" ? values : {};
+  return allowed.reduce((acc, field) => {
+    if (!field.enabled) return acc;
+    acc[field.key] = String(src[field.key] || "").trim().slice(0, 500);
+    return acc;
+  }, {});
 }
 
 function migrateDatabase() {
@@ -321,12 +355,18 @@ function getNextTicketId() {
 }
 
 function insertTicket(ticket) {
-  insertTicketStmt.run(ticket.id, ticket.name, ticket.contact, ticket.area, ticket.urgency, ticket.status, ticket.source, ticket.subject || "", ticket.description || "", ticket.createdAt);
+  insertTicketStmt.run(ticket.id, ticket.name, ticket.contact, ticket.area, ticket.urgency, ticket.status, ticket.source, ticket.subject || "", ticket.description || "", ticket.resolution || "", JSON.stringify(ticket.customFields || {}), ticket.createdAt);
   notifyClients("ticketsChanged", { action: "created", id: ticket.id, source: ticket.source });
   return ticket;
 }
 
-function getTickets() { return listTicketsStmt.all(); }
+function getTickets() {
+  return listTicketsStmt.all().map(ticket => {
+    let customFields = {};
+    try { customFields = ticket.customFields ? JSON.parse(ticket.customFields) : {}; } catch (_) {}
+    return { ...ticket, customFields };
+  });
+}
 
 function updateTicketStatus(id, status) {
   if (!ticketStatuses.includes(status)) return null;
@@ -344,9 +384,12 @@ function updateTicketFull(id, data) {
   const status      = String(data.status || "").trim();
   const subject     = String(data.subject || "").trim().slice(0, 200);
   const description = String(data.description || "").trim().slice(0, 4000);
+  const resolution  = String(data.resolution || "").trim().slice(0, 4000);
+  const customFields = normalizeCustomFields(data.customFields || data.custom_fields || {});
 
   if (!name || !appConfig.sla[urgency] || !ticketStatuses.includes(status)) return null;
-  const result = updateTicketFullStmt.run(name, contact, area, urgency, status, subject, description, id);
+  if ((status === "resuelto" || status === "cerrado") && !resolution) return null;
+  const result = updateTicketFullStmt.run(name, contact, area, urgency, status, subject, description, resolution, JSON.stringify(customFields), id);
   if (result.changes === 0) return null;
   notifyClients("ticketsChanged", { action: "updated", id });
   return getTickets().find(t => t.id === id);
@@ -360,7 +403,7 @@ function getSlaState(ticket) {
 
 function getStats() {
   const tickets = getTickets();
-  const active = tickets.filter(t => t.status !== "resuelto");
+  const active = tickets.filter(t => t.status !== "resuelto" && t.status !== "cerrado");
   const breached = active.filter(t => getSlaState(t).breached);
   const byStatus = ticketStatuses.reduce((s, st) => { s[st] = tickets.filter(t => t.status === st).length; return s; }, {});
   const byUrgency = Object.keys(appConfig.sla).reduce((s, u) => { s[u] = tickets.filter(t => t.urgency === u).length; return s; }, {});
@@ -388,6 +431,7 @@ function saveEmailConfig(incoming) {
   const password = String(incoming.password || "").trim();
   const folder   = String(incoming.folder || "INBOX").trim() || "INBOX";
   const pollIntervalMinutes = Math.max(1, parseInt(incoming.pollIntervalMinutes) || 5);
+  const ignoreSenders = String(incoming.ignoreSenders || DEFAULT_EMAIL_CONFIG.ignoreSenders).trim();
   const defaultArea    = String(incoming.defaultArea || "Correo").trim() || "Correo";
   const rawUrgency     = String(incoming.defaultUrgency || "media").trim();
   const defaultUrgency = appConfig.sla[rawUrgency] ? rawUrgency : "media";
@@ -402,7 +446,7 @@ function saveEmailConfig(incoming) {
     ? new Date(Date.now() - EMAIL_FALLBACK_LOOKBACK_MS).toISOString()
     : emailConfig.connectedAt;
 
-  emailConfig = { enabled, host, port, secure, username, password, folder, pollIntervalMinutes, connectedAt, defaultArea, defaultUrgency };
+  emailConfig = { enabled, host, port, secure, username, password, folder, pollIntervalMinutes, connectedAt, ignoreSenders, defaultArea, defaultUrgency };
   upsertConfigStmt.run("email_config", JSON.stringify(emailConfig));
   startEmailPoller();
   return emailConfig;
@@ -414,6 +458,14 @@ function detectUrgency(subject, body) {
   if (/alto|alta|importante|important|high/.test(text)) return "alta";
   if (/bajo|baja|cuando puedas|low|no urgente/.test(text)) return "baja";
   return "media";
+}
+
+function shouldIgnoreEmail(fromEmail) {
+  const ignored = String(emailConfig.ignoreSenders || "")
+    .split(",")
+    .map(item => item.trim().toLowerCase())
+    .filter(Boolean);
+  return ignored.includes(String(fromEmail || "").toLowerCase());
 }
 
 function getEmailPollBlocker(config, force = false) {
@@ -466,6 +518,11 @@ async function pollEmails(options = {}) {
         const fromAddress = parsed.from?.value?.[0];
         const fromEmail   = fromAddress?.address || "";
         const fromName    = fromAddress?.name || fromEmail;
+        if (shouldIgnoreEmail(fromEmail)) {
+          markEmailProcessedStmt.run(messageId, new Date().toISOString());
+          try { await client.messageFlagsAdd(uid, ["\\Seen"]); } catch (_) {}
+          continue;
+        }
         const subject     = (parsed.subject || "(sin asunto)").slice(0, 200);
         const bodyText    = (parsed.text || (parsed.html || "").replace(/<[^>]+>/g, "")).trim().slice(0, 4000);
         const urgency     = detectUrgency(subject, bodyText);
@@ -473,6 +530,7 @@ async function pollEmails(options = {}) {
         if (ticket) {
           insertTicket(ticket);
           markEmailProcessedStmt.run(messageId, new Date().toISOString());
+          try { await client.messageFlagsAdd(uid, ["\\Seen"]); } catch (_) {}
           created++;
         }
       }
