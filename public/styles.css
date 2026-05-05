@@ -146,34 +146,29 @@ button[type="submit"] {
   display: block;
 }
 
-.summaryGrid {
+.insightStrip {
   display: grid;
-  grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.chartsGrid,
-.slaDetailGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(180px, 1.1fr) repeat(3, minmax(142px, 0.72fr)) repeat(2, minmax(205px, 1fr));
   gap: 12px;
   margin-bottom: 12px;
 }
 
 .slaDetailGrid {
+  display: grid;
   grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .metricCard,
 .chartPanel,
 .ticketBoard,
 .panel {
-  padding: 18px;
+  padding: 14px;
 }
 
 .metricCard {
-  min-height: 150px;
+  min-height: 124px;
   border-top: 4px solid var(--brand);
 }
 
@@ -185,9 +180,9 @@ button[type="submit"] {
 
 .metricCard strong {
   display: block;
-  margin-top: 18px;
+  margin-top: 12px;
   color: var(--graphite);
-  font-size: 2rem;
+  font-size: 1.55rem;
   font-weight: 900;
 }
 
@@ -202,12 +197,11 @@ button[type="submit"] {
 .heroMetric {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 10px 18px;
+  gap: 8px 12px;
   align-items: center;
 }
 
-.heroMetric h2,
-.heroMetric p {
+.heroMetric h2 {
   grid-column: 1 / -1;
 }
 
@@ -215,7 +209,7 @@ button[type="submit"] {
   --value: 0;
   display: grid;
   place-items: center;
-  width: 112px;
+  width: 76px;
   aspect-ratio: 1;
   border-radius: 50%;
   background: conic-gradient(var(--brand) calc(var(--value) * 1%), #e6e9ee 0);
@@ -225,7 +219,7 @@ button[type="submit"] {
 .donut::after {
   content: "";
   position: absolute;
-  inset: 12px;
+  inset: 9px;
   background: #ffffff;
   border-radius: inherit;
 }
@@ -234,12 +228,16 @@ button[type="submit"] {
   position: relative;
   z-index: 1;
   color: var(--graphite);
-  font-size: 1.4rem;
+  font-size: 1rem;
   font-weight: 900;
 }
 
 .donut.large {
   width: 150px;
+}
+
+.miniChart {
+  min-height: 124px;
 }
 
 .panelHeader,
@@ -260,21 +258,21 @@ button[type="submit"] {
 
 .statusBars {
   display: grid;
-  gap: 10px;
-  margin-top: 14px;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .statusBar {
   display: grid;
-  grid-template-columns: 92px 1fr 28px;
+  grid-template-columns: 78px 1fr 24px;
   align-items: center;
-  gap: 10px;
-  font-size: 0.78rem;
+  gap: 8px;
+  font-size: 0.72rem;
   font-weight: 900;
 }
 
 .statusBar div {
-  height: 9px;
+  height: 7px;
   overflow: hidden;
   background: #edf0f4;
   border-radius: 999px;
@@ -341,6 +339,19 @@ select:focus {
   gap: 12px;
   overflow-x: auto;
   padding-bottom: 4px;
+}
+
+.ticketListView[hidden],
+.kanbanBoard[hidden] {
+  display: none;
+}
+
+.ticketListView:not([hidden]) {
+  display: block;
+}
+
+.kanbanBoard:not([hidden]) {
+  display: grid;
 }
 
 .kanbanColumn {
@@ -527,8 +538,7 @@ th {
 }
 
 @media (max-width: 1080px) {
-  .summaryGrid,
-  .chartsGrid,
+  .insightStrip,
   .slaDetailGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -562,8 +572,7 @@ th {
     flex: 1;
   }
 
-  .summaryGrid,
-  .chartsGrid,
+  .insightStrip,
   .slaDetailGrid {
     grid-template-columns: 1fr;
   }

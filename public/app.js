@@ -126,14 +126,17 @@ function getVisibleTickets() {
 
 function renderTickets() {
   const visibleTickets = getVisibleTickets();
-  kanbanBoard.hidden = boardView !== "cards";
-  ticketListView.hidden = boardView !== "list";
+  const isCardView = boardView === "cards";
+  kanbanBoard.hidden = !isCardView;
+  ticketListView.hidden = isCardView;
 
-  if (boardView === "cards") {
+  if (isCardView) {
+    ticketListView.innerHTML = "";
     renderKanban(visibleTickets);
     return;
   }
 
+  kanbanBoard.innerHTML = "";
   renderTicketList(visibleTickets);
 }
 

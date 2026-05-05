@@ -2,6 +2,15 @@
 
 Todas las versiones importantes de NeuroDesk quedaran documentadas en este archivo.
 
+## [0.2.1] - 2026-05-05
+
+### Cambiado
+
+- Se compactan las graficas iniciales en una franja superior tipo mini dashboard.
+- Se reduce el alto de las tarjetas de metricas para que el tablero gane protagonismo.
+- El tablero ahora limpia la vista no seleccionada para mostrar solo tarjetas o solo lista.
+- Se actualiza la version visible de la app a `0.2.1`.
+
 ## Regla de versionado
 
 NeuroDesk usa versiones `estructura.funcional.estetica`.

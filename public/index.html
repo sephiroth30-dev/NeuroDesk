@@ -12,7 +12,7 @@
         <div>
           <p class="eyebrow">Neurofic</p>
           <h1>NeuroDesk</h1>
-          <p id="appVersion" class="version">v0.2.0</p>
+          <p id="appVersion" class="version">v0.2.1</p>
         </div>
         <div class="topActions" aria-label="Acciones principales">
           <button id="createTicketButton" class="primaryAction" type="button">Crear ticket</button>
@@ -21,7 +21,7 @@
       </section>
 
       <section id="overviewView" class="view active" aria-label="Vista inicial de soporte">
-        <section class="summaryGrid" aria-label="Resumen de SLA">
+        <section class="insightStrip" aria-label="Resumen inicial de SLA">
           <article class="metricCard heroMetric">
             <h2>Adherencia SLA</h2>
             <div class="donut" id="slaDonut" style="--value: 100">
@@ -44,17 +44,14 @@
             <strong id="metricRemaining">0h</strong>
             <p>Tiempo promedio antes de vencer.</p>
           </article>
-        </section>
-
-        <section class="chartsGrid" aria-label="Graficas operativas">
-          <article class="chartPanel">
+          <article class="chartPanel miniChart">
             <div class="panelHeader">
               <h2>Estados</h2>
               <p>Distribución operativa actual.</p>
             </div>
             <div id="statusBars" class="statusBars"></div>
           </article>
-          <article class="chartPanel">
+          <article class="chartPanel miniChart">
             <div class="panelHeader">
               <h2>Urgencia</h2>
               <p>Concentración por prioridad.</p>
