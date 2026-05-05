@@ -18,6 +18,19 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [7.1] - 2026-05-05
+
+### Campos Asunto y Descripción en tickets
+
+- Nuevos campos `subject` (asunto) y `description` (descripción) en todos los tickets
+- Aparecen en el formulario de creación y en el modal de edición
+- El asunto se muestra como línea secundaria en las tarjetas kanban
+- El poller IMAP mapea: subject del correo → asunto, cuerpo del mensaje → descripción, nombre del remitente → nombre
+- Migración automática de BD con `ALTER TABLE` — no se pierden tickets existentes
+- Textarea con estilos consistentes (borde de foco con ring de marca)
+
+---
+
 ## [7.0] - 2026-05-05
 
 ### Correo entrante vía IMAP
