@@ -18,6 +18,15 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [7.2] - 2026-05-05
+
+### Fix: error "no such column: subject" al iniciar servidor
+
+- Las migraciones de columnas (`subject`, `description`, `contact`) ahora se ejecutan en un bloque IIFE inmediatamente después de `CREATE TABLE`, antes de que SQLite compile los prepared statements
+- Corrige `ERR_SQLITE_ERROR: SQL logic error — no such column: subject` en Node 24
+
+---
+
 ## [7.1] - 2026-05-05
 
 ### Campos Asunto y Descripción en tickets

@@ -51,6 +51,14 @@ db.exec(`
   );
 `);
 
+// Run column migrations immediately — must be before prepared statements are compiled
+(function runMigrations() {
+  const cols = db.prepare("PRAGMA table_info(tickets)").all().map(c => c.name);
+  if (!cols.includes("contact"))     db.exec("ALTER TABLE tickets ADD COLUMN contact TEXT");
+  if (!cols.includes("subject"))     db.exec("ALTER TABLE tickets ADD COLUMN subject TEXT");
+  if (!cols.includes("description")) db.exec("ALTER TABLE tickets ADD COLUMN description TEXT");
+})();
+
 // ── Sessions (in-memory, 24 h) ────────────────────────────────────────────────
 
 const sessions = new Map();
@@ -246,11 +254,7 @@ function normalizeTicket(input, source = "web") {
 }
 
 function migrateDatabase() {
-  const columns = db.prepare("PRAGMA table_info(tickets)").all();
-  const names = columns.map(c => c.name);
-  if (!names.includes("contact"))     db.exec("ALTER TABLE tickets ADD COLUMN contact TEXT");
-  if (!names.includes("subject"))     db.exec("ALTER TABLE tickets ADD COLUMN subject TEXT");
-  if (!names.includes("description")) db.exec("ALTER TABLE tickets ADD COLUMN description TEXT");
+  // Column migrations are handled at startup before prepared statements — nothing to do here.
 }
 
 function seedDemoTicket() {
