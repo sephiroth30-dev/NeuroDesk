@@ -2,6 +2,20 @@
 
 Todas las versiones importantes de NeuroDesk quedaran documentadas en este archivo.
 
+## [0.3.0] - 2026-05-05
+
+### Agregado
+
+- Se agrega panel avanzado de filtros SLA por fecha, estado, area, urgencia, estado SLA, tiempo restante y busqueda.
+- Se agrega tabla de detalle filtrado para analisis SLA.
+- Se agrega exportacion imprimible a PDF para reportes de junta.
+- Se cargan tickets de prueba locales para validar el flujo operativo.
+
+### Cambiado
+
+- Se limpia la pantalla inicial para mostrar solo los indicadores mas importantes y graficas compactas.
+- Se actualiza la version visible de la app a `0.3.0`.
+
 ## [0.2.1] - 2026-05-05
 
 ### Cambiado

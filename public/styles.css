@@ -99,7 +99,8 @@ h1 {
 .topActions,
 .formActions,
 .viewToggle,
-.boardTools {
+.boardTools,
+.sectionActions {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -148,7 +149,7 @@ button[type="submit"] {
 
 .insightStrip {
   display: grid;
-  grid-template-columns: minmax(180px, 1.1fr) repeat(3, minmax(142px, 0.72fr)) repeat(2, minmax(205px, 1fr));
+  grid-template-columns: minmax(180px, 1.1fr) repeat(2, minmax(142px, 0.72fr)) repeat(2, minmax(205px, 1fr));
   gap: 12px;
   margin-bottom: 12px;
 }
@@ -244,6 +245,25 @@ button[type="submit"] {
 .sectionHeader {
   display: grid;
   gap: 5px;
+}
+
+.filterPanel {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.filterPanel label {
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  text-transform: uppercase;
 }
 
 .sectionHeader {
@@ -523,6 +543,10 @@ th {
   font-size: 0.9rem;
 }
 
+.reportTable {
+  margin-top: 12px;
+}
+
 .empty {
   padding: 40px 12px;
   border: 1px dashed var(--line);
@@ -562,7 +586,8 @@ th {
 
   .topActions,
   .boardTools,
-  .viewToggle {
+  .viewToggle,
+  .sectionActions {
     width: 100%;
   }
 
@@ -573,7 +598,8 @@ th {
   }
 
   .insightStrip,
-  .slaDetailGrid {
+  .slaDetailGrid,
+  .filterPanel {
     grid-template-columns: 1fr;
   }
 
@@ -585,11 +611,47 @@ th {
 @media (max-width: 480px) {
   .topActions,
   .formActions,
-  .viewToggle {
+  .viewToggle,
+  .sectionActions {
     display: grid;
   }
 
   .statusBar {
     grid-template-columns: 80px 1fr 24px;
+  }
+}
+
+@media print {
+  body {
+    background: #ffffff;
+  }
+
+  body.printing-sla .topbar,
+  body.printing-sla #overviewView,
+  body.printing-sla #createView,
+  body.printing-sla .filterPanel,
+  body.printing-sla .sectionActions {
+    display: none;
+  }
+
+  body.printing-sla #slaView {
+    display: block;
+  }
+
+  .shell {
+    width: 100%;
+    padding: 0;
+  }
+
+  .sectionHeader,
+  .metricCard,
+  .chartPanel {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  table {
+    min-width: 0;
+    font-size: 0.72rem;
   }
 }

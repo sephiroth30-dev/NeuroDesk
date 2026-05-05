@@ -7,6 +7,7 @@ const createTicketButton = document.querySelector("#createTicketButton");
 const cancelCreateButton = document.querySelector("#cancelCreateButton");
 const slaButton = document.querySelector("#slaButton");
 const backToOverviewButton = document.querySelector("#backToOverviewButton");
+const exportSlaButton = document.querySelector("#exportSlaButton");
 const kanbanBoard = document.querySelector("#kanbanBoard");
 const ticketListView = document.querySelector("#ticketListView");
 const statusFilter = document.querySelector("#statusFilter");
@@ -15,6 +16,7 @@ const appVersion = document.querySelector("#appVersion");
 const metricSla = document.querySelector("#metricSla");
 const metricBreached = document.querySelector("#metricBreached");
 const metricRemaining = document.querySelector("#metricRemaining");
+const slaFilteredCount = document.querySelector("#slaFilteredCount");
 const slaDonut = document.querySelector("#slaDonut");
 const slaDetailDonut = document.querySelector("#slaDetailDonut");
 const slaDetailCompliance = document.querySelector("#slaDetailCompliance");
@@ -22,6 +24,16 @@ const statusBars = document.querySelector("#statusBars");
 const urgencyBars = document.querySelector("#urgencyBars");
 const slaStatusBars = document.querySelector("#slaStatusBars");
 const slaUrgencyBars = document.querySelector("#slaUrgencyBars");
+const slaTicketTable = document.querySelector("#slaTicketTable");
+const slaReportMeta = document.querySelector("#slaReportMeta");
+const slaDateFrom = document.querySelector("#slaDateFrom");
+const slaDateTo = document.querySelector("#slaDateTo");
+const slaStatusFilter = document.querySelector("#slaStatusFilter");
+const slaAreaFilter = document.querySelector("#slaAreaFilter");
+const slaUrgencyFilter = document.querySelector("#slaUrgencyFilter");
+const slaStateFilter = document.querySelector("#slaStateFilter");
+const slaTimeFilter = document.querySelector("#slaTimeFilter");
+const slaSearchFilter = document.querySelector("#slaSearchFilter");
 
 let currentFilter = "todos";
 let boardView = "cards";
@@ -71,7 +83,6 @@ function renderStats(stats) {
   statOpen.textContent = stats.open;
   metricSla.textContent = `${compliance}%`;
   metricBreached.textContent = stats.breached;
-  metricRemaining.textContent = `${stats.avgRemainingHours || 0}h`;
   slaDetailCompliance.textContent = `${compliance}%`;
   slaDonut.style.setProperty("--value", compliance);
   slaDetailDonut.style.setProperty("--value", compliance);
@@ -99,6 +110,10 @@ function escapeHtml(value) {
 }
 
 function renderBars(container, items, values) {
+  if (!container) {
+    return;
+  }
+
   const max = Math.max(...items.map(item => values[item.key] || 0), 1);
 
   container.innerHTML = items
@@ -138,6 +153,139 @@ function renderTickets() {
 
   kanbanBoard.innerHTML = "";
   renderTicketList(visibleTickets);
+}
+
+function renderSlaFilters() {
+  const areas = [...new Set(cachedTickets.map(ticket => ticket.area).filter(Boolean))].sort();
+  const currentArea = slaAreaFilter.value || "todos";
+
+  slaAreaFilter.innerHTML = `
+    <option value="todos">Todas</option>
+    ${areas.map(area => `<option value="${escapeHtml(area)}">${escapeHtml(area)}</option>`).join("")}
+  `;
+
+  if (areas.includes(currentArea)) {
+    slaAreaFilter.value = currentArea;
+  }
+}
+
+function getFilteredSlaTickets() {
+  const from = slaDateFrom.value ? new Date(`${slaDateFrom.value}T00:00:00`) : null;
+  const to = slaDateTo.value ? new Date(`${slaDateTo.value}T23:59:59`) : null;
+  const status = slaStatusFilter.value;
+  const area = slaAreaFilter.value;
+  const urgency = slaUrgencyFilter.value;
+  const slaState = slaStateFilter.value;
+  const timeLimit = slaTimeFilter.value === "todos" ? null : Number(slaTimeFilter.value);
+  const search = slaSearchFilter.value.trim().toLowerCase();
+
+  return cachedTickets.filter(ticket => {
+    const createdAt = new Date(ticket.createdAt);
+    const text = `${ticket.id} ${ticket.name} ${ticket.contact} ${ticket.area}`.toLowerCase();
+
+    if (from && createdAt < from) return false;
+    if (to && createdAt > to) return false;
+    if (status !== "todos" && ticket.status !== status) return false;
+    if (area !== "todos" && ticket.area !== area) return false;
+    if (urgency !== "todos" && ticket.urgency !== urgency) return false;
+    if (slaState === "vigente" && ticket.sla.breached) return false;
+    if (slaState === "vencido" && !ticket.sla.breached) return false;
+    if (timeLimit !== null && ticket.sla.remainingHours > timeLimit) return false;
+    if (search && !text.includes(search)) return false;
+
+    return true;
+  });
+}
+
+function summarizeTickets(tickets) {
+  const activeTickets = tickets.filter(ticket => ticket.status !== "resuelto");
+  const breachedTickets = activeTickets.filter(ticket => ticket.sla.breached);
+  const byStatus = statuses.reduce((summary, status) => {
+    summary[status.key] = tickets.filter(ticket => ticket.status === status.key).length;
+    return summary;
+  }, {});
+  const byUrgency = urgencies.reduce((summary, urgency) => {
+    summary[urgency.key] = tickets.filter(ticket => ticket.urgency === urgency.key).length;
+    return summary;
+  }, {});
+  const compliance =
+    activeTickets.length === 0
+      ? 100
+      : Math.round(((activeTickets.length - breachedTickets.length) / activeTickets.length) * 100);
+  const avgRemainingHours =
+    activeTickets.length === 0
+      ? 0
+      : Number(
+          (
+            activeTickets.reduce((total, ticket) => total + ticket.sla.remainingHours, 0) /
+            activeTickets.length
+          ).toFixed(1)
+        );
+
+  return { byStatus, byUrgency, compliance, avgRemainingHours, breached: breachedTickets.length };
+}
+
+function renderSlaReport() {
+  const filteredTickets = getFilteredSlaTickets();
+  const summary = summarizeTickets(filteredTickets);
+
+  slaFilteredCount.textContent = filteredTickets.length;
+  slaDetailCompliance.textContent = `${summary.compliance}%`;
+  metricRemaining.textContent = `${summary.avgRemainingHours}h`;
+  slaDetailDonut.style.setProperty("--value", summary.compliance);
+  renderBars(slaStatusBars, statuses, summary.byStatus);
+  renderBars(slaUrgencyBars, urgencies, summary.byUrgency);
+  slaReportMeta.textContent = `Generado ${formatDate.format(new Date())} · ${filteredTickets.length} tickets`;
+  renderSlaTicketTable(filteredTickets);
+}
+
+function renderSlaTicketTable(tickets) {
+  if (tickets.length === 0) {
+    slaTicketTable.innerHTML = '<p class="empty">No hay tickets para los filtros seleccionados.</p>';
+    return;
+  }
+
+  slaTicketTable.innerHTML = `
+    <div class="tableWrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticket</th>
+            <th>Fecha</th>
+            <th>Solicitante</th>
+            <th>Contacto</th>
+            <th>Área</th>
+            <th>Urgencia</th>
+            <th>Estado</th>
+            <th>SLA</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tickets
+            .map(ticket => {
+              const slaText = ticket.sla.breached ? "Vencido" : `${ticket.sla.remainingHours}h`;
+              return `
+                <tr>
+                  <td>${escapeHtml(ticket.id)}</td>
+                  <td>${formatDate.format(new Date(ticket.createdAt))}</td>
+                  <td>${escapeHtml(ticket.name)}</td>
+                  <td>${escapeHtml(ticket.contact)}</td>
+                  <td>${escapeHtml(ticket.area)}</td>
+                  <td><span class="badge ${escapeHtml(ticket.urgency)}">${escapeHtml(ticket.urgency)}</span></td>
+                  <td>${escapeHtml(getLabel(statuses, ticket.status))}</td>
+                  <td><span class="sla ${ticket.sla.breached ? "breached" : ""}">${slaText}</span></td>
+                </tr>
+              `;
+            })
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function getLabel(items, key) {
+  return items.find(item => item.key === key)?.label || key;
 }
 
 function renderKanban(tickets) {
@@ -248,8 +396,10 @@ async function refresh() {
   ]);
 
   cachedTickets = tickets;
+  renderSlaFilters();
   renderTickets();
   renderStats(stats);
+  renderSlaReport();
   renderVersion(version);
 }
 
@@ -266,6 +416,7 @@ cancelCreateButton.addEventListener("click", () => {
 });
 
 slaButton.addEventListener("click", () => {
+  renderSlaReport();
   showView("sla");
 });
 
@@ -273,9 +424,30 @@ backToOverviewButton.addEventListener("click", () => {
   showView("overview");
 });
 
+exportSlaButton.addEventListener("click", () => {
+  renderSlaReport();
+  document.body.classList.add("printing-sla");
+  window.print();
+  setTimeout(() => document.body.classList.remove("printing-sla"), 500);
+});
+
 statusFilter.addEventListener("change", event => {
   currentFilter = event.target.value;
   renderTickets();
+});
+
+[
+  slaDateFrom,
+  slaDateTo,
+  slaStatusFilter,
+  slaAreaFilter,
+  slaUrgencyFilter,
+  slaStateFilter,
+  slaTimeFilter,
+  slaSearchFilter
+].forEach(input => {
+  input.addEventListener("input", renderSlaReport);
+  input.addEventListener("change", renderSlaReport);
 });
 
 document.querySelectorAll("[data-board-view]").forEach(button => {

@@ -12,7 +12,7 @@
         <div>
           <p class="eyebrow">Neurofic</p>
           <h1>NeuroDesk</h1>
-          <p id="appVersion" class="version">v0.2.1</p>
+          <p id="appVersion" class="version">v0.3.0</p>
         </div>
         <div class="topActions" aria-label="Acciones principales">
           <button id="createTicketButton" class="primaryAction" type="button">Crear ticket</button>
@@ -38,11 +38,6 @@
             <h2>SLA vencido</h2>
             <strong id="metricBreached">0</strong>
             <p>Casos fuera del acuerdo.</p>
-          </article>
-          <article class="metricCard">
-            <h2>Promedio restante</h2>
-            <strong id="metricRemaining">0h</strong>
-            <p>Tiempo promedio antes de vencer.</p>
           </article>
           <article class="chartPanel miniChart">
             <div class="panelHeader">
@@ -134,14 +129,84 @@
             <h2>Estadísticas SLA</h2>
             <p>Vista dedicada para revisar cumplimiento, vencidos y distribución.</p>
           </div>
-          <button id="backToOverviewButton" class="ghostButton" type="button">Volver</button>
+          <div class="sectionActions">
+            <button id="exportSlaButton" class="primaryAction" type="button">Exportar PDF</button>
+            <button id="backToOverviewButton" class="ghostButton" type="button">Volver</button>
+          </div>
         </div>
+        <section class="filterPanel" aria-label="Filtros de SLA">
+          <label>
+            Desde
+            <input id="slaDateFrom" type="date">
+          </label>
+          <label>
+            Hasta
+            <input id="slaDateTo" type="date">
+          </label>
+          <label>
+            Estado
+            <select id="slaStatusFilter">
+              <option value="todos">Todos</option>
+              <option value="abierto">Abierto</option>
+              <option value="en_proceso">En proceso</option>
+              <option value="en_espera">En espera</option>
+              <option value="resuelto">Resuelto</option>
+            </select>
+          </label>
+          <label>
+            Área
+            <select id="slaAreaFilter">
+              <option value="todos">Todas</option>
+            </select>
+          </label>
+          <label>
+            Urgencia
+            <select id="slaUrgencyFilter">
+              <option value="todos">Todas</option>
+              <option value="baja">Baja</option>
+              <option value="media">Media</option>
+              <option value="alta">Alta</option>
+              <option value="critica">Crítica</option>
+            </select>
+          </label>
+          <label>
+            SLA
+            <select id="slaStateFilter">
+              <option value="todos">Todos</option>
+              <option value="vigente">Vigente</option>
+              <option value="vencido">Vencido</option>
+            </select>
+          </label>
+          <label>
+            Tiempo restante
+            <select id="slaTimeFilter">
+              <option value="todos">Todos</option>
+              <option value="1">Menos de 1h</option>
+              <option value="4">Menos de 4h</option>
+              <option value="8">Menos de 8h</option>
+            </select>
+          </label>
+          <label>
+            Buscar
+            <input id="slaSearchFilter" type="search" placeholder="Ticket, contacto o área">
+          </label>
+        </section>
         <section class="slaDetailGrid">
           <article class="metricCard heroMetric">
             <h2>Cumplimiento</h2>
             <div class="donut large" id="slaDetailDonut" style="--value: 100">
               <span id="slaDetailCompliance">100%</span>
             </div>
+          </article>
+          <article class="metricCard">
+            <h2>Tickets filtrados</h2>
+            <strong id="slaFilteredCount">0</strong>
+            <p>Resultado del filtro aplicado.</p>
+          </article>
+          <article class="metricCard">
+            <h2>Promedio restante</h2>
+            <strong id="metricRemaining">0h</strong>
+            <p>Tiempo promedio antes de vencer.</p>
           </article>
           <article class="chartPanel">
             <div class="panelHeader">
@@ -157,6 +222,13 @@
             </div>
             <div id="slaUrgencyBars" class="statusBars"></div>
           </article>
+        </section>
+        <section class="chartPanel reportTable">
+          <div class="panelHeader">
+            <h2>Detalle filtrado</h2>
+            <p id="slaReportMeta">Reporte SLA NeuroDesk</p>
+          </div>
+          <div id="slaTicketTable"></div>
         </section>
       </section>
     </main>

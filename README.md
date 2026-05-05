@@ -30,6 +30,12 @@ http://localhost:3000
 - `GET /api/stats`: devuelve métricas básicas.
 - `POST /api/email/inbound`: punto inicial para integrar creación desde correo.
 
+## SLA y reportes
+
+- La pantalla inicial muestra indicadores resumidos para lectura rápida.
+- La vista `SLA` permite filtrar por fechas, estado, area, urgencia, vencimiento, tiempo restante y busqueda.
+- El boton `Exportar PDF` abre la impresion del navegador con el reporte SLA listo para guardar como PDF.
+
 ## Datos mínimos del ticket
 
 - `name`: nombre del solicitante.
