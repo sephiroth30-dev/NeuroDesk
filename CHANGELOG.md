@@ -2,6 +2,21 @@
 
 Todas las versiones importantes de NeuroDesk quedaran documentadas en este archivo.
 
+## [0.3.1] - 2026-05-04
+
+### Cambiado
+
+- Se reemplaza la franja de métricas inicial por tres gráficas de dona a pantalla completa como visor de salud operativa.
+- La dona de Adherencia SLA cambia de color dinámicamente: verde ≥80 %, ámbar ≥50 %, rojo <50 %.
+- La dona de Tickets activos se llena según la proporción de tickets activos vs. resueltos.
+- La dona de SLA vencido se llena según la tasa de incumplimiento (vencidos / activos).
+- Se elimina la duplicidad de barras de estado y urgencia del overview (quedan únicamente en la vista SLA).
+- Se renueva la paleta de colores: fondo azul-gris sutil, tarjetas blancas con sombras refinadas, tipografía más contrastada.
+- Se actualiza el header: tamaño del título reducido, sin degradado pesado, con borde izquierdo rojo como acento de marca.
+- Se mejora la responsividad en tres breakpoints (900 px, 760 px, 480 px): donuts se ajustan en tamaño y en móvil (<480 px) el layout pasa a columna única con las donuts en disposición horizontal.
+- Se oculta el número de versión del header para reducir ruido visual.
+- Se actualiza la versión visible de la app a `0.3.1`.
+
 ## [0.3.0] - 2026-05-05
 
 ### Agregado

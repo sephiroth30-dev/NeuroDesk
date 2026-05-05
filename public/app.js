@@ -18,6 +18,8 @@ const metricBreached = document.querySelector("#metricBreached");
 const metricRemaining = document.querySelector("#metricRemaining");
 const slaFilteredCount = document.querySelector("#slaFilteredCount");
 const slaDonut = document.querySelector("#slaDonut");
+const activeDonut = document.querySelector("#activeDonut");
+const breachedDonut = document.querySelector("#breachedDonut");
 const slaDetailDonut = document.querySelector("#slaDetailDonut");
 const slaDetailCompliance = document.querySelector("#slaDetailCompliance");
 const statusBars = document.querySelector("#statusBars");
@@ -78,14 +80,39 @@ function showView(viewName) {
   slaView.classList.toggle("active", viewName === "sla");
 }
 
+function complianceColor(pct) {
+  if (pct >= 80) return "var(--donut-ok)";
+  if (pct >= 50) return "var(--donut-warn)";
+  return "var(--donut-danger)";
+}
+
 function renderStats(stats) {
   const compliance = stats.slaCompliance || 0;
-  statOpen.textContent = stats.open;
+  const active = stats.open || 0;
+  const breached = stats.breached || 0;
+  const resolved = stats.byStatus?.resuelto || 0;
+  const total = active + resolved;
+
+  statOpen.textContent = active;
   metricSla.textContent = `${compliance}%`;
-  metricBreached.textContent = stats.breached;
+  metricBreached.textContent = breached;
   slaDetailCompliance.textContent = `${compliance}%`;
+
+  // Donut 1: SLA compliance (color reacts to health)
   slaDonut.style.setProperty("--value", compliance);
+  slaDonut.style.setProperty("--donut-color", complianceColor(compliance));
+
+  // Donut 2: active / total ratio (how loaded the queue is)
+  const activeRatio = total > 0 ? Math.round((active / total) * 100) : 0;
+  activeDonut.style.setProperty("--value", activeRatio);
+
+  // Donut 3: breached / active ratio (how bad things are)
+  const breachRate = active > 0 ? Math.round((breached / active) * 100) : 0;
+  breachedDonut.style.setProperty("--value", breachRate);
+
   slaDetailDonut.style.setProperty("--value", compliance);
+  slaDetailDonut.style.setProperty("--donut-color", complianceColor(compliance));
+
   renderBars(statusBars, statuses, stats.byStatus || {});
   renderBars(slaStatusBars, statuses, stats.byStatus || {});
   renderBars(urgencyBars, urgencies, stats.byUrgency || {});
