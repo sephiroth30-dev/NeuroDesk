@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>NeuroDesk</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar" aria-label="Resumen de NeuroDesk">
+        <div>
+          <p class="eyebrow">Neurofic</p>
+          <h1>NeuroDesk</h1>
+        </div>
+        <div class="stats" aria-live="polite">
+          <article>
+            <span id="statTotal">0</span>
+            <small>Tickets</small>
+          </article>
+          <article>
+            <span id="statOpen">0</span>
+            <small>Abiertos</small>
+          </article>
+          <article>
+            <span id="statSla">100%</span>
+            <small>SLA</small>
+          </article>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <form id="ticketForm" class="panel" autocomplete="off">
+          <div class="panelHeader">
+            <h2>Nuevo ticket</h2>
+            <p>Solo lo necesario para empezar.</p>
+          </div>
+
+          <label>
+            Nombre
+            <input id="name" name="name" type="text" placeholder="Nombre del solicitante" required>
+          </label>
+
+          <label>
+            Área
+            <input id="area" name="area" type="text" placeholder="Ej. Agenda, Facturación, Soporte" required>
+          </label>
+
+          <label>
+            Urgencia
+            <select id="urgency" name="urgency" required>
+              <option value="baja">Baja</option>
+              <option value="media" selected>Media</option>
+              <option value="alta">Alta</option>
+              <option value="critica">Crítica</option>
+            </select>
+          </label>
+
+          <button type="submit">Crear ticket</button>
+          <p id="formMessage" class="message" role="status"></p>
+        </form>
+
+        <section class="ticketBoard" aria-label="Tickets recientes">
+          <div class="panelHeader">
+            <h2>Tickets recientes</h2>
+            <p>Vista inicial para seguimiento rápido.</p>
+          </div>
+          <div id="ticketList" class="ticketList"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

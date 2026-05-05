@@ -1,0 +1,17 @@
+{
+  "name": "neurodesk",
+  "version": "0.1.0",
+  "description": "Mesa de soporte minimalista para Neurofic.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "support",
+    "tickets",
+    "sla"
+  ],
+  "author": "",
+  "license": "MIT"
+}
