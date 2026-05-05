@@ -18,7 +18,7 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
-## [6.0] - 2026-05-05 · commit `pendiente`
+## [6.0] - 2026-05-05 · commit `bd59d8d`
 
 ### Autenticación de equipo + pantalla de administración
 
