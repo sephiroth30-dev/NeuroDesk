@@ -765,6 +765,13 @@ async function loadEmailStatus() {
   } catch (_) {}
 }
 
+document.querySelector("#toggleEmailPassword").addEventListener("click", () => {
+  const input = document.querySelector("#emailPassword");
+  const btn   = document.querySelector("#toggleEmailPassword");
+  if (input.type === "password") { input.type = "text";     btn.textContent = "🙈"; }
+  else                           { input.type = "password"; btn.textContent = "👁";  }
+});
+
 document.querySelector("#emailConfigForm").addEventListener("submit", async e => {
   e.preventDefault();
   const result = document.querySelector("#emailTestResult");

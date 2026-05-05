@@ -18,6 +18,15 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [7.5] - 2026-05-05
+
+### Ojito en contraseña + limpieza de espacios App Password
+
+- Botón 👁/🙈 en el campo Contraseña del tab Correo entrante para ver/ocultar
+- Los espacios del App Password de Google (ej. `medz aopx eeuk vbzq`) se eliminan automáticamente antes de enviarse a IMAP — Google los muestra con espacios por legibilidad pero IMAP los requiere sin ellos
+
+---
+
 ## [7.4] - 2026-05-05
 
 ### Portal con campos Asunto y Descripción + mensajes IMAP claros

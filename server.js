@@ -387,7 +387,7 @@ async function pollEmails() {
 
   const client = new ImapFlow({
     host: emailConfig.host, port: emailConfig.port, secure: emailConfig.secure,
-    auth: { user: emailConfig.username, pass: emailConfig.password },
+    auth: { user: emailConfig.username, pass: (emailConfig.password || "").replace(/\s/g, "") },
     logger: false
   });
 
@@ -434,7 +434,7 @@ async function pollEmails() {
 async function testEmailConnection(cfg) {
   const client = new ImapFlow({
     host: cfg.host, port: parseInt(cfg.port) || 993, secure: cfg.secure !== false,
-    auth: { user: cfg.username, pass: cfg.password },
+    auth: { user: cfg.username, pass: (cfg.password || "").replace(/\s/g, "") },
     logger: false
   });
   try { await client.connect(); await client.logout(); return { ok: true }; }

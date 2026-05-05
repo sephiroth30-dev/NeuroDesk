@@ -1281,6 +1281,37 @@ label .fieldLabel { display: block; }
   .topActions   { flex-wrap: wrap; }
 }
 
+/* ── Password toggle ── */
+.passwordWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.passwordWrapper input {
+  padding-right: 42px;
+  width: 100%;
+}
+
+.eyeBtn {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+
+.eyeBtn:hover { color: var(--text); }
+
 /* ── Email settings ── */
 .settingsForm .toggleRow {
   display: flex;
