@@ -1,6 +1,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { DatabaseSync } = require("node:sqlite");
 
 const PORT = process.env.PORT || 3000;
@@ -33,6 +34,56 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    username TEXT PRIMARY KEY,
+    password_hash TEXT NOT NULL,
+    salt TEXT NOT NULL
+  );
+`);
+
+// ── Sessions (in-memory, 24 h) ────────────────────────────────────────────────
+
+const sessions = new Map();
+const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const SESSION_COOKIE_MAX_AGE = 86400;
+
+function hashPassword(password, salt) {
+  return crypto.createHash("sha256").update(salt + password).digest("hex");
+}
+
+function createSession(username) {
+  const token = crypto.randomBytes(32).toString("hex");
+  sessions.set(token, { username, expiresAt: Date.now() + SESSION_MAX_AGE_MS });
+  return token;
+}
+
+function getSession(token) {
+  if (!token) return null;
+  const session = sessions.get(token);
+  if (!session) return null;
+  if (Date.now() > session.expiresAt) { sessions.delete(token); return null; }
+  return session;
+}
+
+function parseCookies(req) {
+  const cookies = {};
+  (req.headers.cookie || "").split(";").forEach(part => {
+    const idx = part.indexOf("=");
+    if (idx < 0) return;
+    const name = part.slice(0, idx).trim();
+    const value = part.slice(idx + 1).trim();
+    if (name) cookies[name] = decodeURIComponent(value);
+  });
+  return cookies;
+}
+
+function getAuthSession(req) {
+  return getSession(parseCookies(req).nd_session || "");
+}
+
+// ── Config defaults ───────────────────────────────────────────────────────────
+
 const DEFAULT_CONFIG = {
   sla: { baja: 24, media: 8, alta: 4, critica: 1 },
   fields: {
@@ -53,42 +104,30 @@ const contentTypes = {
   ".svg": "image/svg+xml"
 };
 
-const countTicketsStmt = db.prepare("SELECT COUNT(*) AS total FROM tickets");
-const listTicketsStmt = db.prepare(`
-  SELECT
-    id,
-    name,
-    contact,
-    area,
-    urgency,
-    status,
-    source,
-    created_at AS createdAt
-  FROM tickets
-  ORDER BY created_at DESC
-`);
-const nextTicketNumberStmt = db.prepare(`
-  SELECT COALESCE(MAX(CAST(SUBSTR(id, 4) AS INTEGER)), 1000) + 1 AS nextNumber
-  FROM tickets
-  WHERE id LIKE 'ND-%'
-`);
-const insertTicketStmt = db.prepare(`
-  INSERT INTO tickets (id, name, contact, area, urgency, status, source, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-`);
+// ── Prepared statements ───────────────────────────────────────────────────────
+
+const countTicketsStmt       = db.prepare("SELECT COUNT(*) AS total FROM tickets");
+const listTicketsStmt        = db.prepare(`SELECT id, name, contact, area, urgency, status, source, created_at AS createdAt FROM tickets ORDER BY created_at DESC`);
+const nextTicketNumberStmt   = db.prepare(`SELECT COALESCE(MAX(CAST(SUBSTR(id, 4) AS INTEGER)), 1000) + 1 AS nextNumber FROM tickets WHERE id LIKE 'ND-%'`);
+const insertTicketStmt       = db.prepare(`INSERT INTO tickets (id, name, contact, area, urgency, status, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
 const updateTicketStatusStmt = db.prepare("UPDATE tickets SET status = ? WHERE id = ?");
-const updateTicketFullStmt = db.prepare(`
-  UPDATE tickets SET name = ?, contact = ?, area = ?, urgency = ?, status = ? WHERE id = ?
-`);
-const upsertConfigStmt = db.prepare(`
-  INSERT INTO config (key, value) VALUES (?, ?)
-  ON CONFLICT(key) DO UPDATE SET value = excluded.value
-`);
-const getConfigStmt = db.prepare("SELECT value FROM config WHERE key = 'app_config'");
+const updateTicketFullStmt   = db.prepare(`UPDATE tickets SET name = ?, contact = ?, area = ?, urgency = ?, status = ? WHERE id = ?`);
+const deleteTicketStmt       = db.prepare("DELETE FROM tickets WHERE id = ?");
+const upsertConfigStmt       = db.prepare(`INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
+const getConfigStmt          = db.prepare("SELECT value FROM config WHERE key = 'app_config'");
+const countUsersStmt         = db.prepare("SELECT COUNT(*) AS total FROM users");
+const getUserStmt            = db.prepare("SELECT * FROM users WHERE username = ?");
+const insertUserStmt         = db.prepare("INSERT INTO users (username, password_hash, salt) VALUES (?, ?, ?)");
+const updatePasswordStmt     = db.prepare("UPDATE users SET password_hash = ?, salt = ? WHERE username = ?");
+
+// ── Init ──────────────────────────────────────────────────────────────────────
 
 migrateDatabase();
 loadConfig();
 seedDemoTicket();
+seedAdminUser();
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function sendJson(res, status, data) {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
@@ -100,21 +139,20 @@ function sendStatic(req, res) {
   const safePath = path.normalize(decodeURIComponent(requestedPath)).replace(/^(\.\.[/\\])+/, "");
   const filePath = path.join(PUBLIC_DIR, safePath);
 
-  if (!filePath.startsWith(PUBLIC_DIR)) {
-    res.writeHead(403);
-    res.end("Forbidden");
-    return;
-  }
+  if (!filePath.startsWith(PUBLIC_DIR)) { res.writeHead(403); res.end("Forbidden"); return; }
 
   fs.readFile(filePath, (error, data) => {
-    if (error) {
-      res.writeHead(404);
-      res.end("Not found");
-      return;
-    }
-
+    if (error) { res.writeHead(404); res.end("Not found"); return; }
     const ext = path.extname(filePath);
     res.writeHead(200, { "Content-Type": contentTypes[ext] || "application/octet-stream" });
+    res.end(data);
+  });
+}
+
+function serveFile(res, filename) {
+  fs.readFile(path.join(PUBLIC_DIR, filename), (err, data) => {
+    if (err) { res.writeHead(404); res.end("Not found"); return; }
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     res.end(data);
   });
 }
@@ -122,26 +160,10 @@ function sendStatic(req, res) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let body = "";
-
-    req.on("data", chunk => {
-      body += chunk;
-      if (body.length > 1_000_000) {
-        req.destroy();
-        reject(new Error("Payload too large"));
-      }
-    });
-
+    req.on("data", chunk => { body += chunk; if (body.length > 1_000_000) { req.destroy(); reject(new Error("Payload too large")); } });
     req.on("end", () => {
-      if (!body) {
-        resolve({});
-        return;
-      }
-
-      try {
-        resolve(JSON.parse(body));
-      } catch (error) {
-        reject(error);
-      }
+      if (!body) { resolve({}); return; }
+      try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
     });
   });
 }
@@ -149,7 +171,6 @@ function readBody(req) {
 function deepMerge(defaults, overrides) {
   const result = JSON.parse(JSON.stringify(defaults));
   if (!overrides || typeof overrides !== "object") return result;
-
   for (const key of Object.keys(result)) {
     if (key in overrides) {
       if (typeof result[key] === "object" && result[key] !== null && !Array.isArray(result[key])) {
@@ -159,19 +180,15 @@ function deepMerge(defaults, overrides) {
       }
     }
   }
-
   return result;
 }
+
+// ── Config ────────────────────────────────────────────────────────────────────
 
 function loadConfig() {
   const row = getConfigStmt.get();
   if (!row) return;
-
-  try {
-    appConfig = deepMerge(DEFAULT_CONFIG, JSON.parse(row.value));
-  } catch (_) {
-    // corrupted config — keep defaults
-  }
+  try { appConfig = deepMerge(DEFAULT_CONFIG, JSON.parse(row.value)); } catch (_) {}
 }
 
 function saveConfig(incoming) {
@@ -198,54 +215,38 @@ function saveConfig(incoming) {
   return appConfig;
 }
 
+// ── Tickets ───────────────────────────────────────────────────────────────────
+
 function normalizeTicket(input, source = "web") {
   const name = String(input.name || "").trim();
   const contact = String(input.contact || "").trim();
   const area = String(input.area || "").trim() || "General";
   const urgency = String(input.urgency || "").trim().toLowerCase();
 
-  if (!name || !appConfig.sla[urgency]) {
-    return null;
-  }
+  if (!name || !appConfig.sla[urgency]) return null;
 
-  return {
-    id: getNextTicketId(),
-    name,
-    contact,
-    area,
-    urgency,
-    status: "abierto",
-    source,
-    createdAt: new Date().toISOString()
-  };
+  return { id: getNextTicketId(), name, contact, area, urgency, status: "abierto", source, createdAt: new Date().toISOString() };
 }
 
 function migrateDatabase() {
   const columns = db.prepare("PRAGMA table_info(tickets)").all();
-  const hasContact = columns.some(column => column.name === "contact");
-
-  if (!hasContact) {
-    db.exec("ALTER TABLE tickets ADD COLUMN contact TEXT");
-  }
+  if (!columns.some(c => c.name === "contact")) db.exec("ALTER TABLE tickets ADD COLUMN contact TEXT");
 }
 
 function seedDemoTicket() {
   const { total } = countTicketsStmt.get();
+  if (total > 0) return;
+  insertTicket({ id: "ND-1001", name: "Paciente demo", contact: "demo@neurofic.com", area: "Agenda", urgency: "media", status: "abierto", source: "web", createdAt: new Date(Date.now() - 42 * 60 * 1000).toISOString() });
+}
 
-  if (total > 0) {
-    return;
-  }
-
-  insertTicket({
-    id: "ND-1001",
-    name: "Paciente demo",
-    contact: "demo@neurofic.com",
-    area: "Agenda",
-    urgency: "media",
-    status: "abierto",
-    source: "web",
-    createdAt: new Date(Date.now() - 42 * 60 * 1000).toISOString()
-  });
+function seedAdminUser() {
+  const { total } = countUsersStmt.get();
+  if (total > 0) return;
+  const username = process.env.ND_USER || "admin";
+  const password = process.env.ND_PASS || "neurofic";
+  const salt = crypto.randomBytes(16).toString("hex");
+  insertUserStmt.run(username, hashPassword(password, salt), salt);
+  console.log(`Credenciales iniciales → usuario: ${username}  contraseña: ${password}`);
 }
 
 function getNextTicketId() {
@@ -254,35 +255,17 @@ function getNextTicketId() {
 }
 
 function insertTicket(ticket) {
-  insertTicketStmt.run(
-    ticket.id,
-    ticket.name,
-    ticket.contact,
-    ticket.area,
-    ticket.urgency,
-    ticket.status,
-    ticket.source,
-    ticket.createdAt
-  );
+  insertTicketStmt.run(ticket.id, ticket.name, ticket.contact, ticket.area, ticket.urgency, ticket.status, ticket.source, ticket.createdAt);
   return ticket;
 }
 
-function getTickets() {
-  return listTicketsStmt.all();
-}
+function getTickets() { return listTicketsStmt.all(); }
 
 function updateTicketStatus(id, status) {
-  if (!ticketStatuses.includes(status)) {
-    return null;
-  }
-
+  if (!ticketStatuses.includes(status)) return null;
   const result = updateTicketStatusStmt.run(status, id);
-
-  if (result.changes === 0) {
-    return null;
-  }
-
-  return getTickets().find(ticket => ticket.id === id);
+  if (result.changes === 0) return null;
+  return getTickets().find(t => t.id === id);
 }
 
 function updateTicketFull(id, data) {
@@ -292,176 +275,93 @@ function updateTicketFull(id, data) {
   const urgency = String(data.urgency || "").trim().toLowerCase();
   const status = String(data.status || "").trim();
 
-  if (!name || !appConfig.sla[urgency] || !ticketStatuses.includes(status)) {
-    return null;
-  }
-
+  if (!name || !appConfig.sla[urgency] || !ticketStatuses.includes(status)) return null;
   const result = updateTicketFullStmt.run(name, contact, area, urgency, status, id);
-
-  if (result.changes === 0) {
-    return null;
-  }
-
-  return getTickets().find(ticket => ticket.id === id);
+  if (result.changes === 0) return null;
+  return getTickets().find(t => t.id === id);
 }
 
 function getSlaState(ticket) {
-  const createdAt = new Date(ticket.createdAt).getTime();
-  const elapsedHours = (Date.now() - createdAt) / 36e5;
+  const elapsedHours = (Date.now() - new Date(ticket.createdAt).getTime()) / 36e5;
   const limitHours = appConfig.sla[ticket.urgency] || 8;
-  const remainingHours = Math.max(limitHours - elapsedHours, 0);
-
-  return {
-    limitHours,
-    remainingHours: Number(remainingHours.toFixed(1)),
-    breached: elapsedHours > limitHours
-  };
+  return { limitHours, remainingHours: Number(Math.max(limitHours - elapsedHours, 0).toFixed(1)), breached: elapsedHours > limitHours };
 }
 
 function getStats() {
   const tickets = getTickets();
-  const activeTickets = tickets.filter(ticket => ticket.status !== "resuelto");
-  const breachedTickets = activeTickets.filter(ticket => getSlaState(ticket).breached);
-  const byStatus = ticketStatuses.reduce((summary, status) => {
-    summary[status] = tickets.filter(ticket => ticket.status === status).length;
-    return summary;
-  }, {});
-  const byUrgency = Object.keys(appConfig.sla).reduce((summary, urgency) => {
-    summary[urgency] = tickets.filter(ticket => ticket.urgency === urgency).length;
-    return summary;
-  }, {});
-  const avgRemainingHours =
-    activeTickets.length === 0
-      ? 0
-      : Number(
-          (
-            activeTickets.reduce((total, ticket) => total + getSlaState(ticket).remainingHours, 0) /
-            activeTickets.length
-          ).toFixed(1)
-        );
-
+  const active = tickets.filter(t => t.status !== "resuelto");
+  const breached = active.filter(t => getSlaState(t).breached);
+  const byStatus = ticketStatuses.reduce((s, st) => { s[st] = tickets.filter(t => t.status === st).length; return s; }, {});
+  const byUrgency = Object.keys(appConfig.sla).reduce((s, u) => { s[u] = tickets.filter(t => t.urgency === u).length; return s; }, {});
+  const avgRemainingHours = active.length === 0 ? 0 : Number((active.reduce((sum, t) => sum + getSlaState(t).remainingHours, 0) / active.length).toFixed(1));
   return {
-    total: tickets.length,
-    open: activeTickets.length,
-    breached: breachedTickets.length,
-    byStatus,
-    byUrgency,
-    avgRemainingHours,
-    slaCompliance:
-      activeTickets.length === 0
-        ? 100
-        : Math.round(((activeTickets.length - breachedTickets.length) / activeTickets.length) * 100)
+    total: tickets.length, open: active.length, breached: breached.length,
+    byStatus, byUrgency, avgRemainingHours,
+    slaCompliance: active.length === 0 ? 100 : Math.round(((active.length - breached.length) / active.length) * 100)
   };
 }
 
-async function handleApi(req, res) {
-  if (req.method === "GET" && req.url === "/api/version") {
-    sendJson(res, 200, { version: packageInfo.version });
+// ── Auth handler ──────────────────────────────────────────────────────────────
+
+async function handleAuth(req, res) {
+  if (req.method === "GET" && req.url === "/api/auth/me") {
+    const session = getAuthSession(req);
+    if (!session) { sendJson(res, 401, { error: "No autenticado." }); return; }
+    sendJson(res, 200, { username: session.username });
     return;
   }
 
-  if (req.method === "GET" && req.url === "/api/config") {
-    sendJson(res, 200, appConfig);
-    return;
-  }
-
-  if (req.method === "PUT" && req.url === "/api/config") {
+  if (req.method === "POST" && req.url === "/api/auth/login") {
     try {
       const body = await readBody(req);
-      const updated = saveConfig(body);
-      sendJson(res, 200, updated);
-    } catch (error) {
-      sendJson(res, 400, { error: "No se pudo guardar la configuración." });
-    }
-    return;
-  }
-
-  if (req.method === "GET" && req.url === "/api/tickets") {
-    const tickets = getTickets();
-    sendJson(res, 200, tickets.map(ticket => ({ ...ticket, sla: getSlaState(ticket) })));
-    return;
-  }
-
-  if (req.method === "GET" && req.url === "/api/stats") {
-    sendJson(res, 200, getStats());
-    return;
-  }
-
-  if (req.method === "POST" && req.url === "/api/tickets") {
-    try {
-      const body = await readBody(req);
-      const ticket = normalizeTicket(body, "web");
-
-      if (!ticket) {
-        sendJson(res, 400, { error: "Nombre y urgencia válida son obligatorios." });
+      const username = String(body.username || "").trim().toLowerCase();
+      const password = String(body.password || "");
+      const user = getUserStmt.get(username);
+      if (!user || hashPassword(password, user.salt) !== user.password_hash) {
+        sendJson(res, 401, { error: "Usuario o contraseña incorrectos." });
         return;
       }
-
-      sendJson(res, 201, insertTicket(ticket));
-    } catch (error) {
+      const token = createSession(username);
+      res.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Set-Cookie": `nd_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_COOKIE_MAX_AGE}`
+      });
+      res.end(JSON.stringify({ username }));
+    } catch {
       sendJson(res, 400, { error: "No se pudo leer la solicitud." });
     }
     return;
   }
 
-  if (req.method === "PATCH" && req.url.startsWith("/api/tickets/") && req.url.endsWith("/status")) {
-    try {
-      const id = decodeURIComponent(req.url.split("/")[3] || "");
-      const body = await readBody(req);
-      const status = String(body.status || "").trim();
-      const ticket = updateTicketStatus(id, status);
-
-      if (!ticket) {
-        sendJson(res, 400, { error: "Ticket no encontrado o estado inválido." });
-        return;
-      }
-
-      sendJson(res, 200, { ...ticket, sla: getSlaState(ticket) });
-    } catch (error) {
-      sendJson(res, 400, { error: "No se pudo actualizar el estado." });
-    }
+  if (req.method === "POST" && req.url === "/api/auth/logout") {
+    const cookies = parseCookies(req);
+    if (cookies.nd_session) sessions.delete(cookies.nd_session);
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Set-Cookie": "nd_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"
+    });
+    res.end(JSON.stringify({ ok: true }));
     return;
   }
 
-  if (req.method === "PATCH" && /^\/api\/tickets\/[^/]+$/.test(req.url)) {
-    try {
-      const id = decodeURIComponent(req.url.split("/")[3] || "");
-      const body = await readBody(req);
-      const ticket = updateTicketFull(id, body);
-
-      if (!ticket) {
-        sendJson(res, 400, { error: "Ticket no encontrado o datos inválidos." });
-        return;
-      }
-
-      sendJson(res, 200, { ...ticket, sla: getSlaState(ticket) });
-    } catch (error) {
-      sendJson(res, 400, { error: "No se pudo actualizar el ticket." });
-    }
-    return;
-  }
-
-  if (req.method === "POST" && req.url === "/api/email/inbound") {
+  if (req.method === "POST" && req.url === "/api/auth/password") {
+    const session = getAuthSession(req);
+    if (!session) { sendJson(res, 401, { error: "No autenticado." }); return; }
     try {
       const body = await readBody(req);
-      const ticket = normalizeTicket(
-        {
-          name: body.from || body.name,
-          contact: body.from || body.contact,
-          area: body.area || "Correo",
-          urgency: body.urgency || "media"
-        },
-        "email"
-      );
-
-      if (!ticket) {
-        sendJson(res, 400, { error: "El correo no contiene datos suficientes para crear el ticket." });
+      const current = String(body.current || "");
+      const newPass = String(body.password || "").trim();
+      if (newPass.length < 4) { sendJson(res, 400, { error: "Mínimo 4 caracteres." }); return; }
+      const user = getUserStmt.get(session.username);
+      if (!user || hashPassword(current, user.salt) !== user.password_hash) {
+        sendJson(res, 401, { error: "Contraseña actual incorrecta." });
         return;
       }
-
-      sendJson(res, 201, insertTicket(ticket));
-    } catch (error) {
-      sendJson(res, 400, { error: "No se pudo procesar el correo entrante." });
+      const newSalt = crypto.randomBytes(16).toString("hex");
+      updatePasswordStmt.run(hashPassword(newPass, newSalt), newSalt, session.username);
+      sendJson(res, 200, { ok: true });
+    } catch {
+      sendJson(res, 400, { error: "No se pudo cambiar la contraseña." });
     }
     return;
   }
@@ -469,24 +369,133 @@ async function handleApi(req, res) {
   sendJson(res, 404, { error: "Ruta no encontrada." });
 }
 
-const server = http.createServer((req, res) => {
-  if (req.url.startsWith("/api/")) {
-    handleApi(req, res);
+// ── API handler ───────────────────────────────────────────────────────────────
+
+async function handleApi(req, res) {
+  if (req.method === "GET" && req.url === "/api/version") {
+    sendJson(res, 200, { version: packageInfo.version }); return;
+  }
+
+  if (req.method === "GET" && req.url === "/api/config") {
+    sendJson(res, 200, appConfig); return;
+  }
+
+  if (req.method === "PUT" && req.url === "/api/config") {
+    try { sendJson(res, 200, saveConfig(await readBody(req))); }
+    catch { sendJson(res, 400, { error: "No se pudo guardar la configuración." }); }
     return;
   }
 
-  if (req.method === "GET" && req.url === "/portal") {
-    fs.readFile(path.join(PUBLIC_DIR, "portal.html"), (error, data) => {
-      if (error) {
-        res.writeHead(404);
-        res.end("Not found");
-        return;
-      }
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(data);
-    });
+  if (req.method === "GET" && req.url === "/api/tickets") {
+    sendJson(res, 200, getTickets().map(t => ({ ...t, sla: getSlaState(t) }))); return;
+  }
+
+  if (req.method === "GET" && req.url === "/api/stats") {
+    sendJson(res, 200, getStats()); return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/tickets") {
+    try {
+      const ticket = normalizeTicket(await readBody(req), "web");
+      if (!ticket) { sendJson(res, 400, { error: "Nombre y urgencia válida son obligatorios." }); return; }
+      sendJson(res, 201, insertTicket(ticket));
+    } catch { sendJson(res, 400, { error: "No se pudo leer la solicitud." }); }
     return;
   }
+
+  // DELETE single ticket
+  if (req.method === "DELETE" && /^\/api\/tickets\/[^/]+$/.test(req.url)) {
+    const id = decodeURIComponent(req.url.split("/")[3] || "");
+    const result = deleteTicketStmt.run(id);
+    if (result.changes === 0) { sendJson(res, 404, { error: "Ticket no encontrado." }); return; }
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  // DELETE bulk tickets
+  if (req.method === "DELETE" && req.url === "/api/tickets") {
+    try {
+      const body = await readBody(req);
+      const ids = Array.isArray(body.ids) ? body.ids.filter(id => typeof id === "string").slice(0, 500) : [];
+      if (ids.length === 0) { sendJson(res, 400, { error: "No se proporcionaron IDs válidos." }); return; }
+      const placeholders = ids.map(() => "?").join(",");
+      const result = db.prepare(`DELETE FROM tickets WHERE id IN (${placeholders})`).run(...ids);
+      sendJson(res, 200, { deleted: result.changes });
+    } catch { sendJson(res, 400, { error: "No se pudo procesar la solicitud." }); }
+    return;
+  }
+
+  if (req.method === "PATCH" && req.url.startsWith("/api/tickets/") && req.url.endsWith("/status")) {
+    try {
+      const id = decodeURIComponent(req.url.split("/")[3] || "");
+      const body = await readBody(req);
+      const ticket = updateTicketStatus(id, String(body.status || "").trim());
+      if (!ticket) { sendJson(res, 400, { error: "Ticket no encontrado o estado inválido." }); return; }
+      sendJson(res, 200, { ...ticket, sla: getSlaState(ticket) });
+    } catch { sendJson(res, 400, { error: "No se pudo actualizar el estado." }); }
+    return;
+  }
+
+  if (req.method === "PATCH" && /^\/api\/tickets\/[^/]+$/.test(req.url)) {
+    try {
+      const id = decodeURIComponent(req.url.split("/")[3] || "");
+      const ticket = updateTicketFull(id, await readBody(req));
+      if (!ticket) { sendJson(res, 400, { error: "Ticket no encontrado o datos inválidos." }); return; }
+      sendJson(res, 200, { ...ticket, sla: getSlaState(ticket) });
+    } catch { sendJson(res, 400, { error: "No se pudo actualizar el ticket." }); }
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/email/inbound") {
+    try {
+      const body = await readBody(req);
+      const ticket = normalizeTicket({ name: body.from || body.name, contact: body.from || body.contact, area: body.area || "Correo", urgency: body.urgency || "media" }, "email");
+      if (!ticket) { sendJson(res, 400, { error: "El correo no contiene datos suficientes." }); return; }
+      sendJson(res, 201, insertTicket(ticket));
+    } catch { sendJson(res, 400, { error: "No se pudo procesar el correo entrante." }); }
+    return;
+  }
+
+  sendJson(res, 404, { error: "Ruta no encontrada." });
+}
+
+// ── Main server ───────────────────────────────────────────────────────────────
+
+const isPublicApi = (method, url) =>
+  (method === "GET"  && (url === "/api/version" || url === "/api/config")) ||
+  (method === "POST" && (url === "/api/tickets" || url === "/api/email/inbound"));
+
+const server = http.createServer(async (req, res) => {
+  // Portal — always public
+  if (req.url === "/portal") { serveFile(res, "portal.html"); return; }
+
+  // Auth endpoints — always public
+  if (req.url.startsWith("/api/auth/")) { await handleAuth(req, res); return; }
+
+  // Check session for everything else
+  const session = getAuthSession(req);
+  const publicApi = isPublicApi(req.method, req.url);
+
+  if (!session && !publicApi) {
+    if (req.url.startsWith("/api/")) {
+      sendJson(res, 401, { error: "No autenticado." });
+    } else if (req.url === "/login") {
+      serveFile(res, "login.html");
+    } else {
+      res.writeHead(302, { Location: "/login" });
+      res.end();
+    }
+    return;
+  }
+
+  // Redirect logged-in user away from /login
+  if (req.url === "/login" && session) {
+    res.writeHead(302, { Location: "/" });
+    res.end();
+    return;
+  }
+
+  if (req.url.startsWith("/api/")) { await handleApi(req, res); return; }
 
   sendStatic(req, res);
 });

@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>NeuroDesk — Acceso</title>
+    <style>
+      :root {
+        --brand: #c82032;
+        --brand-dark: #9f1827;
+        --graphite: #252d3a;
+        --muted: #6b7a90;
+        --line: #e1e6ef;
+        --soft: #f4f6fb;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #edf0f7;
+        background-image:
+          radial-gradient(ellipse 70% 50% at 15% 10%, rgba(200,32,50,0.06) 0%, transparent 60%),
+          radial-gradient(ellipse 60% 40% at 85% 90%, rgba(37,99,235,0.05) 0%, transparent 60%);
+        padding: 20px;
+      }
+
+      .card {
+        width: min(420px, 100%);
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        box-shadow: 0 8px 40px rgba(26,32,50,0.12);
+        padding: 40px 36px 36px;
+      }
+
+      .brandMark {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 32px;
+      }
+
+      .logoBox {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        box-shadow: 0 4px 12px rgba(200,32,50,0.3);
+      }
+
+      .logoBox svg { width: 24px; height: 24px; fill: #fff; }
+
+      .brandText .eyebrow {
+        font-size: 0.65rem;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--brand);
+      }
+
+      .brandText h1 {
+        font-size: 1.4rem;
+        font-weight: 900;
+        color: var(--graphite);
+        line-height: 1;
+      }
+
+      .subtitle {
+        font-size: 0.88rem;
+        color: var(--muted);
+        margin-bottom: 28px;
+      }
+
+      form { display: grid; gap: 18px; }
+
+      label {
+        display: grid;
+        gap: 6px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #344050;
+      }
+
+      input {
+        width: 100%;
+        padding: 11px 14px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--soft);
+        font: inherit;
+        font-size: 0.95rem;
+        color: var(--graphite);
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+
+      input:focus {
+        outline: none;
+        border-color: var(--brand);
+        box-shadow: 0 0 0 3px rgba(200,32,50,0.12);
+        background: #fff;
+      }
+
+      button[type="submit"] {
+        margin-top: 4px;
+        padding: 13px;
+        border: 0;
+        border-radius: 10px;
+        background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+        color: #fff;
+        font: inherit;
+        font-size: 0.95rem;
+        font-weight: 800;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(200,32,50,0.3);
+        transition: transform 0.15s, box-shadow 0.15s;
+      }
+
+      button[type="submit"]:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(200,32,50,0.38); }
+      button[type="submit"]:active { transform: translateY(0); }
+
+      .error {
+        font-size: 0.85rem;
+        color: #dc2626;
+        min-height: 20px;
+        text-align: center;
+      }
+
+      .hint {
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid var(--line);
+        font-size: 0.75rem;
+        color: var(--muted);
+        text-align: center;
+        line-height: 1.5;
+      }
+
+      .hint a { color: var(--brand); text-decoration: none; font-weight: 700; }
+      .hint a:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="brandMark">
+        <div class="logoBox">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
+          </svg>
+        </div>
+        <div class="brandText">
+          <p class="eyebrow">Neurofic</p>
+          <h1>NeuroDesk</h1>
+        </div>
+      </div>
+
+      <p class="subtitle">Ingresa con tu cuenta del equipo interno.</p>
+
+      <form id="loginForm" autocomplete="off" novalidate>
+        <label>
+          Usuario
+          <input id="username" type="text" autocomplete="username" placeholder="admin" required>
+        </label>
+        <label>
+          Contraseña
+          <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
+        </label>
+        <button type="submit">Ingresar</button>
+        <p id="loginError" class="error" role="alert"></p>
+      </form>
+
+      <p class="hint">
+        Portal público para clientes → <a href="/portal" target="_blank">abrir portal</a>
+      </p>
+    </div>
+
+    <script>
+      document.getElementById("loginForm").addEventListener("submit", async e => {
+        e.preventDefault();
+        const errorEl = document.getElementById("loginError");
+        const btn = e.target.querySelector("button[type='submit']");
+        errorEl.textContent = "";
+        btn.textContent = "Verificando…";
+        btn.disabled = true;
+
+        try {
+          const res = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              username: document.getElementById("username").value,
+              password: document.getElementById("password").value
+            })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            errorEl.textContent = data.error || "Error al ingresar.";
+            btn.textContent = "Ingresar";
+            btn.disabled = false;
+            return;
+          }
+          window.location.replace("/");
+        } catch {
+          errorEl.textContent = "Error de conexión con el servidor.";
+          btn.textContent = "Ingresar";
+          btn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

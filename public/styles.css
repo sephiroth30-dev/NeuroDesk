@@ -1089,3 +1089,163 @@ label .fieldLabel { display: block; }
 
   table { min-width: 0; font-size: 0.72rem; }
 }
+
+/* ── Topbar user area ── */
+.topBarRight {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.userArea {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.userName {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 4px 12px;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+/* ── Admin filters ── */
+.adminFilters {
+  display: grid;
+  grid-template-columns: 2fr repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* ── Admin summary bar ── */
+.adminSummaryBar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 18px;
+  margin-bottom: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  flex-wrap: wrap;
+}
+
+.adminStat {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.adminStat strong {
+  color: var(--graphite);
+  font-weight: 900;
+  margin-right: 3px;
+}
+
+.adminStat--abierto strong    { color: var(--status-open); }
+.adminStat--en_proceso strong { color: var(--status-wip); }
+.adminStat--en_espera strong  { color: var(--status-hold); }
+.adminStat--resuelto strong   { color: var(--status-done); }
+
+/* ── Status pill (admin table) ── */
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.statusPill.status-abierto    { background: var(--status-open-soft);  color: var(--status-open); }
+.statusPill.status-en_proceso { background: var(--status-wip-soft);   color: var(--status-wip); }
+.statusPill.status-en_espera  { background: var(--status-hold-soft);  color: var(--status-hold); }
+.statusPill.status-resuelto   { background: var(--status-done-soft);  color: var(--status-done); }
+
+/* ── Admin action buttons ── */
+.adminActions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.deleteTicketButton {
+  border: 1px solid var(--line);
+  background: var(--soft);
+  color: var(--muted);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.deleteTicketButton:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: #fee2e2;
+}
+
+/* ── Danger button ── */
+.dangerButton {
+  min-height: 38px;
+  padding: 8px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 700;
+  border: 1px solid #fca5a5;
+  background: #fee2e2;
+  color: var(--danger);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.dangerButton:hover { background: #fecaca; border-color: var(--danger); }
+
+/* ── Ticket code cell ── */
+.ticketCode {
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 0.8rem;
+  color: var(--graphite);
+  background: var(--soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.dateCell { white-space: nowrap; }
+
+/* ── Admin accordion (change password) ── */
+.adminAccordion {
+  cursor: pointer;
+}
+
+.adminAccordion summary {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--muted);
+  user-select: none;
+  padding: 4px 0;
+}
+
+.adminAccordion summary:hover { color: var(--text); }
+
+/* ── Responsive admin ── */
+@media (max-width: 900px) {
+  .adminFilters { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 760px) {
+  .adminFilters { grid-template-columns: 1fr; }
+  .topBarRight  { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .topActions   { flex-wrap: wrap; }
+}
+

@@ -18,6 +18,32 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [6.0] - 2026-05-05 · commit `pendiente`
+
+### Autenticación de equipo + pantalla de administración
+
+**Autenticación:**
+- Login en `/login` con usuario y contraseña (sesión cookie HttpOnly, 24 h)
+- Todas las rutas del panel interno protegidas — `/portal` y la API pública siguen siendo accesibles sin sesión
+- Usuario inicial: `admin` / `neurofic` (mostrado en consola al primer arranque)
+- Tabla `users` en SQLite con hash SHA-256 + salt por usuario
+- Cambio de contraseña desde la pantalla Admin (acordeón al fondo)
+- Endpoint: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `POST /api/auth/password`
+- Nombre de usuario visible en topbar con botón "Salir"
+
+**Pantalla de administración:**
+- Vista "Admin" accesible desde el topbar
+- Tabla completa de todos los tickets con filtros: búsqueda libre, rango de fechas, estado, urgencia
+- Barra de resumen con conteo por estado (coloreado)
+- Status pills con color por estado (azul/ámbar/morado/verde)
+- Eliminar ticket individual con confirmación
+- Selección múltiple + eliminar en lote
+- Exportar CSV con BOM para apertura correcta en Excel
+- Botón ✎ para editar desde la tabla de admin
+- Endpoint: `DELETE /api/tickets/:id`, `DELETE /api/tickets` (bulk)
+
+---
+
 ## [5.0] - 2026-05-05 · commit `6c3a371`
 
 ### Rediseño visual completo + log de versión
