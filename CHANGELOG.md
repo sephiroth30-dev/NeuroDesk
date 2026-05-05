@@ -18,6 +18,16 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [7.3] - 2026-05-05
+
+### Fix: ReferenceError emailPollerTimer antes de inicialización
+
+- Las variables `emailConfig`, `emailPollStatus` y `emailPollerTimer` se declaraban después del bloque `Init` que llama a `startEmailPoller()`
+- `let` no se eleva (temporal dead zone) causando `ReferenceError: Cannot access 'emailPollerTimer' before initialization`
+- Se mueven las tres declaraciones a la sección de Config defaults, antes de los prepared statements y del bloque Init
+
+---
+
 ## [7.2] - 2026-05-05
 
 ### Fix: error "no such column: subject" al iniciar servidor

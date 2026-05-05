@@ -101,6 +101,22 @@ function getAuthSession(req) {
 
 // ── Config defaults ───────────────────────────────────────────────────────────
 
+const DEFAULT_EMAIL_CONFIG = {
+  enabled: false,
+  host: "", port: 993,
+  secure: true,
+  username: "",
+  password: "",
+  folder: "INBOX",
+  pollIntervalMinutes: 5,
+  defaultArea: "Correo",
+  defaultUrgency: "media"
+};
+
+let emailConfig       = JSON.parse(JSON.stringify(DEFAULT_EMAIL_CONFIG));
+const emailPollStatus = { lastPoll: null, lastError: null, ticketsCreated: 0, polling: false };
+let emailPollerTimer  = null;
+
 const DEFAULT_CONFIG = {
   sla: { baja: 24, media: 8, alta: 4, critica: 1 },
   fields: {
@@ -328,24 +344,6 @@ function getStats() {
 }
 
 // ── Email config & poller ─────────────────────────────────────────────────────
-
-const DEFAULT_EMAIL_CONFIG = {
-  enabled: false,
-  host: "", port: 993,
-  secure: true,
-  username: "",
-  password: "",
-  folder: "INBOX",
-  pollIntervalMinutes: 5,
-  defaultArea: "Correo",
-  defaultUrgency: "media"
-};
-
-let emailConfig = JSON.parse(JSON.stringify(DEFAULT_EMAIL_CONFIG));
-
-const emailPollStatus = { lastPoll: null, lastError: null, ticketsCreated: 0, polling: false };
-
-let emailPollerTimer = null;
 
 function loadEmailConfig() {
   const row = getEmailConfigStmt.get();
