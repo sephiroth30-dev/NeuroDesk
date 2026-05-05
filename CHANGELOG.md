@@ -19,6 +19,19 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [9.3] - 2026-05-05
+
+### Responsive y sidebar compacto
+
+- **Sidebar compacto**: items reducidos a una sola línea (min-height 34px, padding 5px), fuente 0.835rem, iconos SVG 18×18
+- **Off-canvas drawer móvil**: en pantallas ≤768px el sidebar se oculta fuera de pantalla (`translateX(-100%)`) y se despliega con el botón hamburguesa; overlay semitransparente cierra el menú al tocar fuera
+- **Hamburger button** (`#mobileMenuButton`) visible solo en mobile, integrado en el topbar
+- **Shell full-width en móvil**: `margin-left: 0; width: 100%` en ≤768px — no hay espacio reservado para sidebar
+- **Breakpoints actualizados**: 768px (mobile), 540px (small), 900px (tablet) en lugar del esquema anterior; todos los bloques de admin y settings alineados al mismo breakpoint
+- **`sidebarCollapsed` en móvil**: la clase no colapsa el sidebar a 56px en mobile, simplemente mantiene el drawer cerrado (no hay mini-sidebar en pantallas pequeñas)
+
+---
+
 ## [9.2] - 2026-05-05
 
 ### Tooling, tests y rediseño UI
