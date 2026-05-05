@@ -416,9 +416,23 @@ function detectUrgency(subject, body) {
   return "media";
 }
 
-async function pollEmails() {
-  if (!emailConfig.enabled || !emailConfig.host || !emailConfig.username || !emailConfig.password) return 0;
-  if (emailPollStatus.polling) return 0;
+function getEmailPollBlocker(config, force = false) {
+  if (!force && !config.enabled) return "El sondeo de correo esta desactivado. Activalo o usa Sondear ahora.";
+  if (!config.host) return "Falta el servidor IMAP.";
+  if (!config.username) return "Falta el usuario/correo IMAP.";
+  if (!config.password) return "Falta la contrasena o App Password.";
+  return "";
+}
+
+async function pollEmails(options = {}) {
+  const blocker = getEmailPollBlocker(emailConfig, options.force === true);
+  if (blocker) {
+    emailPollStatus.lastPoll = new Date().toISOString();
+    emailPollStatus.lastError = blocker;
+    emailPollStatus.lastMessagesChecked = 0;
+    return { created: 0, checked: 0, skipped: true, error: blocker };
+  }
+  if (emailPollStatus.polling) return { created: 0, checked: 0, skipped: true, error: "Ya hay un sondeo en curso." };
 
   emailPollStatus.polling = true;
   let created = 0;
@@ -475,7 +489,7 @@ async function pollEmails() {
     const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
     cleanOldEmailsStmt.run(cutoff);
   }
-  return created;
+  return { created, checked: emailPollStatus.lastMessagesChecked, skipped: false, error: emailPollStatus.lastError };
 }
 
 async function testEmailConnection(cfg) {
@@ -685,8 +699,8 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && req.url === "/api/email/poll") {
     try {
-      const created = await pollEmails();
-      sendJson(res, 200, { ok: true, created });
+      const result = await pollEmails({ force: true });
+      sendJson(res, result.error && result.skipped ? 400 : 200, { ok: !result.error, ...result });
     } catch { sendJson(res, 400, { error: "Error durante el sondeo." }); }
     return;
   }

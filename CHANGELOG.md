@@ -18,6 +18,20 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [8.0] - 2026-05-05
+
+### Diagnostico IMAP y panel inicial compacto
+
+- "Sondear ahora" fuerza una revision del buzon aunque el sondeo automatico este desactivado
+- El backend registra ultimo sondeo, mensajes revisados y errores cuando falta activar o completar la configuracion de correo
+- Al probar la conexion IMAP correctamente se activa el switch de sondeo para evitar guardar una cuenta conectada pero apagada
+- El resultado manual ahora informa mensajes revisados y tickets creados
+- El tablero inicial adopta tarjetas compactas de indicadores y un panel de informacion con accesos a Admin, SLA y Configuracion
+- La barra superior queda enfocada en el boton principal "+ Crear ticket"
+- Version visible actualizada a `8.0`
+
+---
+
 ## [7.7] - 2026-05-05
 
 ### Tickets en vivo + correo entrante mas confiable

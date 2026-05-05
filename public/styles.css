@@ -199,21 +199,23 @@ button[type="submit"]:active {
 .donutsHero {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
 .donutCard {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
+  justify-content: flex-start;
   gap: 14px;
-  padding: 36px 24px 28px;
+  min-height: 96px;
+  padding: 16px 18px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 8px;
   box-shadow: var(--shadow);
-  text-align: center;
+  text-align: left;
   transition: box-shadow 0.2s, transform 0.2s;
   position: relative;
   overflow: hidden;
@@ -244,7 +246,7 @@ button[type="submit"]:active {
 .donutSub {
   font-size: 0.78rem;
   color: var(--muted);
-  margin-top: -8px;
+  margin-top: 3px;
 }
 
 /* ── Donut Chart ── */
@@ -281,9 +283,66 @@ button[type="submit"]:active {
 .donut.large::after { inset: 18px; }
 .donut.large span { font-size: 1.3rem; }
 
-.donut.donutHero { width: 136px; }
-.donut.donutHero::after { inset: 18px; }
-.donut.donutHero span { font-size: 1.6rem; }
+.donut.donutHero { width: 58px; flex-shrink: 0; }
+.donut.donutHero::after { inset: 8px; }
+.donut.donutHero span { font-size: 0.92rem; }
+
+.infoPanel {
+  margin-bottom: 14px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.infoPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.infoPanelHeader h2 {
+  font-size: 0.86rem;
+  font-weight: 900;
+  color: var(--graphite);
+}
+
+.infoPanelHeader p {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.infoCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 92px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.infoCard h3 {
+  font-size: 0.9rem;
+  color: var(--graphite);
+  margin-bottom: 4px;
+}
+
+.infoCard p {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
 
 /* ── SLA Detail View ── */
 .slaDetailGrid {
@@ -774,10 +833,8 @@ tbody tr:last-child td { border-bottom: 0; }
 }
 
 @media (max-width: 900px) {
-  .donutCard { gap: 12px; padding: 28px 16px 22px; }
-  .donut.donutHero { width: 108px; }
-  .donut.donutHero::after { inset: 14px; }
-  .donut.donutHero span { font-size: 1.3rem; }
+  .donutsHero, .infoGrid { grid-template-columns: 1fr; }
+  .donutCard { gap: 12px; padding: 14px 16px; }
 }
 
 @media (max-width: 760px) {
@@ -787,10 +844,7 @@ tbody tr:last-child td { border-bottom: 0; }
   .topActions button, .viewToggle button, .boardTools label { flex: 1; }
   .slaDetailGrid, .filterPanel { grid-template-columns: 1fr; }
   .kanbanBoard { grid-template-columns: repeat(4, minmax(82%, 1fr)); }
-  .donut.donutHero { width: 96px; }
-  .donut.donutHero::after { inset: 12px; }
-  .donut.donutHero span { font-size: 1.15rem; }
-  .donutCard { padding: 24px 12px 20px; gap: 10px; }
+  .donutCard { padding: 14px 12px; gap: 10px; }
   .slaInputsGrid { grid-template-columns: 1fr; }
   .fieldConfigRow { grid-template-columns: 1fr; }
   .bulkBar {
@@ -807,20 +861,20 @@ tbody tr:last-child td { border-bottom: 0; }
 @media (max-width: 480px) {
   .topActions, .formActions, .viewToggle, .sectionActions { display: grid; }
   .statusBar { grid-template-columns: 80px 1fr 28px; }
-  .donutsHero { grid-template-columns: 1fr; gap: 12px; }
+  .donutsHero { grid-template-columns: 1fr; gap: 10px; }
   .donutCard {
-    flex-direction: row;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
-    gap: 20px;
-    padding: 20px 24px;
+    gap: 12px;
+    padding: 14px 16px;
     text-align: left;
   }
-  .donut.donutHero { width: 80px; flex-shrink: 0; }
-  .donut.donutHero::after { inset: 10px; }
-  .donut.donutHero span { font-size: 1rem; }
+  .donut.donutHero { width: 52px; flex-shrink: 0; }
+  .donut.donutHero::after { inset: 7px; }
+  .donut.donutHero span { font-size: 0.82rem; }
   .donutCard .donutTitle { font-size: 0.88rem; }
   .donutCard .donutSub { margin-top: 2px; }
+  .infoCard { display: grid; }
 }
 
 /* ── Modal ── */
@@ -1391,4 +1445,3 @@ label .fieldLabel { display: block; }
 @media (max-width: 760px) {
   .settingsForm .formGrid { grid-template-columns: 1fr; }
 }
-

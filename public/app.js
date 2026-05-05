@@ -804,6 +804,10 @@ document.querySelector("#emailConfigForm").addEventListener("submit", async e =>
     defaultArea:          document.querySelector("#emailDefaultArea").value.trim() || "Correo",
     defaultUrgency:       document.querySelector("#emailDefaultUrgency").value
   };
+  if (!body.enabled && body.host && body.username && body.password) {
+    body.enabled = true;
+    document.querySelector("#emailEnabled").checked = true;
+  }
   try {
     await requestJson("/api/email/config", { method: "PUT", body: JSON.stringify(body) });
     result.style.display = "block";
@@ -832,6 +836,7 @@ document.querySelector("#testEmailBtn").addEventListener("click", async () => {
   };
   try {
     await requestJson("/api/email/test", { method: "POST", body: JSON.stringify(body) });
+    document.querySelector("#emailEnabled").checked = true;
     result.style.display = "block";
     result.style.color = "var(--ok)";
     result.textContent = "Conexión exitosa. Credenciales correctas.";
@@ -855,8 +860,9 @@ document.querySelector("#pollNowBtn").addEventListener("click", async () => {
     const result = document.querySelector("#emailTestResult");
     result.style.display = "block";
     result.style.color = "var(--ok)";
-    result.textContent = `Sondeo completo. ${r.created} ticket(s) creado(s).`;
+    result.textContent = `Sondeo completo. ${r.checked || 0} mensaje(s) revisado(s), ${r.created || 0} ticket(s) creado(s).`;
   } catch (err) {
+    await loadEmailStatus();
     const result = document.querySelector("#emailTestResult");
     result.style.display = "block";
     result.style.color = "var(--danger)";
