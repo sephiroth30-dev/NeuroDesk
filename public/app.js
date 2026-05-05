@@ -4,6 +4,7 @@ const ticketList = document.querySelector("#ticketList");
 const statTotal = document.querySelector("#statTotal");
 const statOpen = document.querySelector("#statOpen");
 const statSla = document.querySelector("#statSla");
+const appVersion = document.querySelector("#appVersion");
 
 const formatDate = new Intl.DateTimeFormat("es-CO", {
   dateStyle: "medium",
@@ -29,6 +30,10 @@ function renderStats(stats) {
   statTotal.textContent = stats.total;
   statOpen.textContent = stats.open;
   statSla.textContent = `${stats.slaCompliance}%`;
+}
+
+function renderVersion(info) {
+  appVersion.textContent = `v${info.version}`;
 }
 
 function renderTickets(tickets) {
@@ -59,13 +64,15 @@ function renderTickets(tickets) {
 }
 
 async function refresh() {
-  const [tickets, stats] = await Promise.all([
+  const [tickets, stats, version] = await Promise.all([
     requestJson("/api/tickets"),
-    requestJson("/api/stats")
+    requestJson("/api/stats"),
+    requestJson("/api/version")
   ]);
 
   renderTickets(tickets);
   renderStats(stats);
+  renderVersion(version);
 }
 
 form.addEventListener("submit", async event => {

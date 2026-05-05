@@ -4,6 +4,7 @@ const path = require("path");
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
+const packageInfo = require("./package.json");
 
 const tickets = [
   {
@@ -137,6 +138,11 @@ function getStats() {
 }
 
 async function handleApi(req, res) {
+  if (req.method === "GET" && req.url === "/api/version") {
+    sendJson(res, 200, { version: packageInfo.version });
+    return;
+  }
+
   if (req.method === "GET" && req.url === "/api/tickets") {
     sendJson(res, 200, tickets.map(ticket => ({ ...ticket, sla: getSlaState(ticket) })));
     return;
