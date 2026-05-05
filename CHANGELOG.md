@@ -18,6 +18,23 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [7.0] - 2026-05-05
+
+### Correo entrante vía IMAP
+
+- Sondeo automático de buzón IMAP (configurable, por defecto cada 5 min)
+- Nuevo tab "Correo entrante" en Ajustes con formulario completo: host, puerto, SSL, usuario, contraseña, carpeta, intervalo, área y urgencia por defecto
+- Botón "Probar conexión" que verifica las credenciales antes de guardar
+- Botón "Sondear ahora" para forzar una revisión manual desde la UI
+- Panel de estado del sondeo: último sondeo, último error, tickets creados en total
+- Detección automática de urgencia por palabras clave en asunto y cuerpo del correo
+- Deduplicación por `Message-ID` en tabla `processed_emails`; limpieza automática tras 90 días
+- Tickets creados desde correo tienen `source = "email"` y el remitente como contacto
+- Dependencias añadidas: `imapflow`, `mailparser`
+- Endpoints nuevos: `GET/PUT /api/email/config`, `POST /api/email/test`, `POST /api/email/poll`, `GET /api/email/status`
+
+---
+
 ## [6.0] - 2026-05-05 · commit `bd59d8d`
 
 ### Autenticación de equipo + pantalla de administración

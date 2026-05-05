@@ -3,6 +3,8 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { DatabaseSync } = require("node:sqlite");
+const { ImapFlow } = require("imapflow");
+const { simpleParser } = require("mailparser");
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -39,6 +41,13 @@ db.exec(`
     username TEXT PRIMARY KEY,
     password_hash TEXT NOT NULL,
     salt TEXT NOT NULL
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS processed_emails (
+    message_id TEXT PRIMARY KEY,
+    processed_at TEXT NOT NULL
   );
 `);
 
@@ -119,13 +128,19 @@ const countUsersStmt         = db.prepare("SELECT COUNT(*) AS total FROM users")
 const getUserStmt            = db.prepare("SELECT * FROM users WHERE username = ?");
 const insertUserStmt         = db.prepare("INSERT INTO users (username, password_hash, salt) VALUES (?, ?, ?)");
 const updatePasswordStmt     = db.prepare("UPDATE users SET password_hash = ?, salt = ? WHERE username = ?");
+const getEmailConfigStmt     = db.prepare("SELECT value FROM config WHERE key = 'email_config'");
+const isEmailProcessedStmt   = db.prepare("SELECT 1 FROM processed_emails WHERE message_id = ?");
+const markEmailProcessedStmt = db.prepare("INSERT OR IGNORE INTO processed_emails (message_id, processed_at) VALUES (?, ?)");
+const cleanOldEmailsStmt     = db.prepare("DELETE FROM processed_emails WHERE processed_at < ?");
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 migrateDatabase();
 loadConfig();
+loadEmailConfig();
 seedDemoTicket();
 seedAdminUser();
+startEmailPoller();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -301,6 +316,129 @@ function getStats() {
   };
 }
 
+// ── Email config & poller ─────────────────────────────────────────────────────
+
+const DEFAULT_EMAIL_CONFIG = {
+  enabled: false,
+  host: "", port: 993,
+  secure: true,
+  username: "",
+  password: "",
+  folder: "INBOX",
+  pollIntervalMinutes: 5,
+  defaultArea: "Correo",
+  defaultUrgency: "media"
+};
+
+let emailConfig = JSON.parse(JSON.stringify(DEFAULT_EMAIL_CONFIG));
+
+const emailPollStatus = { lastPoll: null, lastError: null, ticketsCreated: 0, polling: false };
+
+let emailPollerTimer = null;
+
+function loadEmailConfig() {
+  const row = getEmailConfigStmt.get();
+  if (!row) return;
+  try { emailConfig = Object.assign(JSON.parse(JSON.stringify(DEFAULT_EMAIL_CONFIG)), JSON.parse(row.value)); } catch (_) {}
+}
+
+function saveEmailConfig(incoming) {
+  const host     = String(incoming.host || "").trim();
+  const port     = parseInt(incoming.port) || 993;
+  const secure   = incoming.secure !== false;
+  const username = String(incoming.username || "").trim();
+  const password = String(incoming.password || "").trim();
+  const folder   = String(incoming.folder || "INBOX").trim() || "INBOX";
+  const pollIntervalMinutes = Math.max(1, parseInt(incoming.pollIntervalMinutes) || 5);
+  const defaultArea    = String(incoming.defaultArea || "Correo").trim() || "Correo";
+  const rawUrgency     = String(incoming.defaultUrgency || "media").trim();
+  const defaultUrgency = appConfig.sla[rawUrgency] ? rawUrgency : "media";
+  const enabled        = incoming.enabled === true || incoming.enabled === "true";
+
+  emailConfig = { enabled, host, port, secure, username, password, folder, pollIntervalMinutes, defaultArea, defaultUrgency };
+  upsertConfigStmt.run("email_config", JSON.stringify(emailConfig));
+  startEmailPoller();
+  return emailConfig;
+}
+
+function detectUrgency(subject, body) {
+  const text = `${subject} ${body}`.toLowerCase();
+  if (/urgent|critico|critica|emergencia|critical|urgente/.test(text)) return "critica";
+  if (/alto|alta|importante|important|high/.test(text)) return "alta";
+  if (/bajo|baja|cuando puedas|low|no urgente/.test(text)) return "baja";
+  return "media";
+}
+
+async function pollEmails() {
+  if (!emailConfig.enabled || !emailConfig.host || !emailConfig.username || !emailConfig.password) return 0;
+  if (emailPollStatus.polling) return 0;
+
+  emailPollStatus.polling = true;
+  let created = 0;
+
+  const client = new ImapFlow({
+    host: emailConfig.host, port: emailConfig.port, secure: emailConfig.secure,
+    auth: { user: emailConfig.username, pass: emailConfig.password },
+    logger: false
+  });
+
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock(emailConfig.folder);
+    try {
+      const uids = await client.search({ seen: false });
+      for (const uid of uids) {
+        const message = await client.fetchOne(uid, { source: true, uid: true });
+        if (!message) continue;
+        const parsed = await simpleParser(message.source);
+        const messageId = parsed.messageId || `uid-${uid}-${Date.now()}`;
+        if (isEmailProcessedStmt.get(messageId)) continue;
+        const fromAddress = parsed.from?.value?.[0];
+        const fromEmail   = fromAddress?.address || "";
+        const subject     = (parsed.subject || "(sin asunto)").slice(0, 120);
+        const bodyText    = parsed.text || (parsed.html || "").replace(/<[^>]+>/g, "");
+        const urgency     = detectUrgency(subject, bodyText);
+        const ticket = normalizeTicket({ name: subject, contact: fromEmail, area: emailConfig.defaultArea, urgency }, "email");
+        if (ticket) {
+          insertTicket(ticket);
+          markEmailProcessedStmt.run(messageId, new Date().toISOString());
+          created++;
+        }
+      }
+    } finally { lock.release(); }
+    await client.logout();
+    emailPollStatus.lastPoll  = new Date().toISOString();
+    emailPollStatus.lastError = null;
+    emailPollStatus.ticketsCreated += created;
+  } catch (err) {
+    emailPollStatus.lastError = err.message;
+    try { await client.logout(); } catch (_) {}
+  } finally {
+    emailPollStatus.polling = false;
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    cleanOldEmailsStmt.run(cutoff);
+  }
+  return created;
+}
+
+async function testEmailConnection(cfg) {
+  const client = new ImapFlow({
+    host: cfg.host, port: parseInt(cfg.port) || 993, secure: cfg.secure !== false,
+    auth: { user: cfg.username, pass: cfg.password },
+    logger: false
+  });
+  try { await client.connect(); await client.logout(); return { ok: true }; }
+  catch (err) { return { ok: false, error: err.message }; }
+}
+
+function startEmailPoller() {
+  if (emailPollerTimer) { clearInterval(emailPollerTimer); emailPollerTimer = null; }
+  if (!emailConfig.enabled) return;
+  const intervalMs = (emailConfig.pollIntervalMinutes || 5) * 60 * 1000;
+  pollEmails().catch(() => {});
+  emailPollerTimer = setInterval(() => pollEmails().catch(() => {}), intervalMs);
+}
+
 // ── Auth handler ──────────────────────────────────────────────────────────────
 
 async function handleAuth(req, res) {
@@ -444,6 +582,43 @@ async function handleApi(req, res) {
       sendJson(res, 200, { ...ticket, sla: getSlaState(ticket) });
     } catch { sendJson(res, 400, { error: "No se pudo actualizar el ticket." }); }
     return;
+  }
+
+  if (req.method === "GET" && req.url === "/api/email/config") {
+    const safe = { ...emailConfig, password: emailConfig.password ? "••••••••" : "" };
+    sendJson(res, 200, safe); return;
+  }
+
+  if (req.method === "PUT" && req.url === "/api/email/config") {
+    try {
+      const body = await readBody(req);
+      if (body.password === "••••••••") body.password = emailConfig.password;
+      const saved = saveEmailConfig(body);
+      sendJson(res, 200, { ...saved, password: saved.password ? "••••••••" : "" });
+    } catch { sendJson(res, 400, { error: "No se pudo guardar la configuración de correo." }); }
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/email/test") {
+    try {
+      const body = await readBody(req);
+      if (body.password === "••••••••") body.password = emailConfig.password;
+      const result = await testEmailConnection(body);
+      sendJson(res, result.ok ? 200 : 400, result);
+    } catch { sendJson(res, 400, { error: "No se pudo probar la conexión." }); }
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/email/poll") {
+    try {
+      const created = await pollEmails();
+      sendJson(res, 200, { ok: true, created });
+    } catch { sendJson(res, 400, { error: "Error durante el sondeo." }); }
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/api/email/status") {
+    sendJson(res, 200, { ...emailPollStatus }); return;
   }
 
   if (req.method === "POST" && req.url === "/api/email/inbound") {

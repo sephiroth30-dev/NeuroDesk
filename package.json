@@ -1,6 +1,6 @@
 {
   "name": "neurodesk",
-  "version": "6.0",
+  "version": "7.0",
   "description": "Mesa de soporte minimalista para Neurofic.",
   "main": "server.js",
   "scripts": {
@@ -13,5 +13,9 @@
     "sla"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "imapflow": "^1.3.3",
+    "mailparser": "^3.9.8"
+  }
 }

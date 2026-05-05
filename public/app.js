@@ -730,6 +730,114 @@ document.querySelector("#copyPortalUrl").addEventListener("click", () => {
   });
 });
 
+// ── Email settings ────────────────────────────────────────────────────────────
+
+async function loadEmailSettings() {
+  try {
+    const cfg = await requestJson("/api/email/config");
+    document.querySelector("#emailEnabled").checked         = cfg.enabled;
+    document.querySelector("#emailHost").value              = cfg.host || "";
+    document.querySelector("#emailPort").value              = cfg.port || 993;
+    document.querySelector("#emailSecure").checked          = cfg.secure !== false;
+    document.querySelector("#emailUsername").value          = cfg.username || "";
+    document.querySelector("#emailPassword").value          = cfg.password || "";
+    document.querySelector("#emailFolder").value            = cfg.folder || "INBOX";
+    document.querySelector("#emailPollInterval").value      = cfg.pollIntervalMinutes || 5;
+    document.querySelector("#emailDefaultArea").value       = cfg.defaultArea || "Correo";
+    document.querySelector("#emailDefaultUrgency").value    = cfg.defaultUrgency || "media";
+    await loadEmailStatus();
+  } catch (_) {}
+}
+
+async function loadEmailStatus() {
+  try {
+    const st = await requestJson("/api/email/status");
+    const box = document.querySelector("#emailStatusBox");
+    box.style.display = "block";
+    document.querySelector("#emailLastPoll").textContent       = st.lastPoll ? new Date(st.lastPoll).toLocaleString() : "—";
+    document.querySelector("#emailLastError").textContent      = st.lastError || "—";
+    document.querySelector("#emailTicketsCreated").textContent = st.ticketsCreated || 0;
+  } catch (_) {}
+}
+
+document.querySelector("#emailConfigForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const result = document.querySelector("#emailTestResult");
+  result.style.display = "none";
+  const body = {
+    enabled:              document.querySelector("#emailEnabled").checked,
+    host:                 document.querySelector("#emailHost").value.trim(),
+    port:                 parseInt(document.querySelector("#emailPort").value) || 993,
+    secure:               document.querySelector("#emailSecure").checked,
+    username:             document.querySelector("#emailUsername").value.trim(),
+    password:             document.querySelector("#emailPassword").value,
+    folder:               document.querySelector("#emailFolder").value.trim() || "INBOX",
+    pollIntervalMinutes:  parseInt(document.querySelector("#emailPollInterval").value) || 5,
+    defaultArea:          document.querySelector("#emailDefaultArea").value.trim() || "Correo",
+    defaultUrgency:       document.querySelector("#emailDefaultUrgency").value
+  };
+  try {
+    await requestJson("/api/email/config", { method: "PUT", body: JSON.stringify(body) });
+    result.style.display = "block";
+    result.style.color = "var(--ok)";
+    result.textContent = "Configuración guardada correctamente.";
+    await loadEmailStatus();
+  } catch (err) {
+    result.style.display = "block";
+    result.style.color = "var(--danger)";
+    result.textContent = err.message;
+  }
+});
+
+document.querySelector("#testEmailBtn").addEventListener("click", async () => {
+  const btn = document.querySelector("#testEmailBtn");
+  const result = document.querySelector("#emailTestResult");
+  btn.disabled = true;
+  btn.textContent = "Probando…";
+  result.style.display = "none";
+  const body = {
+    host:     document.querySelector("#emailHost").value.trim(),
+    port:     parseInt(document.querySelector("#emailPort").value) || 993,
+    secure:   document.querySelector("#emailSecure").checked,
+    username: document.querySelector("#emailUsername").value.trim(),
+    password: document.querySelector("#emailPassword").value
+  };
+  try {
+    await requestJson("/api/email/test", { method: "POST", body: JSON.stringify(body) });
+    result.style.display = "block";
+    result.style.color = "var(--ok)";
+    result.textContent = "Conexión exitosa. Credenciales correctas.";
+  } catch (err) {
+    result.style.display = "block";
+    result.style.color = "var(--danger)";
+    result.textContent = `Error: ${err.message}`;
+  }
+  btn.disabled = false;
+  btn.textContent = "Probar conexión";
+});
+
+document.querySelector("#pollNowBtn").addEventListener("click", async () => {
+  const btn = document.querySelector("#pollNowBtn");
+  btn.disabled = true;
+  btn.textContent = "Sondeando…";
+  try {
+    const r = await requestJson("/api/email/poll", { method: "POST", body: "{}" });
+    await loadEmailStatus();
+    await refresh();
+    const result = document.querySelector("#emailTestResult");
+    result.style.display = "block";
+    result.style.color = "var(--ok)";
+    result.textContent = `Sondeo completo. ${r.created} ticket(s) creado(s).`;
+  } catch (err) {
+    const result = document.querySelector("#emailTestResult");
+    result.style.display = "block";
+    result.style.color = "var(--danger)";
+    result.textContent = err.message;
+  }
+  btn.disabled = false;
+  btn.textContent = "Sondear ahora";
+});
+
 saveSettingsButton.addEventListener("click", async () => {
   const newConfig = {
     sla: {
@@ -799,7 +907,7 @@ createTicketButton.addEventListener("click",  () => { formMessage.textContent = 
 cancelCreateButton.addEventListener("click",  () => { form.reset(); form.urgency.value = "media"; formMessage.textContent = ""; showView("overview"); });
 slaButton.addEventListener("click",           () => { renderSlaReport(); showView("sla"); });
 backToOverviewButton.addEventListener("click",() => showView("overview"));
-settingsButton.addEventListener("click",      () => { populateSettingsPanel(); showView("settings"); });
+settingsButton.addEventListener("click",      () => { populateSettingsPanel(); loadEmailSettings(); showView("settings"); });
 backFromSettings.addEventListener("click",    () => showView("overview"));
 adminButton.addEventListener("click",         () => { renderAdminView(); showView("admin"); });
 backFromAdminButton.addEventListener("click", () => showView("overview"));

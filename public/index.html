@@ -252,6 +252,7 @@
           <button class="tabButton active" data-tab="slaTab" role="tab" aria-selected="true" type="button">Tiempos SLA</button>
           <button class="tabButton" data-tab="fieldsTab" role="tab" aria-selected="false" type="button">Formulario</button>
           <button class="tabButton" data-tab="portalTab" role="tab" aria-selected="false" type="button">Portal público</button>
+          <button class="tabButton" data-tab="emailTab" role="tab" aria-selected="false" type="button">Correo entrante</button>
         </div>
 
         <!-- Tab: SLA -->
@@ -346,6 +347,84 @@
           <p class="message" style="margin-top: 12px; color: var(--muted);">
             El portal respeta la configuración de campos definida en la pestaña "Formulario".
           </p>
+        </div>
+
+        <!-- Tab: Correo entrante -->
+        <div id="emailTab" class="tabPanel panel" role="tabpanel" hidden>
+          <div class="panelHeader" style="margin-bottom: 20px;">
+            <h2>Correo entrante</h2>
+            <p>Conecta una bandeja de entrada IMAP para crear tickets automáticamente desde correos no leídos.</p>
+          </div>
+
+          <form id="emailConfigForm" class="settingsForm">
+            <label class="toggleRow">
+              <span>Activar sondeo de correo</span>
+              <input id="emailEnabled" type="checkbox">
+            </label>
+
+            <div class="formGrid">
+              <label>
+                Servidor IMAP
+                <input id="emailHost" type="text" placeholder="imap.gmail.com">
+              </label>
+              <label>
+                Puerto
+                <input id="emailPort" type="number" value="993" min="1" max="65535">
+              </label>
+              <label class="toggleRow">
+                <span>Conexión segura (SSL/TLS)</span>
+                <input id="emailSecure" type="checkbox" checked>
+              </label>
+              <label>
+                Usuario / correo
+                <input id="emailUsername" type="text" placeholder="soporte@empresa.com" autocomplete="off">
+              </label>
+              <label>
+                Contraseña
+                <input id="emailPassword" type="password" placeholder="Contraseña o App Password" autocomplete="new-password">
+              </label>
+              <label>
+                Carpeta IMAP
+                <input id="emailFolder" type="text" value="INBOX">
+              </label>
+              <label>
+                Intervalo de sondeo (minutos)
+                <input id="emailPollInterval" type="number" value="5" min="1" max="60">
+              </label>
+              <label>
+                Área por defecto
+                <input id="emailDefaultArea" type="text" value="Correo">
+              </label>
+              <label>
+                Urgencia por defecto
+                <select id="emailDefaultUrgency">
+                  <option value="baja">Baja</option>
+                  <option value="media" selected>Media</option>
+                  <option value="alta">Alta</option>
+                  <option value="critica">Crítica</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="settingsActions">
+              <button type="button" id="testEmailBtn" class="secondaryAction">Probar conexión</button>
+              <button type="submit" class="primaryAction">Guardar configuración</button>
+            </div>
+            <p id="emailTestResult" class="message" style="margin-top:10px;display:none;"></p>
+          </form>
+
+          <div class="emailStatusBox" id="emailStatusBox" style="margin-top: 24px; display:none;">
+            <h3 style="margin: 0 0 10px;">Estado del sondeo</h3>
+            <div class="emailStatusGrid">
+              <span class="emailStatusLabel">Último sondeo</span>
+              <span id="emailLastPoll">—</span>
+              <span class="emailStatusLabel">Último error</span>
+              <span id="emailLastError">—</span>
+              <span class="emailStatusLabel">Tickets creados</span>
+              <span id="emailTicketsCreated">0</span>
+            </div>
+            <button type="button" id="pollNowBtn" class="secondaryAction" style="margin-top:12px;">Sondear ahora</button>
+          </div>
         </div>
       </section>
 
