@@ -46,6 +46,7 @@ const slaTimeFilter        = document.querySelector("#slaTimeFilter");
 const slaSearchFilter      = document.querySelector("#slaSearchFilter");
 const createContactRow     = document.querySelector("#createContactRow");
 const createAreaRow        = document.querySelector("#createAreaRow");
+const createCustomFields   = document.querySelector("#createCustomFields");
 const contactFieldLabel    = document.querySelector("#contactFieldLabel");
 const areaFieldLabel       = document.querySelector("#areaFieldLabel");
 const currentUser          = document.querySelector("#currentUser");
@@ -214,6 +215,7 @@ function applyFieldConfig() {
 
   editContactRow.hidden = false;
   editAreaRow.hidden    = false;
+  renderCreateCustomFieldInputs();
 }
 
 function populateSettingsPanel() {
@@ -271,6 +273,26 @@ function renderCustomFieldInputs(ticket = {}) {
     }
     return `<label>${escapeHtml(field.label)}<input data-custom-field="${escapeHtml(field.key)}" type="text" value="${escapeHtml(values[field.key] || "")}"></label>`;
   }).join("");
+}
+
+function renderCreateCustomFieldInputs() {
+  if (!createCustomFields) return;
+  const fields = (appConfig?.customFields || []).filter(f => f.enabled);
+  createCustomFields.innerHTML = fields.map(field => {
+    if (field.type === "select") {
+      const options = String(field.options || "").split(",").map(opt => opt.trim()).filter(Boolean);
+      return `<label><span class="fieldLabel">${escapeHtml(field.label)}</span><select data-create-custom-field="${escapeHtml(field.key)}"><option value=""></option>${options.map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join("")}</select></label>`;
+    }
+    return `<label><span class="fieldLabel">${escapeHtml(field.label)}</span><input data-create-custom-field="${escapeHtml(field.key)}" type="text"></label>`;
+  }).join("");
+}
+
+function collectCreateCustomFields() {
+  const values = {};
+  createCustomFields?.querySelectorAll("[data-create-custom-field]").forEach(input => {
+    values[input.dataset.createCustomField] = input.value;
+  });
+  return values;
 }
 
 // ── Stats & charts ────────────────────────────────────────────────────────────
@@ -1157,7 +1179,7 @@ form.addEventListener("submit", async e => {
   e.preventDefault();
   formMessage.textContent = "";
   const fd = new FormData(form);
-  const ticket = { name: fd.get("name"), contact: fd.get("contact") || "", area: fd.get("area") || "", urgency: fd.get("urgency"), subject: fd.get("subject") || "", description: fd.get("description") || "" };
+  const ticket = { name: fd.get("name"), contact: fd.get("contact") || "", area: fd.get("area") || "", urgency: fd.get("urgency"), subject: fd.get("subject") || "", description: fd.get("description") || "", customFields: collectCreateCustomFields() };
   try {
     await requestJson("/api/tickets", { method: "POST", body: JSON.stringify(ticket) });
     form.reset(); form.urgency.value = "media";

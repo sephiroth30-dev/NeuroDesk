@@ -18,6 +18,16 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [9.1] - 2026-05-05
+
+### Campos personalizados en creacion de tickets
+
+- Los campos personalizados configurados ahora aparecen tambien en el formulario interno de creacion
+- Los valores capturados se guardan en el ticket y se muestran luego en la vista de detalle
+- Version visible actualizada a `9.1`
+
+---
+
 ## [9.0] - 2026-05-05
 
 ### Detalle profesional de tickets, sidebar y sincronizacion IMAP segura
