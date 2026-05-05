@@ -2,6 +2,32 @@
 
 Todas las versiones importantes de NeuroDesk quedaran documentadas en este archivo.
 
+## Regla de versionado
+
+NeuroDesk usa versiones `estructura.funcional.estetica`.
+
+- Primer digito: cambios criticos, estructurales o de arquitectura.
+- Segundo digito: nuevas funcionalidades o cambios de flujo.
+- Tercer digito: ajustes visuales, pulido y cambios esteticos.
+
+## [0.2.0] - 2026-05-05
+
+### Agregado
+
+- Se agrega contacto como dato obligatorio del ticket.
+- Se agrega migracion local SQLite para incorporar `contact` sin perder tickets existentes.
+- Se agrega vista inicial basada en graficas para revisar el estado de SLA al abrir la app.
+- Se agrega vista exclusiva de estadisticas SLA.
+- Se agrega modo de tablero en tarjetas o lista para mejorar efectividad operativa.
+- Se agrega filtro de estado dentro del tablero.
+
+### Cambiado
+
+- Se reorganiza la navegacion para dejar como acciones principales `Crear ticket` y `SLA`.
+- Se mueve la creacion de tickets a una vista dedicada.
+- Se limpian los controles del Kanban para que vivan dentro del tablero.
+- Se actualiza la version visible de la app a `0.2.0`.
+
 ## [0.1.4] - 2026-05-04
 
 ### Agregado

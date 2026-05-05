@@ -17,6 +17,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS tickets (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    contact TEXT,
     area TEXT NOT NULL,
     urgency TEXT NOT NULL,
     status TEXT NOT NULL,
@@ -24,6 +25,8 @@ db.exec(`
     created_at TEXT NOT NULL
   );
 `);
+
+migrateDatabase();
 
 const urgencySlaHours = {
   baja: 24,
@@ -47,6 +50,7 @@ const listTicketsStmt = db.prepare(`
   SELECT
     id,
     name,
+    contact,
     area,
     urgency,
     status,
@@ -61,8 +65,8 @@ const nextTicketNumberStmt = db.prepare(`
   WHERE id LIKE 'ND-%'
 `);
 const insertTicketStmt = db.prepare(`
-  INSERT INTO tickets (id, name, area, urgency, status, source, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO tickets (id, name, contact, area, urgency, status, source, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `);
 const updateTicketStatusStmt = db.prepare("UPDATE tickets SET status = ? WHERE id = ?");
 
@@ -126,22 +130,33 @@ function readBody(req) {
 
 function normalizeTicket(input, source = "web") {
   const name = String(input.name || "").trim();
+  const contact = String(input.contact || "").trim();
   const area = String(input.area || "").trim();
   const urgency = String(input.urgency || "").trim().toLowerCase();
 
-  if (!name || !area || !urgencySlaHours[urgency]) {
+  if (!name || !contact || !area || !urgencySlaHours[urgency]) {
     return null;
   }
 
   return {
     id: getNextTicketId(),
     name,
+    contact,
     area,
     urgency,
     status: "abierto",
     source,
     createdAt: new Date().toISOString()
   };
+}
+
+function migrateDatabase() {
+  const columns = db.prepare("PRAGMA table_info(tickets)").all();
+  const hasContact = columns.some(column => column.name === "contact");
+
+  if (!hasContact) {
+    db.exec("ALTER TABLE tickets ADD COLUMN contact TEXT");
+  }
 }
 
 function seedDemoTicket() {
@@ -154,6 +169,7 @@ function seedDemoTicket() {
   insertTicket({
     id: "ND-1001",
     name: "Paciente demo",
+    contact: "demo@neurofic.com",
     area: "Agenda",
     urgency: "media",
     status: "abierto",
@@ -171,6 +187,7 @@ function insertTicket(ticket) {
   insertTicketStmt.run(
     ticket.id,
     ticket.name,
+    ticket.contact,
     ticket.area,
     ticket.urgency,
     ticket.status,
@@ -219,12 +236,27 @@ function getStats() {
     summary[status] = tickets.filter(ticket => ticket.status === status).length;
     return summary;
   }, {});
+  const byUrgency = Object.keys(urgencySlaHours).reduce((summary, urgency) => {
+    summary[urgency] = tickets.filter(ticket => ticket.urgency === urgency).length;
+    return summary;
+  }, {});
+  const avgRemainingHours =
+    activeTickets.length === 0
+      ? 0
+      : Number(
+          (
+            activeTickets.reduce((total, ticket) => total + getSlaState(ticket).remainingHours, 0) /
+            activeTickets.length
+          ).toFixed(1)
+        );
 
   return {
     total: tickets.length,
     open: activeTickets.length,
     breached: breachedTickets.length,
     byStatus,
+    byUrgency,
+    avgRemainingHours,
     slaCompliance:
       activeTickets.length === 0
         ? 100
@@ -255,7 +287,7 @@ async function handleApi(req, res) {
       const ticket = normalizeTicket(body, "web");
 
       if (!ticket) {
-        sendJson(res, 400, { error: "Nombre, area y urgencia valida son obligatorios." });
+        sendJson(res, 400, { error: "Nombre, contacto, area y urgencia valida son obligatorios." });
         return;
       }
 
@@ -291,6 +323,7 @@ async function handleApi(req, res) {
       const ticket = normalizeTicket(
         {
           name: body.from || body.name,
+          contact: body.from || body.contact,
           area: body.area || "Correo",
           urgency: body.urgency || "media"
         },

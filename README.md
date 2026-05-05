@@ -33,8 +33,19 @@ http://localhost:3000
 ## Datos mínimos del ticket
 
 - `name`: nombre del solicitante.
+- `contact`: correo o telefono de contacto.
 - `area`: área relacionada.
 - `urgency`: `baja`, `media`, `alta` o `critica`.
+
+## Versionado
+
+NeuroDesk usa versiones `estructura.funcional.estetica`.
+
+- Primer digito: cambios criticos, estructurales o de arquitectura.
+- Segundo digito: nuevas funcionalidades o cambios de flujo.
+- Tercer digito: ajustes visuales, pulido y cambios esteticos.
+
+Toda version se documenta en `CHANGELOG.md`, se confirma en Git local y se sube a GitHub.
 
 ## Estados del ticket
 

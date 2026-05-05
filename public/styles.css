@@ -1,15 +1,15 @@
 :root {
   color-scheme: light;
-  --bg: #eef1f5;
-  --bg-soft: #f7f8fa;
+  --bg: #edf0f4;
   --panel: #ffffff;
-  --text: #202731;
+  --text: #202733;
   --muted: #667382;
   --line: #d9dee6;
   --brand: #c82032;
   --brand-dark: #8f1725;
   --brand-soft: #fff0f2;
   --graphite: #303844;
+  --soft: #f6f7f9;
   --warn: #b15b13;
   --danger: #b51f2e;
   --ok: #1c7d45;
@@ -25,7 +25,7 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    linear-gradient(145deg, rgba(200, 32, 50, 0.12), rgba(48, 56, 68, 0.12) 42%, rgba(238, 241, 245, 0.9)),
+    linear-gradient(145deg, rgba(200, 32, 50, 0.12), rgba(48, 56, 68, 0.1) 42%, rgba(237, 240, 244, 0.96)),
     var(--bg);
   color: var(--text);
 }
@@ -53,6 +53,17 @@ p {
   padding: 24px 0;
 }
 
+.topbar,
+.metricCard,
+.chartPanel,
+.ticketBoard,
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
 .topbar {
   display: flex;
   align-items: end;
@@ -60,18 +71,15 @@ p {
   gap: 24px;
   padding: 22px;
   margin-bottom: 14px;
-  background: linear-gradient(120deg, #ffffff 0%, #f5f6f8 58%, #e5e8ed 100%);
-  border: 1px solid var(--line);
+  background: linear-gradient(120deg, #ffffff 0%, #f6f7f9 56%, #e3e7ed 100%);
   border-left: 5px solid var(--brand);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
 }
 
 .eyebrow {
   margin-bottom: 6px;
   color: var(--brand);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -85,115 +93,188 @@ h1 {
   margin-top: 8px;
   color: var(--muted);
   font-size: 0.86rem;
-  font-weight: 800;
-}
-
-.stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(92px, 1fr));
-  gap: 10px;
-  min-width: min(100%, 360px);
-}
-
-.stats article,
-.metricCard,
-.panel,
-.ticketBoard {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-}
-
-.stats article {
-  min-height: 78px;
-  padding: 14px;
-}
-
-.stats span,
-.metricCard strong {
-  display: block;
-  color: var(--graphite);
-  font-size: 1.65rem;
   font-weight: 900;
 }
 
-.stats small,
-.panelHeader p,
-.ticketMeta,
-.message,
-.metricCard span {
-  color: var(--muted);
-}
-
-.menu {
+.topActions,
+.formActions,
+.viewToggle,
+.boardTools {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
-  margin-bottom: 14px;
 }
 
-.menu a,
-.filter {
-  min-height: 36px;
-  padding: 9px 12px;
-  border: 1px solid var(--line);
+.primaryAction,
+.secondaryAction,
+.ghostButton,
+.toggleButton,
+button[type="submit"] {
+  min-height: 40px;
+  padding: 9px 13px;
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.82);
-  color: var(--graphite);
-  font-size: 0.88rem;
-  font-weight: 800;
-  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 900;
 }
 
-.menu a[aria-current="page"],
-.filter.active {
+.primaryAction,
+button[type="submit"] {
+  border: 0;
+  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+  color: #ffffff;
+}
+
+.secondaryAction,
+.ghostButton,
+.toggleButton {
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--graphite);
+}
+
+.toggleButton.active {
   border-color: var(--brand);
   background: var(--brand);
   color: #ffffff;
 }
 
-.dashboard {
+.view {
+  display: none;
+}
+
+.view.active {
+  display: block;
+}
+
+.summaryGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr));
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
+}
+
+.chartsGrid,
+.slaDetailGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.slaDetailGrid {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.metricCard,
+.chartPanel,
+.ticketBoard,
+.panel {
+  padding: 18px;
 }
 
 .metricCard {
-  min-height: 148px;
-  padding: 18px;
+  min-height: 150px;
   border-top: 4px solid var(--brand);
 }
 
 .metricCard h2,
 .panelHeader h2,
-.boardHeader h2 {
+.sectionHeader h2 {
   font-size: 1rem;
 }
 
 .metricCard strong {
-  margin: 18px 0 6px;
+  display: block;
+  margin-top: 18px;
+  color: var(--graphite);
   font-size: 2rem;
+  font-weight: 900;
+}
+
+.metricCard p,
+.panelHeader p,
+.sectionHeader p,
+.message,
+.ticketMeta {
+  color: var(--muted);
+}
+
+.heroMetric {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 18px;
+  align-items: center;
+}
+
+.heroMetric h2,
+.heroMetric p {
+  grid-column: 1 / -1;
+}
+
+.donut {
+  --value: 0;
+  display: grid;
+  place-items: center;
+  width: 112px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: conic-gradient(var(--brand) calc(var(--value) * 1%), #e6e9ee 0);
+  position: relative;
+}
+
+.donut::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  background: #ffffff;
+  border-radius: inherit;
+}
+
+.donut span {
+  position: relative;
+  z-index: 1;
+  color: var(--graphite);
+  font-size: 1.4rem;
+  font-weight: 900;
+}
+
+.donut.large {
+  width: 150px;
+}
+
+.panelHeader,
+.sectionHeader {
+  display: grid;
+  gap: 5px;
+}
+
+.sectionHeader {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 8px;
 }
 
 .statusBars {
   display: grid;
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 14px;
 }
 
 .statusBar {
   display: grid;
-  grid-template-columns: 86px 1fr 26px;
+  grid-template-columns: 92px 1fr 28px;
   align-items: center;
   gap: 10px;
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .statusBar div {
-  height: 8px;
+  height: 9px;
   overflow: hidden;
   background: #edf0f4;
   border-radius: 999px;
@@ -206,26 +287,27 @@ h1 {
   border-radius: inherit;
 }
 
-.workspace {
-  display: grid;
-  grid-template-columns: minmax(280px, 330px) 1fr;
-  gap: 14px;
-  align-items: start;
-}
-
-.panel,
-.ticketBoard {
-  padding: 18px;
-}
-
-.panel {
-  display: grid;
+.boardHeader {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
   gap: 16px;
+  margin-bottom: 16px;
 }
 
-.panelHeader {
+.boardTools {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.boardTools label {
   display: grid;
-  gap: 4px;
+  gap: 5px;
+  min-width: 150px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 label {
@@ -233,14 +315,14 @@ label {
   gap: 7px;
   color: #344050;
   font-size: 0.92rem;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 input,
 select {
   width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
+  min-height: 42px;
+  padding: 9px 11px;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: #fbfcfd;
@@ -253,39 +335,6 @@ select:focus {
   border-color: var(--brand);
 }
 
-button[type="submit"] {
-  min-height: 46px;
-  border: 0;
-  border-radius: 7px;
-  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
-  color: #ffffff;
-  font-weight: 900;
-}
-
-.message {
-  min-height: 20px;
-  font-size: 0.9rem;
-}
-
-.boardHeader {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.filter {
-  min-height: 34px;
-}
-
 .kanbanBoard {
   display: grid;
   grid-template-columns: repeat(4, minmax(220px, 1fr));
@@ -296,7 +345,7 @@ button[type="submit"] {
 
 .kanbanColumn {
   min-width: 220px;
-  background: #f5f6f8;
+  background: var(--soft);
   border: 1px solid var(--line);
   border-radius: 8px;
 }
@@ -319,7 +368,6 @@ button[type="submit"] {
   padding: 4px 8px;
   border-radius: 999px;
   background: #e4e8ee;
-  color: var(--graphite);
   font-size: 0.78rem;
   font-weight: 900;
   text-align: center;
@@ -328,9 +376,8 @@ button[type="submit"] {
 .dropZone {
   display: grid;
   gap: 10px;
-  min-height: 300px;
+  min-height: 290px;
   padding: 10px;
-  transition: background 160ms ease, outline 160ms ease;
 }
 
 .dropZone.over {
@@ -354,32 +401,46 @@ button[type="submit"] {
   opacity: 0.55;
 }
 
-.ticketTitle {
+.ticketTitle,
+.cardFooter {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
+}
+
+.ticketTitle {
+  justify-content: flex-start;
   font-weight: 900;
 }
 
 .ticketName {
   font-size: 0.95rem;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .ticketMeta {
   font-size: 0.82rem;
 }
 
-.badge {
-  min-width: 72px;
+.badge,
+.sla {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
   padding: 5px 8px;
   border-radius: 999px;
-  background: #eceff3;
-  color: var(--graphite);
   font-size: 0.74rem;
   font-weight: 900;
-  text-align: center;
+  white-space: nowrap;
+}
+
+.badge {
+  min-width: 72px;
+  background: #eceff3;
+  color: var(--graphite);
   text-transform: capitalize;
 }
 
@@ -395,30 +456,60 @@ button[type="submit"] {
 }
 
 .sla {
-  justify-self: start;
-  padding: 6px 9px;
-  border-radius: 999px;
   background: #eaf6ee;
   color: var(--ok);
-  font-size: 0.76rem;
-  font-weight: 900;
-  white-space: nowrap;
-}
-
-.cardFooter {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
 }
 
 .statusSelect {
   width: auto;
-  min-width: 116px;
+  min-width: 122px;
   min-height: 34px;
   padding: 6px 8px;
   font-size: 0.78rem;
   font-weight: 800;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  background: #ffffff;
+}
+
+th,
+td {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.86rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+th {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ticketForm {
+  width: min(560px, 100%);
+  margin: 0 auto;
+}
+
+.formActions {
+  flex-wrap: wrap;
+}
+
+.message {
+  min-height: 20px;
+  font-size: 0.9rem;
 }
 
 .empty {
@@ -435,9 +526,14 @@ button[type="submit"] {
   background: rgba(255, 255, 255, 0.62);
 }
 
-@media (max-width: 1040px) {
-  .dashboard,
-  .workspace {
+@media (max-width: 1080px) {
+  .summaryGrid,
+  .chartsGrid,
+  .slaDetailGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .heroMetric {
     grid-template-columns: 1fr;
   }
 }
@@ -449,26 +545,42 @@ button[type="submit"] {
   }
 
   .topbar,
-  .boardHeader {
+  .boardHeader,
+  .sectionHeader {
     display: grid;
   }
 
-  .stats {
-    min-width: 0;
+  .topActions,
+  .boardTools,
+  .viewToggle {
     width: 100%;
   }
 
-  .filters {
-    justify-content: start;
+  .topActions button,
+  .viewToggle button,
+  .boardTools label {
+    flex: 1;
+  }
+
+  .summaryGrid,
+  .chartsGrid,
+  .slaDetailGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .kanbanBoard {
+    grid-template-columns: repeat(4, minmax(82%, 1fr));
   }
 }
 
-@media (max-width: 520px) {
-  .stats {
-    grid-template-columns: 1fr;
+@media (max-width: 480px) {
+  .topActions,
+  .formActions,
+  .viewToggle {
+    display: grid;
   }
 
-  .dashboard {
-    grid-template-columns: 1fr;
+  .statusBar {
+    grid-template-columns: 80px 1fr 24px;
   }
 }

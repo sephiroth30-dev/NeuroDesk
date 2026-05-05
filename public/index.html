@@ -8,61 +8,104 @@
   </head>
   <body>
     <main class="shell">
-      <section class="topbar" aria-label="Resumen de NeuroDesk">
+      <section class="topbar" aria-label="Encabezado de NeuroDesk">
         <div>
           <p class="eyebrow">Neurofic</p>
           <h1>NeuroDesk</h1>
-          <p id="appVersion" class="version">v0.1.4</p>
+          <p id="appVersion" class="version">v0.2.0</p>
         </div>
-        <div class="stats" aria-live="polite">
-          <article>
-            <span id="statTotal">0</span>
-            <small>Tickets</small>
-          </article>
-          <article>
-            <span id="statOpen">0</span>
-            <small>Activos</small>
-          </article>
-          <article>
-            <span id="statSla">100%</span>
-            <small>SLA</small>
-          </article>
+        <div class="topActions" aria-label="Acciones principales">
+          <button id="createTicketButton" class="primaryAction" type="button">Crear ticket</button>
+          <button id="slaButton" class="secondaryAction" type="button">SLA</button>
         </div>
       </section>
 
-      <nav class="menu" aria-label="Secciones de NeuroDesk">
-        <a href="#dashboard" aria-current="page">Dashboard</a>
-        <a href="#kanban">Kanban</a>
-        <a href="#nuevo-ticket">Nuevo ticket</a>
-      </nav>
+      <section id="overviewView" class="view active" aria-label="Vista inicial de soporte">
+        <section class="summaryGrid" aria-label="Resumen de SLA">
+          <article class="metricCard heroMetric">
+            <h2>Adherencia SLA</h2>
+            <div class="donut" id="slaDonut" style="--value: 100">
+              <span id="metricSla">100%</span>
+            </div>
+            <p>Tickets activos dentro del objetivo.</p>
+          </article>
+          <article class="metricCard">
+            <h2>Tickets activos</h2>
+            <strong id="statOpen">0</strong>
+            <p>Trabajo abierto o en progreso.</p>
+          </article>
+          <article class="metricCard">
+            <h2>SLA vencido</h2>
+            <strong id="metricBreached">0</strong>
+            <p>Casos fuera del acuerdo.</p>
+          </article>
+          <article class="metricCard">
+            <h2>Promedio restante</h2>
+            <strong id="metricRemaining">0h</strong>
+            <p>Tiempo promedio antes de vencer.</p>
+          </article>
+        </section>
 
-      <section id="dashboard" class="dashboard" aria-label="Dashboard de soporte">
-        <article class="metricCard">
-          <h2>Adherencia SLA</h2>
-          <strong id="metricSla">100%</strong>
-          <span>Tickets activos dentro del tiempo objetivo</span>
-        </article>
-        <article class="metricCard">
-          <h2>SLA vencido</h2>
-          <strong id="metricBreached">0</strong>
-          <span>Tickets activos fuera del acuerdo</span>
-        </article>
-        <article class="metricCard">
-          <h2>Distribución</h2>
-          <div id="statusBars" class="statusBars"></div>
-        </article>
+        <section class="chartsGrid" aria-label="Graficas operativas">
+          <article class="chartPanel">
+            <div class="panelHeader">
+              <h2>Estados</h2>
+              <p>Distribución operativa actual.</p>
+            </div>
+            <div id="statusBars" class="statusBars"></div>
+          </article>
+          <article class="chartPanel">
+            <div class="panelHeader">
+              <h2>Urgencia</h2>
+              <p>Concentración por prioridad.</p>
+            </div>
+            <div id="urgencyBars" class="statusBars"></div>
+          </article>
+        </section>
+
+        <section id="ticketBoard" class="ticketBoard" aria-label="Tablero de tickets">
+          <div class="boardHeader">
+            <div class="panelHeader">
+              <h2>Tablero de tickets</h2>
+              <p>Seguimiento operativo por estado.</p>
+            </div>
+            <div class="boardTools">
+              <label>
+                Estado
+                <select id="statusFilter">
+                  <option value="todos">Todos</option>
+                  <option value="abierto">Abierto</option>
+                  <option value="en_proceso">En proceso</option>
+                  <option value="en_espera">En espera</option>
+                  <option value="resuelto">Resuelto</option>
+                </select>
+              </label>
+              <div class="viewToggle" aria-label="Modo de visualización">
+                <button class="toggleButton active" type="button" data-board-view="cards">Tarjetas</button>
+                <button class="toggleButton" type="button" data-board-view="list">Lista</button>
+              </div>
+            </div>
+          </div>
+          <div id="kanbanBoard" class="kanbanBoard"></div>
+          <div id="ticketListView" class="ticketListView" hidden></div>
+        </section>
       </section>
 
-      <section class="workspace">
-        <form id="ticketForm" class="panel" autocomplete="off">
+      <section id="createView" class="view" aria-label="Creación de ticket">
+        <form id="ticketForm" class="panel ticketForm" autocomplete="off">
           <div class="panelHeader">
-            <h2>Nuevo ticket</h2>
-            <p>Solo lo necesario para empezar.</p>
+            <h2>Crear ticket</h2>
+            <p>Datos mínimos para iniciar atención.</p>
           </div>
 
           <label>
             Nombre
             <input id="name" name="name" type="text" placeholder="Nombre del solicitante" required>
+          </label>
+
+          <label>
+            Contacto
+            <input id="contact" name="contact" type="text" placeholder="Correo o teléfono" required>
           </label>
 
           <label>
@@ -80,19 +123,43 @@
             </select>
           </label>
 
-          <button type="submit">Crear ticket</button>
+          <div class="formActions">
+            <button type="submit">Crear ticket</button>
+            <button id="cancelCreateButton" class="ghostButton" type="button">Cancelar</button>
+          </div>
           <p id="formMessage" class="message" role="status"></p>
         </form>
+      </section>
 
-        <section id="kanban" class="ticketBoard" aria-label="Kanban de tickets">
-          <div class="boardHeader">
-            <div class="panelHeader">
-              <h2>Tickets</h2>
-              <p>Seguimiento operativo por estado.</p>
-            </div>
-            <div id="statusFilters" class="filters" aria-label="Filtros por estado"></div>
+      <section id="slaView" class="view" aria-label="Estadísticas SLA">
+        <div class="sectionHeader">
+          <div>
+            <h2>Estadísticas SLA</h2>
+            <p>Vista dedicada para revisar cumplimiento, vencidos y distribución.</p>
           </div>
-          <div id="kanbanBoard" class="kanbanBoard"></div>
+          <button id="backToOverviewButton" class="ghostButton" type="button">Volver</button>
+        </div>
+        <section class="slaDetailGrid">
+          <article class="metricCard heroMetric">
+            <h2>Cumplimiento</h2>
+            <div class="donut large" id="slaDetailDonut" style="--value: 100">
+              <span id="slaDetailCompliance">100%</span>
+            </div>
+          </article>
+          <article class="chartPanel">
+            <div class="panelHeader">
+              <h2>Estados SLA</h2>
+              <p>Tickets activos vs resueltos.</p>
+            </div>
+            <div id="slaStatusBars" class="statusBars"></div>
+          </article>
+          <article class="chartPanel">
+            <div class="panelHeader">
+              <h2>Urgencia</h2>
+              <p>Impacto potencial sobre SLA.</p>
+            </div>
+            <div id="slaUrgencyBars" class="statusBars"></div>
+          </article>
         </section>
       </section>
     </main>

@@ -1,16 +1,30 @@
 const form = document.querySelector("#ticketForm");
 const message = document.querySelector("#formMessage");
+const overviewView = document.querySelector("#overviewView");
+const createView = document.querySelector("#createView");
+const slaView = document.querySelector("#slaView");
+const createTicketButton = document.querySelector("#createTicketButton");
+const cancelCreateButton = document.querySelector("#cancelCreateButton");
+const slaButton = document.querySelector("#slaButton");
+const backToOverviewButton = document.querySelector("#backToOverviewButton");
 const kanbanBoard = document.querySelector("#kanbanBoard");
-const statusFilters = document.querySelector("#statusFilters");
-const statTotal = document.querySelector("#statTotal");
+const ticketListView = document.querySelector("#ticketListView");
+const statusFilter = document.querySelector("#statusFilter");
 const statOpen = document.querySelector("#statOpen");
-const statSla = document.querySelector("#statSla");
 const appVersion = document.querySelector("#appVersion");
 const metricSla = document.querySelector("#metricSla");
 const metricBreached = document.querySelector("#metricBreached");
+const metricRemaining = document.querySelector("#metricRemaining");
+const slaDonut = document.querySelector("#slaDonut");
+const slaDetailDonut = document.querySelector("#slaDetailDonut");
+const slaDetailCompliance = document.querySelector("#slaDetailCompliance");
 const statusBars = document.querySelector("#statusBars");
+const urgencyBars = document.querySelector("#urgencyBars");
+const slaStatusBars = document.querySelector("#slaStatusBars");
+const slaUrgencyBars = document.querySelector("#slaUrgencyBars");
 
 let currentFilter = "todos";
+let boardView = "cards";
 let cachedTickets = [];
 
 const statuses = [
@@ -18,6 +32,13 @@ const statuses = [
   { key: "en_proceso", label: "En proceso" },
   { key: "en_espera", label: "En espera" },
   { key: "resuelto", label: "Resuelto" }
+];
+
+const urgencies = [
+  { key: "baja", label: "Baja" },
+  { key: "media", label: "Media" },
+  { key: "alta", label: "Alta" },
+  { key: "critica", label: "Crítica" }
 ];
 
 const formatDate = new Intl.DateTimeFormat("es-CO", {
@@ -30,7 +51,6 @@ async function requestJson(url, options) {
     headers: { "Content-Type": "application/json" },
     ...options
   });
-
   const data = await response.json();
 
   if (!response.ok) {
@@ -40,13 +60,25 @@ async function requestJson(url, options) {
   return data;
 }
 
+function showView(viewName) {
+  overviewView.classList.toggle("active", viewName === "overview");
+  createView.classList.toggle("active", viewName === "create");
+  slaView.classList.toggle("active", viewName === "sla");
+}
+
 function renderStats(stats) {
-  statTotal.textContent = stats.total;
+  const compliance = stats.slaCompliance || 0;
   statOpen.textContent = stats.open;
-  statSla.textContent = `${stats.slaCompliance}%`;
-  metricSla.textContent = `${stats.slaCompliance}%`;
+  metricSla.textContent = `${compliance}%`;
   metricBreached.textContent = stats.breached;
-  renderStatusBars(stats.byStatus || {});
+  metricRemaining.textContent = `${stats.avgRemainingHours || 0}h`;
+  slaDetailCompliance.textContent = `${compliance}%`;
+  slaDonut.style.setProperty("--value", compliance);
+  slaDetailDonut.style.setProperty("--value", compliance);
+  renderBars(statusBars, statuses, stats.byStatus || {});
+  renderBars(slaStatusBars, statuses, stats.byStatus || {});
+  renderBars(urgencyBars, urgencies, stats.byUrgency || {});
+  renderBars(slaUrgencyBars, urgencies, stats.byUrgency || {});
 }
 
 function renderVersion(info) {
@@ -54,7 +86,7 @@ function renderVersion(info) {
 }
 
 function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, char => {
+  return String(value || "").replace(/[&<>"']/g, char => {
     const entities = {
       "&": "&amp;",
       "<": "&lt;",
@@ -66,35 +98,21 @@ function escapeHtml(value) {
   });
 }
 
-function renderStatusBars(byStatus) {
-  const max = Math.max(...statuses.map(status => byStatus[status.key] || 0), 1);
+function renderBars(container, items, values) {
+  const max = Math.max(...items.map(item => values[item.key] || 0), 1);
 
-  statusBars.innerHTML = statuses
-    .map(status => {
-      const count = byStatus[status.key] || 0;
+  container.innerHTML = items
+    .map(item => {
+      const count = values[item.key] || 0;
       const width = Math.max((count / max) * 100, count > 0 ? 12 : 0);
       return `
         <div class="statusBar">
-          <span>${status.label}</span>
+          <span>${item.label}</span>
           <div><i style="width: ${width}%"></i></div>
           <strong>${count}</strong>
         </div>
       `;
     })
-    .join("");
-}
-
-function renderFilters() {
-  const filters = [{ key: "todos", label: "Todos" }, ...statuses];
-
-  statusFilters.innerHTML = filters
-    .map(
-      filter => `
-        <button class="filter ${currentFilter === filter.key ? "active" : ""}" type="button" data-filter="${filter.key}">
-          ${filter.label}
-        </button>
-      `
-    )
     .join("");
 }
 
@@ -106,12 +124,23 @@ function getVisibleTickets() {
   return cachedTickets.filter(ticket => ticket.status === currentFilter);
 }
 
-function renderKanban(tickets) {
+function renderTickets() {
   const visibleTickets = getVisibleTickets();
+  kanbanBoard.hidden = boardView !== "cards";
+  ticketListView.hidden = boardView !== "list";
 
+  if (boardView === "cards") {
+    renderKanban(visibleTickets);
+    return;
+  }
+
+  renderTicketList(visibleTickets);
+}
+
+function renderKanban(tickets) {
   kanbanBoard.innerHTML = statuses
     .map(status => {
-      const columnTickets = visibleTickets.filter(ticket => ticket.status === status.key);
+      const columnTickets = tickets.filter(ticket => ticket.status === status.key);
       const cards = columnTickets.map(renderTicketCard).join("");
 
       return `
@@ -140,22 +169,71 @@ function renderTicketCard(ticket) {
         <span class="badge ${escapeHtml(ticket.urgency)}">${escapeHtml(ticket.urgency)}</span>
       </div>
       <p class="ticketName">${escapeHtml(ticket.name)}</p>
-      <p class="ticketMeta">${escapeHtml(ticket.area)} · ${escapeHtml(ticket.source)} · ${createdAt}</p>
+      <p class="ticketMeta">${escapeHtml(ticket.contact)} · ${escapeHtml(ticket.area)} · ${createdAt}</p>
       <div class="cardFooter">
         <span class="sla ${ticket.sla.breached ? "breached" : ""}">${slaText}</span>
-        <select class="statusSelect" aria-label="Cambiar estado de ${escapeHtml(ticket.id)}" data-ticket-id="${escapeHtml(ticket.id)}">
-          ${statuses
-            .map(
-              status => `
-                <option value="${status.key}" ${ticket.status === status.key ? "selected" : ""}>
-                  ${status.label}
-                </option>
-              `
-            )
-            .join("")}
-        </select>
+        ${renderStatusSelect(ticket)}
       </div>
     </article>
+  `;
+}
+
+function renderTicketList(tickets) {
+  if (tickets.length === 0) {
+    ticketListView.innerHTML = '<p class="empty">Sin tickets para este filtro.</p>';
+    return;
+  }
+
+  ticketListView.innerHTML = `
+    <div class="tableWrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticket</th>
+            <th>Solicitante</th>
+            <th>Contacto</th>
+            <th>Área</th>
+            <th>Urgencia</th>
+            <th>SLA</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tickets
+            .map(ticket => {
+              const slaText = ticket.sla.breached ? "Vencido" : `${ticket.sla.remainingHours}h`;
+              return `
+                <tr>
+                  <td>${escapeHtml(ticket.id)}</td>
+                  <td>${escapeHtml(ticket.name)}</td>
+                  <td>${escapeHtml(ticket.contact)}</td>
+                  <td>${escapeHtml(ticket.area)}</td>
+                  <td><span class="badge ${escapeHtml(ticket.urgency)}">${escapeHtml(ticket.urgency)}</span></td>
+                  <td><span class="sla ${ticket.sla.breached ? "breached" : ""}">${slaText}</span></td>
+                  <td>${renderStatusSelect(ticket)}</td>
+                </tr>
+              `;
+            })
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderStatusSelect(ticket) {
+  return `
+    <select class="statusSelect" aria-label="Cambiar estado de ${escapeHtml(ticket.id)}" data-ticket-id="${escapeHtml(ticket.id)}">
+      ${statuses
+        .map(
+          status => `
+            <option value="${status.key}" ${ticket.status === status.key ? "selected" : ""}>
+              ${status.label}
+            </option>
+          `
+        )
+        .join("")}
+    </select>
   `;
 }
 
@@ -167,11 +245,45 @@ async function refresh() {
   ]);
 
   cachedTickets = tickets;
-  renderFilters();
-  renderKanban(tickets);
+  renderTickets();
   renderStats(stats);
   renderVersion(version);
 }
+
+createTicketButton.addEventListener("click", () => {
+  message.textContent = "";
+  showView("create");
+});
+
+cancelCreateButton.addEventListener("click", () => {
+  form.reset();
+  form.urgency.value = "media";
+  message.textContent = "";
+  showView("overview");
+});
+
+slaButton.addEventListener("click", () => {
+  showView("sla");
+});
+
+backToOverviewButton.addEventListener("click", () => {
+  showView("overview");
+});
+
+statusFilter.addEventListener("change", event => {
+  currentFilter = event.target.value;
+  renderTickets();
+});
+
+document.querySelectorAll("[data-board-view]").forEach(button => {
+  button.addEventListener("click", () => {
+    boardView = button.dataset.boardView;
+    document.querySelectorAll("[data-board-view]").forEach(item => {
+      item.classList.toggle("active", item === button);
+    });
+    renderTickets();
+  });
+});
 
 form.addEventListener("submit", async event => {
   event.preventDefault();
@@ -180,6 +292,7 @@ form.addEventListener("submit", async event => {
   const formData = new FormData(form);
   const ticket = {
     name: formData.get("name"),
+    contact: formData.get("contact"),
     area: formData.get("area"),
     urgency: formData.get("urgency")
   };
@@ -192,22 +305,26 @@ form.addEventListener("submit", async event => {
     form.reset();
     form.urgency.value = "media";
     message.textContent = "Ticket creado.";
+    showView("overview");
     await refresh();
   } catch (error) {
     message.textContent = error.message;
   }
 });
 
-statusFilters.addEventListener("click", event => {
-  const filterButton = event.target.closest("[data-filter]");
+document.addEventListener("change", async event => {
+  const select = event.target.closest(".statusSelect");
 
-  if (!filterButton) {
+  if (!select) {
     return;
   }
 
-  currentFilter = filterButton.dataset.filter;
-  renderFilters();
-  renderKanban(cachedTickets);
+  try {
+    await moveTicket(select.dataset.ticketId, select.value);
+  } catch (error) {
+    message.textContent = error.message;
+    await refresh();
+  }
 });
 
 kanbanBoard.addEventListener("dragstart", event => {
@@ -232,21 +349,6 @@ kanbanBoard.addEventListener("dragend", event => {
 
   if (card) {
     card.classList.remove("dragging");
-  }
-});
-
-kanbanBoard.addEventListener("change", async event => {
-  const select = event.target.closest(".statusSelect");
-
-  if (!select) {
-    return;
-  }
-
-  try {
-    await moveTicket(select.dataset.ticketId, select.value);
-  } catch (error) {
-    message.textContent = error.message;
-    await refresh();
   }
 });
 
@@ -279,11 +381,8 @@ kanbanBoard.addEventListener("drop", async event => {
   event.preventDefault();
   dropZone.classList.remove("over");
 
-  const ticketId = event.dataTransfer.getData("text/plain");
-  const status = dropZone.dataset.status;
-
   try {
-    await moveTicket(ticketId, status);
+    await moveTicket(event.dataTransfer.getData("text/plain"), dropZone.dataset.status);
   } catch (error) {
     message.textContent = error.message;
   }
@@ -297,6 +396,7 @@ async function moveTicket(ticketId, status) {
   await refresh();
 }
 
+showView("overview");
 refresh().catch(error => {
   kanbanBoard.innerHTML = `<p class="empty">${error.message}</p>`;
 });
