@@ -12,7 +12,7 @@
         <div>
           <p class="eyebrow">Neurofic</p>
           <h1>NeuroDesk</h1>
-          <p id="appVersion" class="version">v0.1.3</p>
+          <p id="appVersion" class="version">v0.1.4</p>
         </div>
         <div class="stats" aria-live="polite">
           <article>
@@ -21,13 +21,36 @@
           </article>
           <article>
             <span id="statOpen">0</span>
-            <small>Abiertos</small>
+            <small>Activos</small>
           </article>
           <article>
             <span id="statSla">100%</span>
             <small>SLA</small>
           </article>
         </div>
+      </section>
+
+      <nav class="menu" aria-label="Secciones de NeuroDesk">
+        <a href="#dashboard" aria-current="page">Dashboard</a>
+        <a href="#kanban">Kanban</a>
+        <a href="#nuevo-ticket">Nuevo ticket</a>
+      </nav>
+
+      <section id="dashboard" class="dashboard" aria-label="Dashboard de soporte">
+        <article class="metricCard">
+          <h2>Adherencia SLA</h2>
+          <strong id="metricSla">100%</strong>
+          <span>Tickets activos dentro del tiempo objetivo</span>
+        </article>
+        <article class="metricCard">
+          <h2>SLA vencido</h2>
+          <strong id="metricBreached">0</strong>
+          <span>Tickets activos fuera del acuerdo</span>
+        </article>
+        <article class="metricCard">
+          <h2>Distribución</h2>
+          <div id="statusBars" class="statusBars"></div>
+        </article>
       </section>
 
       <section class="workspace">
@@ -61,12 +84,15 @@
           <p id="formMessage" class="message" role="status"></p>
         </form>
 
-        <section class="ticketBoard" aria-label="Tickets recientes">
-          <div class="panelHeader">
-            <h2>Tickets recientes</h2>
-            <p>Vista inicial para seguimiento rápido.</p>
+        <section id="kanban" class="ticketBoard" aria-label="Kanban de tickets">
+          <div class="boardHeader">
+            <div class="panelHeader">
+              <h2>Tickets</h2>
+              <p>Seguimiento operativo por estado.</p>
+            </div>
+            <div id="statusFilters" class="filters" aria-label="Filtros por estado"></div>
           </div>
-          <div id="ticketList" class="ticketList"></div>
+          <div id="kanbanBoard" class="kanbanBoard"></div>
         </section>
       </section>
     </main>

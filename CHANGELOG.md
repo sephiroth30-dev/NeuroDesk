@@ -2,6 +2,22 @@
 
 Todas las versiones importantes de NeuroDesk quedaran documentadas en este archivo.
 
+## [0.1.4] - 2026-05-04
+
+### Agregado
+
+- Se agrega dashboard visual con metricas de SLA, vencidos y distribucion por estado.
+- Se agrega menu de navegacion para ordenar Dashboard, Kanban y Nuevo ticket.
+- Se agrega Kanban con columnas por estado y tarjetas arrastrables.
+- Se agrega selector de estado dentro de cada tarjeta como alternativa para pantallas tactiles.
+- Se agrega endpoint para actualizar el estado de un ticket.
+
+### Cambiado
+
+- Se actualiza la identidad visual a rojo corporativo con degradados a gris.
+- La API ahora calcula tickets activos como todos los no resueltos.
+- Se actualiza la version visible de la app a `0.1.4`.
+
 ## [0.1.3] - 2026-05-04
 
 ### Agregado

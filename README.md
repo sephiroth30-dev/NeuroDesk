@@ -26,6 +26,7 @@ http://localhost:3000
 
 - `GET /api/tickets`: lista tickets con estado de SLA.
 - `POST /api/tickets`: crea ticket desde la web.
+- `PATCH /api/tickets/:id/status`: actualiza el estado de un ticket.
 - `GET /api/stats`: devuelve métricas básicas.
 - `POST /api/email/inbound`: punto inicial para integrar creación desde correo.
 
@@ -34,6 +35,13 @@ http://localhost:3000
 - `name`: nombre del solicitante.
 - `area`: área relacionada.
 - `urgency`: `baja`, `media`, `alta` o `critica`.
+
+## Estados del ticket
+
+- `abierto`
+- `en_proceso`
+- `en_espera`
+- `resuelto`
 
 ## Próximos pasos sugeridos
 

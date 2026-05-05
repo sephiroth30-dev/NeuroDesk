@@ -32,6 +32,8 @@ const urgencySlaHours = {
   critica: 1
 };
 
+const ticketStatuses = ["abierto", "en_proceso", "en_espera", "resuelto"];
+
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -62,6 +64,7 @@ const insertTicketStmt = db.prepare(`
   INSERT INTO tickets (id, name, area, urgency, status, source, created_at)
   VALUES (?, ?, ?, ?, ?, ?, ?)
 `);
+const updateTicketStatusStmt = db.prepare("UPDATE tickets SET status = ? WHERE id = ?");
 
 seedDemoTicket();
 
@@ -181,6 +184,20 @@ function getTickets() {
   return listTicketsStmt.all();
 }
 
+function updateTicketStatus(id, status) {
+  if (!ticketStatuses.includes(status)) {
+    return null;
+  }
+
+  const result = updateTicketStatusStmt.run(status, id);
+
+  if (result.changes === 0) {
+    return null;
+  }
+
+  return getTickets().find(ticket => ticket.id === id);
+}
+
 function getSlaState(ticket) {
   const createdAt = new Date(ticket.createdAt).getTime();
   const elapsedHours = (Date.now() - createdAt) / 36e5;
@@ -196,17 +213,22 @@ function getSlaState(ticket) {
 
 function getStats() {
   const tickets = getTickets();
-  const openTickets = tickets.filter(ticket => ticket.status === "abierto");
-  const breachedTickets = openTickets.filter(ticket => getSlaState(ticket).breached);
+  const activeTickets = tickets.filter(ticket => ticket.status !== "resuelto");
+  const breachedTickets = activeTickets.filter(ticket => getSlaState(ticket).breached);
+  const byStatus = ticketStatuses.reduce((summary, status) => {
+    summary[status] = tickets.filter(ticket => ticket.status === status).length;
+    return summary;
+  }, {});
 
   return {
     total: tickets.length,
-    open: openTickets.length,
+    open: activeTickets.length,
     breached: breachedTickets.length,
+    byStatus,
     slaCompliance:
-      openTickets.length === 0
+      activeTickets.length === 0
         ? 100
-        : Math.round(((openTickets.length - breachedTickets.length) / openTickets.length) * 100)
+        : Math.round(((activeTickets.length - breachedTickets.length) / activeTickets.length) * 100)
   };
 }
 
@@ -240,6 +262,25 @@ async function handleApi(req, res) {
       sendJson(res, 201, insertTicket(ticket));
     } catch (error) {
       sendJson(res, 400, { error: "No se pudo leer la solicitud." });
+    }
+    return;
+  }
+
+  if (req.method === "PATCH" && req.url.startsWith("/api/tickets/") && req.url.endsWith("/status")) {
+    try {
+      const id = decodeURIComponent(req.url.split("/")[3] || "");
+      const body = await readBody(req);
+      const status = String(body.status || "").trim();
+      const ticket = updateTicketStatus(id, status);
+
+      if (!ticket) {
+        sendJson(res, 400, { error: "Ticket no encontrado o estado invalido." });
+        return;
+      }
+
+      sendJson(res, 200, { ...ticket, sla: getSlaState(ticket) });
+    } catch (error) {
+      sendJson(res, 400, { error: "No se pudo actualizar el estado." });
     }
     return;
   }
