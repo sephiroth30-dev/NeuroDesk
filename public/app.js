@@ -299,6 +299,7 @@ function renderTicketCard(ticket) {
         <button class="editTicketButton" data-edit-id="${escapeHtml(ticket.id)}" type="button" title="Editar">✎ Editar</button>
       </div>
       <p class="ticketName">${escapeHtml(ticket.name)}</p>
+      ${ticket.subject ? `<p class="ticketSubject">${escapeHtml(ticket.subject)}</p>` : ""}
       <p class="ticketMeta">${escapeHtml(ticket.contact)} · ${escapeHtml(ticket.area)} · ${createdAt}</p>
       <div class="cardFooter">
         <span class="sla ${ticket.sla.breached ? "breached" : ""}">${slaText}</span>
@@ -583,6 +584,8 @@ function openEditModal(ticket) {
   editName.value                = ticket.name;
   editContact.value             = ticket.contact || "";
   editArea.value                = ticket.area;
+  document.querySelector("#editSubject").value      = ticket.subject || "";
+  document.querySelector("#editDescription").value  = ticket.description || "";
   editUrgency.value             = ticket.urgency;
   editStatus.value              = ticket.status;
   editModalMessage.textContent  = "";
@@ -606,11 +609,13 @@ editTicketForm.addEventListener("submit", async e => {
   editModalMessage.textContent = "";
   const id = editTicketId.value;
   const payload = {
-    name:    editName.value.trim(),
-    contact: editContact.value.trim(),
-    area:    editArea.value.trim(),
-    urgency: editUrgency.value,
-    status:  editStatus.value
+    name:        editName.value.trim(),
+    contact:     editContact.value.trim(),
+    area:        editArea.value.trim(),
+    subject:     document.querySelector("#editSubject").value.trim(),
+    description: document.querySelector("#editDescription").value.trim(),
+    urgency:     editUrgency.value,
+    status:      editStatus.value
   };
   try {
     await requestJson(`/api/tickets/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(payload) });
@@ -953,7 +958,7 @@ form.addEventListener("submit", async e => {
   e.preventDefault();
   formMessage.textContent = "";
   const fd = new FormData(form);
-  const ticket = { name: fd.get("name"), contact: fd.get("contact") || "", area: fd.get("area") || "", urgency: fd.get("urgency") };
+  const ticket = { name: fd.get("name"), contact: fd.get("contact") || "", area: fd.get("area") || "", urgency: fd.get("urgency"), subject: fd.get("subject") || "", description: fd.get("description") || "" };
   try {
     await requestJson("/api/tickets", { method: "POST", body: JSON.stringify(ticket) });
     form.reset(); form.urgency.value = "media";

@@ -116,11 +116,11 @@ const contentTypes = {
 // ── Prepared statements ───────────────────────────────────────────────────────
 
 const countTicketsStmt       = db.prepare("SELECT COUNT(*) AS total FROM tickets");
-const listTicketsStmt        = db.prepare(`SELECT id, name, contact, area, urgency, status, source, created_at AS createdAt FROM tickets ORDER BY created_at DESC`);
+const listTicketsStmt        = db.prepare(`SELECT id, name, contact, area, urgency, status, source, subject, description, created_at AS createdAt FROM tickets ORDER BY created_at DESC`);
 const nextTicketNumberStmt   = db.prepare(`SELECT COALESCE(MAX(CAST(SUBSTR(id, 4) AS INTEGER)), 1000) + 1 AS nextNumber FROM tickets WHERE id LIKE 'ND-%'`);
-const insertTicketStmt       = db.prepare(`INSERT INTO tickets (id, name, contact, area, urgency, status, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
+const insertTicketStmt       = db.prepare(`INSERT INTO tickets (id, name, contact, area, urgency, status, source, subject, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 const updateTicketStatusStmt = db.prepare("UPDATE tickets SET status = ? WHERE id = ?");
-const updateTicketFullStmt   = db.prepare(`UPDATE tickets SET name = ?, contact = ?, area = ?, urgency = ?, status = ? WHERE id = ?`);
+const updateTicketFullStmt   = db.prepare(`UPDATE tickets SET name = ?, contact = ?, area = ?, urgency = ?, status = ?, subject = ?, description = ? WHERE id = ?`);
 const deleteTicketStmt       = db.prepare("DELETE FROM tickets WHERE id = ?");
 const upsertConfigStmt       = db.prepare(`INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
 const getConfigStmt          = db.prepare("SELECT value FROM config WHERE key = 'app_config'");
@@ -233,19 +233,24 @@ function saveConfig(incoming) {
 // ── Tickets ───────────────────────────────────────────────────────────────────
 
 function normalizeTicket(input, source = "web") {
-  const name = String(input.name || "").trim();
-  const contact = String(input.contact || "").trim();
-  const area = String(input.area || "").trim() || "General";
-  const urgency = String(input.urgency || "").trim().toLowerCase();
+  const name        = String(input.name || "").trim();
+  const contact     = String(input.contact || "").trim();
+  const area        = String(input.area || "").trim() || "General";
+  const urgency     = String(input.urgency || "").trim().toLowerCase();
+  const subject     = String(input.subject || "").trim().slice(0, 200);
+  const description = String(input.description || "").trim().slice(0, 4000);
 
   if (!name || !appConfig.sla[urgency]) return null;
 
-  return { id: getNextTicketId(), name, contact, area, urgency, status: "abierto", source, createdAt: new Date().toISOString() };
+  return { id: getNextTicketId(), name, contact, area, urgency, status: "abierto", source, subject, description, createdAt: new Date().toISOString() };
 }
 
 function migrateDatabase() {
   const columns = db.prepare("PRAGMA table_info(tickets)").all();
-  if (!columns.some(c => c.name === "contact")) db.exec("ALTER TABLE tickets ADD COLUMN contact TEXT");
+  const names = columns.map(c => c.name);
+  if (!names.includes("contact"))     db.exec("ALTER TABLE tickets ADD COLUMN contact TEXT");
+  if (!names.includes("subject"))     db.exec("ALTER TABLE tickets ADD COLUMN subject TEXT");
+  if (!names.includes("description")) db.exec("ALTER TABLE tickets ADD COLUMN description TEXT");
 }
 
 function seedDemoTicket() {
@@ -270,7 +275,7 @@ function getNextTicketId() {
 }
 
 function insertTicket(ticket) {
-  insertTicketStmt.run(ticket.id, ticket.name, ticket.contact, ticket.area, ticket.urgency, ticket.status, ticket.source, ticket.createdAt);
+  insertTicketStmt.run(ticket.id, ticket.name, ticket.contact, ticket.area, ticket.urgency, ticket.status, ticket.source, ticket.subject || "", ticket.description || "", ticket.createdAt);
   return ticket;
 }
 
@@ -284,14 +289,16 @@ function updateTicketStatus(id, status) {
 }
 
 function updateTicketFull(id, data) {
-  const name = String(data.name || "").trim();
-  const contact = String(data.contact || "").trim();
-  const area = String(data.area || "").trim() || "General";
-  const urgency = String(data.urgency || "").trim().toLowerCase();
-  const status = String(data.status || "").trim();
+  const name        = String(data.name || "").trim();
+  const contact     = String(data.contact || "").trim();
+  const area        = String(data.area || "").trim() || "General";
+  const urgency     = String(data.urgency || "").trim().toLowerCase();
+  const status      = String(data.status || "").trim();
+  const subject     = String(data.subject || "").trim().slice(0, 200);
+  const description = String(data.description || "").trim().slice(0, 4000);
 
   if (!name || !appConfig.sla[urgency] || !ticketStatuses.includes(status)) return null;
-  const result = updateTicketFullStmt.run(name, contact, area, urgency, status, id);
+  const result = updateTicketFullStmt.run(name, contact, area, urgency, status, subject, description, id);
   if (result.changes === 0) return null;
   return getTickets().find(t => t.id === id);
 }
@@ -395,10 +402,11 @@ async function pollEmails() {
         if (isEmailProcessedStmt.get(messageId)) continue;
         const fromAddress = parsed.from?.value?.[0];
         const fromEmail   = fromAddress?.address || "";
-        const subject     = (parsed.subject || "(sin asunto)").slice(0, 120);
-        const bodyText    = parsed.text || (parsed.html || "").replace(/<[^>]+>/g, "");
+        const fromName    = fromAddress?.name || fromEmail;
+        const subject     = (parsed.subject || "(sin asunto)").slice(0, 200);
+        const bodyText    = (parsed.text || (parsed.html || "").replace(/<[^>]+>/g, "")).trim().slice(0, 4000);
         const urgency     = detectUrgency(subject, bodyText);
-        const ticket = normalizeTicket({ name: subject, contact: fromEmail, area: emailConfig.defaultArea, urgency }, "email");
+        const ticket = normalizeTicket({ name: fromName || fromEmail, contact: fromEmail, area: emailConfig.defaultArea, urgency, subject, description: bodyText }, "email");
         if (ticket) {
           insertTicket(ticket);
           markEmailProcessedStmt.run(messageId, new Date().toISOString());
