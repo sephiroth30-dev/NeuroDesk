@@ -492,6 +492,6 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`NeuroDesk listo en http://localhost:${PORT}`);
+  console.log(`NeuroDesk v${packageInfo.version} listo en http://localhost:${PORT}`);
   console.log(`Portal público en http://localhost:${PORT}/portal`);
 });

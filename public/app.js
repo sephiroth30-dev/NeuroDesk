@@ -252,7 +252,7 @@ function renderBars(container, items, values) {
     const count = values[item.key] || 0;
     const width = Math.max((count / max) * 100, count > 0 ? 12 : 0);
     return `
-      <div class="statusBar">
+      <div class="statusBar" data-key="${item.key}">
         <span>${item.label}</span>
         <div><i style="width: ${width}%"></i></div>
         <strong>${count}</strong>
@@ -307,7 +307,7 @@ function renderTicketCard(ticket) {
   const createdAt = formatDate.format(new Date(ticket.createdAt));
 
   return `
-    <article class="ticketCard" draggable="true" data-ticket-id="${escapeHtml(ticket.id)}">
+    <article class="ticketCard urgency-${escapeHtml(ticket.urgency)}" draggable="true" data-ticket-id="${escapeHtml(ticket.id)}">
       <div class="ticketTitle">
         <span>${escapeHtml(ticket.id)}</span>
         <span class="badge ${escapeHtml(ticket.urgency)}">${escapeHtml(ticket.urgency)}</span>
