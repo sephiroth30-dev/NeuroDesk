@@ -108,7 +108,8 @@ body {
 }
 
 .sidebarNav {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 1px;
   flex: 1;
 }

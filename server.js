@@ -1214,10 +1214,22 @@ const server = http.createServer(async (req, res) => {
   sendStatic(req, res);
 });
 
+process.on("uncaughtException", (err) => {
+  console.error("[NeuroDesk] uncaughtException:", err.message, err.stack);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[NeuroDesk] unhandledRejection:", reason);
+});
+
 if (require.main === module) {
   server.listen(PORT, () => {
     console.log(`NeuroDesk v${packageInfo.version} listo en http://localhost:${PORT}`);
     console.log(`Portal público en http://localhost:${PORT}/portal`);
+  });
+
+  server.on("error", (err) => {
+    console.error("[NeuroDesk] server error:", err.message);
   });
 }
 
