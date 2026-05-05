@@ -393,7 +393,7 @@
                 Contraseña
                 <div class="passwordWrapper">
                   <input id="emailPassword" type="password" placeholder="Contraseña o App Password" autocomplete="new-password">
-                  <button type="button" class="eyeBtn" id="toggleEmailPassword" title="Mostrar/ocultar contraseña">👁</button>
+                  <button type="button" class="eyeBtn" id="toggleEmailPassword" title="Mostrar/ocultar contraseña"></button>
                 </div>
               </label>
               <label>
@@ -485,9 +485,15 @@
         <details class="adminAccordion panel" style="margin-top: 16px;">
           <summary>Cambiar contraseña</summary>
           <form id="changePasswordForm" autocomplete="off" style="margin-top: 16px; display: grid; gap: 14px; max-width: 400px;">
-            <label>Contraseña actual<input id="cpCurrent" type="password" required></label>
-            <label>Nueva contraseña<input id="cpNew" type="password" required minlength="4"></label>
-            <label>Confirmar nueva<input id="cpConfirm" type="password" required minlength="4"></label>
+            <label>Contraseña actual
+              <div class="passwordWrapper"><input id="cpCurrent" type="password" required><button type="button" class="eyeBtn" id="toggleCpCurrent" title="Mostrar/ocultar"></button></div>
+            </label>
+            <label>Nueva contraseña
+              <div class="passwordWrapper"><input id="cpNew" type="password" required minlength="4"><button type="button" class="eyeBtn" id="toggleCpNew" title="Mostrar/ocultar"></button></div>
+            </label>
+            <label>Confirmar nueva
+              <div class="passwordWrapper"><input id="cpConfirm" type="password" required minlength="4"><button type="button" class="eyeBtn" id="toggleCpConfirm" title="Mostrar/ocultar"></button></div>
+            </label>
             <button type="submit" class="primaryAction" style="justify-self: start;">Guardar contraseña</button>
             <p id="cpMessage" class="message" role="status"></p>
           </form>

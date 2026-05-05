@@ -18,6 +18,17 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [7.6] - 2026-05-05
+
+### Toggle ojo en todos los campos de contraseña
+
+- Ícono SVG de ojo abierto / cerrado (sin emojis) en todos los campos password
+- Campos cubiertos: login, correo entrante, cambiar contraseña (actual, nueva, confirmar)
+- Función `initPasswordToggle` reutilizable para inicializar cualquier campo
+- Estilos `.passwordWrapper` y `.eyeBtn` aplicados también en login.html
+
+---
+
 ## [7.5] - 2026-05-05
 
 ### Ojito en contraseña + limpieza de espacios App Password
