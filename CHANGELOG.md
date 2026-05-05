@@ -18,6 +18,19 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [7.7] - 2026-05-05
+
+### Tickets en vivo + correo entrante mas confiable
+
+- El panel interno ahora escucha `/api/events` con Server-Sent Events y refresca tickets/estadisticas cuando se crea, edita, mueve o elimina un ticket
+- Se agrega refresco automatico de respaldo cada 15 segundos para no depender de recargar la pagina
+- El sondeo IMAP ya no depende solo de correos no leidos: tambien revisa mensajes recientes desde la conexion del buzon para convertir correos ya marcados como leidos
+- El estado de Correo entrante muestra "Mensajes revisados" para diagnosticar si el sondeo esta encontrando mensajes aunque no cree tickets
+- Los tickets creados desde webhook `/api/email/inbound` ahora conservan asunto y descripcion si llegan en el payload
+- Version visible actualizada a `7.7`
+
+---
+
 ## [7.6] - 2026-05-05
 
 ### Toggle ojo en todos los campos de contraseña

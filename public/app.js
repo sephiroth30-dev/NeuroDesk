@@ -95,6 +95,8 @@ let cachedTickets   = [];
 let appConfig       = null;
 let selectedTickets = new Set();
 let adminSelected   = new Set();
+let refreshInFlight = null;
+let liveEvents      = null;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -762,6 +764,8 @@ async function loadEmailStatus() {
     document.querySelector("#emailLastPoll").textContent       = st.lastPoll ? new Date(st.lastPoll).toLocaleString() : "—";
     document.querySelector("#emailLastError").textContent      = st.lastError || "—";
     document.querySelector("#emailTicketsCreated").textContent = st.ticketsCreated || 0;
+    const checked = document.querySelector("#emailMessagesChecked");
+    if (checked) checked.textContent = st.lastMessagesChecked || 0;
   } catch (_) {}
 }
 
@@ -1002,6 +1006,12 @@ async function moveTicket(ticketId, status) {
 }
 
 async function refresh() {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = doRefresh().finally(() => { refreshInFlight = null; });
+  return refreshInFlight;
+}
+
+async function doRefresh() {
   const [tickets, stats, version] = await Promise.all([
     requestJson("/api/tickets"),
     requestJson("/api/stats"),
@@ -1020,6 +1030,20 @@ async function refresh() {
   renderStats(stats);
   renderSlaReport();
   renderVersion(version);
+}
+
+function connectLiveUpdates() {
+  if (!window.EventSource || liveEvents) return;
+  liveEvents = new EventSource("/api/events");
+  liveEvents.addEventListener("ticketsChanged", () => {
+    refresh().catch(() => {});
+    loadEmailStatus().catch(() => {});
+  });
+  liveEvents.onerror = () => {
+    liveEvents.close();
+    liveEvents = null;
+    setTimeout(connectLiveUpdates, 5000);
+  };
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -1043,6 +1067,9 @@ async function init() {
   }
   try {
     await Promise.all([refresh(), loadConfig()]);
+    connectLiveUpdates();
+    setInterval(() => refresh().catch(() => {}), 15000);
+    setInterval(() => loadEmailStatus().catch(() => {}), 30000);
   } catch (error) {
     kanbanBoard.innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
   }

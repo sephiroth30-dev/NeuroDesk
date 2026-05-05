@@ -109,13 +109,16 @@ const DEFAULT_EMAIL_CONFIG = {
   password: "",
   folder: "INBOX",
   pollIntervalMinutes: 5,
+  connectedAt: null,
   defaultArea: "Correo",
   defaultUrgency: "media"
 };
 
 let emailConfig       = JSON.parse(JSON.stringify(DEFAULT_EMAIL_CONFIG));
-const emailPollStatus = { lastPoll: null, lastError: null, ticketsCreated: 0, polling: false };
+const emailPollStatus = { lastPoll: null, lastError: null, ticketsCreated: 0, polling: false, lastMessagesChecked: 0 };
 let emailPollerTimer  = null;
+const eventClients    = new Set();
+const EMAIL_FALLBACK_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
 const DEFAULT_CONFIG = {
   sla: { baja: 24, media: 8, alta: 4, critica: 1 },
@@ -171,6 +174,29 @@ startEmailPoller();
 function sendJson(res, status, data) {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(data));
+}
+
+function sendEvent(res, event, data) {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+function notifyClients(event, data = {}) {
+  for (const res of eventClients) {
+    try { sendEvent(res, event, data); }
+    catch (_) { eventClients.delete(res); }
+  }
+}
+
+function handleEvents(req, res) {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    "Connection": "keep-alive"
+  });
+  sendEvent(res, "connected", { ok: true });
+  eventClients.add(res);
+  req.on("close", () => eventClients.delete(res));
 }
 
 function sendStatic(req, res) {
@@ -296,6 +322,7 @@ function getNextTicketId() {
 
 function insertTicket(ticket) {
   insertTicketStmt.run(ticket.id, ticket.name, ticket.contact, ticket.area, ticket.urgency, ticket.status, ticket.source, ticket.subject || "", ticket.description || "", ticket.createdAt);
+  notifyClients("ticketsChanged", { action: "created", id: ticket.id, source: ticket.source });
   return ticket;
 }
 
@@ -305,6 +332,7 @@ function updateTicketStatus(id, status) {
   if (!ticketStatuses.includes(status)) return null;
   const result = updateTicketStatusStmt.run(status, id);
   if (result.changes === 0) return null;
+  notifyClients("ticketsChanged", { action: "status", id });
   return getTickets().find(t => t.id === id);
 }
 
@@ -320,6 +348,7 @@ function updateTicketFull(id, data) {
   if (!name || !appConfig.sla[urgency] || !ticketStatuses.includes(status)) return null;
   const result = updateTicketFullStmt.run(name, contact, area, urgency, status, subject, description, id);
   if (result.changes === 0) return null;
+  notifyClients("ticketsChanged", { action: "updated", id });
   return getTickets().find(t => t.id === id);
 }
 
@@ -363,8 +392,17 @@ function saveEmailConfig(incoming) {
   const rawUrgency     = String(incoming.defaultUrgency || "media").trim();
   const defaultUrgency = appConfig.sla[rawUrgency] ? rawUrgency : "media";
   const enabled        = incoming.enabled === true || incoming.enabled === "true";
+  const accountChanged =
+    host !== emailConfig.host ||
+    port !== emailConfig.port ||
+    secure !== emailConfig.secure ||
+    username !== emailConfig.username ||
+    folder !== emailConfig.folder;
+  const connectedAt = enabled && (!emailConfig.enabled || accountChanged || !emailConfig.connectedAt)
+    ? new Date(Date.now() - EMAIL_FALLBACK_LOOKBACK_MS).toISOString()
+    : emailConfig.connectedAt;
 
-  emailConfig = { enabled, host, port, secure, username, password, folder, pollIntervalMinutes, defaultArea, defaultUrgency };
+  emailConfig = { enabled, host, port, secure, username, password, folder, pollIntervalMinutes, connectedAt, defaultArea, defaultUrgency };
   upsertConfigStmt.run("email_config", JSON.stringify(emailConfig));
   startEmailPoller();
   return emailConfig;
@@ -384,6 +422,7 @@ async function pollEmails() {
 
   emailPollStatus.polling = true;
   let created = 0;
+  emailPollStatus.lastMessagesChecked = 0;
 
   const client = new ImapFlow({
     host: emailConfig.host, port: emailConfig.port, secure: emailConfig.secure,
@@ -395,11 +434,19 @@ async function pollEmails() {
     await client.connect();
     const lock = await client.getMailboxLock(emailConfig.folder);
     try {
-      const uids = await client.search({ seen: false });
+      const connectedAt = emailConfig.connectedAt ? new Date(emailConfig.connectedAt) : null;
+      const recentSince = connectedAt && !Number.isNaN(connectedAt.getTime())
+        ? connectedAt
+        : new Date(Date.now() - EMAIL_FALLBACK_LOOKBACK_MS);
+      const unreadUids = await client.search({ seen: false });
+      const recentUids = await client.search({ since: recentSince });
+      const uids = [...new Set([...unreadUids, ...recentUids])];
+      emailPollStatus.lastMessagesChecked = uids.length;
       for (const uid of uids) {
         const message = await client.fetchOne(uid, { source: true, uid: true });
         if (!message) continue;
         const parsed = await simpleParser(message.source);
+        if (parsed.date && parsed.date < recentSince && !unreadUids.includes(uid)) continue;
         const messageId = parsed.messageId || `uid-${uid}-${Date.now()}`;
         if (isEmailProcessedStmt.get(messageId)) continue;
         const fromAddress = parsed.from?.value?.[0];
@@ -531,6 +578,10 @@ async function handleAuth(req, res) {
 // ── API handler ───────────────────────────────────────────────────────────────
 
 async function handleApi(req, res) {
+  if (req.method === "GET" && req.url === "/api/events") {
+    handleEvents(req, res); return;
+  }
+
   if (req.method === "GET" && req.url === "/api/version") {
     sendJson(res, 200, { version: packageInfo.version }); return;
   }
@@ -567,6 +618,7 @@ async function handleApi(req, res) {
     const id = decodeURIComponent(req.url.split("/")[3] || "");
     const result = deleteTicketStmt.run(id);
     if (result.changes === 0) { sendJson(res, 404, { error: "Ticket no encontrado." }); return; }
+    notifyClients("ticketsChanged", { action: "deleted", id });
     sendJson(res, 200, { ok: true });
     return;
   }
@@ -579,6 +631,7 @@ async function handleApi(req, res) {
       if (ids.length === 0) { sendJson(res, 400, { error: "No se proporcionaron IDs válidos." }); return; }
       const placeholders = ids.map(() => "?").join(",");
       const result = db.prepare(`DELETE FROM tickets WHERE id IN (${placeholders})`).run(...ids);
+      if (result.changes > 0) notifyClients("ticketsChanged", { action: "deletedBulk", count: result.changes });
       sendJson(res, 200, { deleted: result.changes });
     } catch { sendJson(res, 400, { error: "No se pudo procesar la solicitud." }); }
     return;
@@ -645,7 +698,14 @@ async function handleApi(req, res) {
   if (req.method === "POST" && req.url === "/api/email/inbound") {
     try {
       const body = await readBody(req);
-      const ticket = normalizeTicket({ name: body.from || body.name, contact: body.from || body.contact, area: body.area || "Correo", urgency: body.urgency || "media" }, "email");
+      const ticket = normalizeTicket({
+        name: body.from || body.name,
+        contact: body.from || body.contact,
+        area: body.area || "Correo",
+        urgency: body.urgency || "media",
+        subject: body.subject || "",
+        description: body.description || body.text || body.body || ""
+      }, "email");
       if (!ticket) { sendJson(res, 400, { error: "El correo no contiene datos suficientes." }); return; }
       sendJson(res, 201, insertTicket(ticket));
     } catch { sendJson(res, 400, { error: "No se pudo procesar el correo entrante." }); }
