@@ -1,27 +1,121 @@
 <!doctype html>
 <html lang="es">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>NeuroDesk</title>
-    <link rel="stylesheet" href="/styles.css">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NeuroDesk — Neurofic</title>
+    <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
       <div class="sidebarBrand">
-        <span class="brandIcon">N</span>
-        <strong>Support Desk</strong>
+        <span class="brandIcon">ND</span>
+        <strong>NeuroDesk</strong>
       </div>
-      <nav class="sidebarNav" aria-label="Menu principal">
-        <button class="sidebarItem active" id="sidebarOverviewButton" type="button" title="Panel de informacion"><span>◉</span><b>Panel de informacion</b></button>
-        <button class="sidebarItem" id="adminButton" type="button" title="Tickets"><span>▤</span><b>Tickets</b></button>
-        <button class="sidebarItem" id="slaButton" type="button" title="Analisis"><span>▥</span><b>Indicadores</b></button>
-        <button class="sidebarItem" id="settingsButton" type="button" title="Administracion"><span>⚙</span><b>Configuracion</b></button>
+      <nav class="sidebarNav" aria-label="Menú principal">
+        <button class="sidebarItem active" id="sidebarOverviewButton" type="button" title="Panel">
+          <span
+            ><svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="3" y="3" width="7" height="7" rx="1.5" />
+              <rect x="14" y="3" width="7" height="7" rx="1.5" />
+              <rect x="3" y="14" width="7" height="7" rx="1.5" />
+              <rect x="14" y="14" width="7" height="7" rx="1.5" /></svg
+          ></span>
+          <b>Panel</b>
+        </button>
+        <button class="sidebarItem" id="adminButton" type="button" title="Tickets">
+          <span
+            ><svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+              <rect x="9" y="3" width="6" height="4" rx="1" />
+              <path d="M9 12h6M9 16h4" /></svg
+          ></span>
+          <b>Tickets</b>
+        </button>
+        <button class="sidebarItem" id="slaButton" type="button" title="Indicadores">
+          <span
+            ><svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M18 20V10" />
+              <path d="M12 20V4" />
+              <path d="M6 20v-6" /></svg
+          ></span>
+          <b>Indicadores</b>
+        </button>
+        <button class="sidebarItem" id="settingsButton" type="button" title="Configuración">
+          <span
+            ><svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"
+              /></svg
+          ></span>
+          <b>Configuración</b>
+        </button>
       </nav>
-      <button class="sidebarItem sidebarCollapse" id="sidebarToggle" type="button" title="Contraer"><span>⇤</span><b>Contraer</b></button>
+      <button
+        class="sidebarItem sidebarCollapse"
+        id="sidebarToggle"
+        type="button"
+        title="Contraer menú"
+      >
+        <span
+          ><svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.75"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M15 19l-7-7 7-7" /></svg
+        ></span>
+        <b>Contraer</b>
+      </button>
     </aside>
     <main class="shell">
-
       <!-- ── Topbar ── -->
       <section class="topbar" aria-label="Encabezado de NeuroDesk">
         <div>
@@ -31,11 +125,15 @@
         </div>
         <div class="topBarRight">
           <div class="topActions" aria-label="Acciones principales">
-            <button id="createTicketButton" class="primaryAction" type="button">+ Crear ticket</button>
+            <button id="createTicketButton" class="primaryAction" type="button">
+              + Crear ticket
+            </button>
           </div>
           <div class="userArea">
             <span id="currentUser" class="userName"></span>
-            <button id="logoutButton" class="ghostButton" type="button" title="Cerrar sesión">Salir</button>
+            <button id="logoutButton" class="ghostButton" type="button" title="Cerrar sesión">
+              Salir
+            </button>
           </div>
         </div>
       </section>
@@ -44,7 +142,11 @@
       <section id="overviewView" class="view active" aria-label="Vista inicial de soporte">
         <section class="donutsHero" aria-label="Indicadores de salud operativa">
           <article class="donutCard">
-            <div class="donut donutHero" id="slaDonut" style="--value: 100; --donut-color: var(--donut-ok)">
+            <div
+              class="donut donutHero"
+              id="slaDonut"
+              style="--value: 100; --donut-color: var(--donut-ok)"
+            >
               <span id="metricSla">100%</span>
             </div>
             <div>
@@ -53,7 +155,11 @@
             </div>
           </article>
           <article class="donutCard">
-            <div class="donut donutHero" id="activeDonut" style="--value: 0; --donut-color: var(--donut-info)">
+            <div
+              class="donut donutHero"
+              id="activeDonut"
+              style="--value: 0; --donut-color: var(--donut-info)"
+            >
               <span id="statOpen">0</span>
             </div>
             <div>
@@ -62,7 +168,11 @@
             </div>
           </article>
           <article class="donutCard">
-            <div class="donut donutHero" id="breachedDonut" style="--value: 0; --donut-color: var(--donut-warn)">
+            <div
+              class="donut donutHero"
+              id="breachedDonut"
+              style="--value: 0; --donut-color: var(--donut-warn)"
+            >
               <span id="metricBreached">0</span>
             </div>
             <div>
@@ -91,7 +201,9 @@
                 </select>
               </label>
               <div class="viewToggle" aria-label="Modo de visualización">
-                <button class="toggleButton active" type="button" data-board-view="cards">Tarjetas</button>
+                <button class="toggleButton active" type="button" data-board-view="cards">
+                  Tarjetas
+                </button>
                 <button class="toggleButton" type="button" data-board-view="list">Lista</button>
               </div>
             </div>
@@ -104,34 +216,55 @@
       <!-- ── Create ticket ── -->
       <section id="createView" class="view" aria-label="Creación de ticket">
         <form id="ticketForm" class="panel ticketForm" autocomplete="off">
-          <div class="panelHeader" style="margin-bottom: 20px;">
+          <div class="panelHeader" style="margin-bottom: 20px">
             <h2>Crear ticket</h2>
             <p>Datos mínimos para iniciar atención.</p>
           </div>
 
           <label>
             <span class="fieldLabel">Nombre</span>
-            <input id="name" name="name" type="text" placeholder="Nombre del solicitante" required>
+            <input
+              id="name"
+              name="name"
+              type="text"
+              placeholder="Nombre del solicitante"
+              required
+            />
           </label>
 
           <label id="createContactRow">
             <span class="fieldLabel" id="contactFieldLabel">Contacto</span>
-            <input id="contact" name="contact" type="text" placeholder="Correo o teléfono">
+            <input id="contact" name="contact" type="text" placeholder="Correo o teléfono" />
           </label>
 
           <label id="createAreaRow">
             <span class="fieldLabel" id="areaFieldLabel">Área</span>
-            <input id="area" name="area" type="text" placeholder="Ej. Agenda, Facturación, Soporte">
+            <input
+              id="area"
+              name="area"
+              type="text"
+              placeholder="Ej. Agenda, Facturación, Soporte"
+            />
           </label>
 
           <label>
             <span class="fieldLabel">Asunto</span>
-            <input id="subject" name="subject" type="text" placeholder="Breve descripción del problema">
+            <input
+              id="subject"
+              name="subject"
+              type="text"
+              placeholder="Breve descripción del problema"
+            />
           </label>
 
           <label>
             <span class="fieldLabel">Descripción</span>
-            <textarea id="description" name="description" rows="4" placeholder="Detalle del problema o solicitud…"></textarea>
+            <textarea
+              id="description"
+              name="description"
+              rows="4"
+              placeholder="Detalle del problema o solicitud…"
+            ></textarea>
           </label>
 
           <div id="createCustomFields" class="createCustomFields"></div>
@@ -169,11 +302,11 @@
         <section class="filterPanel" aria-label="Filtros de SLA">
           <label>
             Desde
-            <input id="slaDateFrom" type="date">
+            <input id="slaDateFrom" type="date" />
           </label>
           <label>
             Hasta
-            <input id="slaDateTo" type="date">
+            <input id="slaDateTo" type="date" />
           </label>
           <label>
             Estado
@@ -221,13 +354,17 @@
           </label>
           <label>
             Buscar
-            <input id="slaSearchFilter" type="search" placeholder="Ticket, contacto o área">
+            <input id="slaSearchFilter" type="search" placeholder="Ticket, contacto o área" />
           </label>
         </section>
         <section class="slaDetailGrid">
           <article class="metricCard heroMetric">
             <h2>Cumplimiento</h2>
-            <div class="donut large" id="slaDetailDonut" style="--value: 100; --donut-color: var(--donut-ok)">
+            <div
+              class="donut large"
+              id="slaDetailDonut"
+              style="--value: 100; --donut-color: var(--donut-ok)"
+            >
               <span id="slaDetailCompliance">100%</span>
             </div>
           </article>
@@ -273,86 +410,181 @@
             <p>Configura SLA, campos del formulario y portal público.</p>
           </div>
           <div class="sectionActions">
-            <button id="saveSettingsButton" class="primaryAction" type="button">Guardar cambios</button>
+            <button id="saveSettingsButton" class="primaryAction" type="button">
+              Guardar cambios
+            </button>
             <button id="backFromSettingsButton" class="ghostButton" type="button">Volver</button>
           </div>
         </div>
 
         <div class="tabBar" role="tablist">
-          <button class="tabButton active" data-tab="slaTab" role="tab" aria-selected="true" type="button">Tiempos SLA</button>
-          <button class="tabButton" data-tab="fieldsTab" role="tab" aria-selected="false" type="button">Formulario</button>
-          <button class="tabButton" data-tab="portalTab" role="tab" aria-selected="false" type="button">Portal público</button>
-          <button class="tabButton" data-tab="emailTab" role="tab" aria-selected="false" type="button">Correo entrante</button>
+          <button
+            class="tabButton active"
+            data-tab="slaTab"
+            role="tab"
+            aria-selected="true"
+            type="button"
+          >
+            Tiempos SLA
+          </button>
+          <button
+            class="tabButton"
+            data-tab="fieldsTab"
+            role="tab"
+            aria-selected="false"
+            type="button"
+          >
+            Formulario
+          </button>
+          <button
+            class="tabButton"
+            data-tab="portalTab"
+            role="tab"
+            aria-selected="false"
+            type="button"
+          >
+            Portal público
+          </button>
+          <button
+            class="tabButton"
+            data-tab="emailTab"
+            role="tab"
+            aria-selected="false"
+            type="button"
+          >
+            Correo entrante
+          </button>
         </div>
 
         <!-- Tab: SLA -->
         <div id="slaTab" class="tabPanel panel" role="tabpanel">
-          <div class="panelHeader" style="margin-bottom: 20px;">
+          <div class="panelHeader" style="margin-bottom: 20px">
             <h2>Tiempos de respuesta por urgencia</h2>
-            <p>Horas máximas para resolver cada nivel antes de que el SLA se marque como vencido.</p>
+            <p>
+              Horas máximas para resolver cada nivel antes de que el SLA se marque como vencido.
+            </p>
           </div>
           <div class="presetButtons">
             <span class="presetLabel">Presets:</span>
-            <button class="ghostButton presetBtn" data-preset="standard" type="button">Estándar</button>
-            <button class="ghostButton presetBtn" data-preset="relaxed" type="button">Relajado</button>
-            <button class="ghostButton presetBtn" data-preset="strict" type="button">Exigente</button>
+            <button class="ghostButton presetBtn" data-preset="standard" type="button">
+              Estándar
+            </button>
+            <button class="ghostButton presetBtn" data-preset="relaxed" type="button">
+              Relajado
+            </button>
+            <button class="ghostButton presetBtn" data-preset="strict" type="button">
+              Exigente
+            </button>
           </div>
           <div class="slaInputsGrid">
             <label>
-              <span class="badge" style="justify-self: start; margin-bottom: 4px;">Baja</span>
+              <span class="badge" style="justify-self: start; margin-bottom: 4px">Baja</span>
               Horas máximas
-              <input id="slaBaja" name="slaBaja" type="number" min="1" max="720" step="1" value="24">
+              <input
+                id="slaBaja"
+                name="slaBaja"
+                type="number"
+                min="1"
+                max="720"
+                step="1"
+                value="24"
+              />
             </label>
             <label>
-              <span class="badge" style="justify-self: start; margin-bottom: 4px;">Media</span>
+              <span class="badge" style="justify-self: start; margin-bottom: 4px">Media</span>
               Horas máximas
-              <input id="slaMedia" name="slaMedia" type="number" min="1" max="720" step="1" value="8">
+              <input
+                id="slaMedia"
+                name="slaMedia"
+                type="number"
+                min="1"
+                max="720"
+                step="1"
+                value="8"
+              />
             </label>
             <label>
-              <span class="badge alta" style="justify-self: start; margin-bottom: 4px;">Alta</span>
+              <span class="badge alta" style="justify-self: start; margin-bottom: 4px">Alta</span>
               Horas máximas
-              <input id="slaAlta" name="slaAlta" type="number" min="0.5" max="720" step="0.5" value="4">
+              <input
+                id="slaAlta"
+                name="slaAlta"
+                type="number"
+                min="0.5"
+                max="720"
+                step="0.5"
+                value="4"
+              />
             </label>
             <label>
-              <span class="badge critica" style="justify-self: start; margin-bottom: 4px;">Crítica</span>
+              <span class="badge critica" style="justify-self: start; margin-bottom: 4px"
+                >Crítica</span
+              >
               Horas máximas
-              <input id="slaCritica" name="slaCritica" type="number" min="0.5" max="720" step="0.5" value="1">
+              <input
+                id="slaCritica"
+                name="slaCritica"
+                type="number"
+                min="0.5"
+                max="720"
+                step="0.5"
+                value="1"
+              />
             </label>
           </div>
-          <p id="slaSettingsMessage" class="message" role="status" style="margin-top: 16px;"></p>
+          <p id="slaSettingsMessage" class="message" role="status" style="margin-top: 16px"></p>
         </div>
 
         <!-- Tab: Fields -->
         <div id="fieldsTab" class="tabPanel panel" role="tabpanel" hidden>
-          <div class="panelHeader" style="margin-bottom: 20px;">
+          <div class="panelHeader" style="margin-bottom: 20px">
             <h2>Campos del formulario</h2>
-            <p>Activa o desactiva campos y personaliza sus etiquetas. El nombre y la urgencia son siempre requeridos.</p>
+            <p>
+              Activa o desactiva campos y personaliza sus etiquetas. El nombre y la urgencia son
+              siempre requeridos.
+            </p>
           </div>
           <div class="fieldConfigGrid">
             <div class="fieldConfigRow">
               <div class="fieldConfigMeta">
                 <label class="toggleLabel">
-                  <input id="fieldContactEnabled" type="checkbox" checked>
+                  <input id="fieldContactEnabled" type="checkbox" checked />
                   <span>Campo: Contacto</span>
                 </label>
-                <p class="fieldConfigDesc">Correo o teléfono del solicitante. Útil para hacer seguimiento.</p>
+                <p class="fieldConfigDesc">
+                  Correo o teléfono del solicitante. Útil para hacer seguimiento.
+                </p>
               </div>
               <label class="fieldLabelInput">
                 Etiqueta visible
-                <input id="fieldContactLabel" type="text" maxlength="40" value="Contacto" placeholder="Ej. Correo electrónico">
+                <input
+                  id="fieldContactLabel"
+                  type="text"
+                  maxlength="40"
+                  value="Contacto"
+                  placeholder="Ej. Correo electrónico"
+                />
               </label>
             </div>
             <div class="fieldConfigRow">
               <div class="fieldConfigMeta">
                 <label class="toggleLabel">
-                  <input id="fieldAreaEnabled" type="checkbox" checked>
+                  <input id="fieldAreaEnabled" type="checkbox" checked />
                   <span>Campo: Área</span>
                 </label>
-                <p class="fieldConfigDesc">Departamento o tema del ticket. Facilita la categorización y filtros SLA.</p>
+                <p class="fieldConfigDesc">
+                  Departamento o tema del ticket. Facilita la categorización y filtros SLA.
+                </p>
               </div>
               <label class="fieldLabelInput">
                 Etiqueta visible
-                <input id="fieldAreaLabel" type="text" maxlength="40" value="Área" placeholder="Ej. Departamento">
+                <input
+                  id="fieldAreaLabel"
+                  type="text"
+                  maxlength="40"
+                  value="Área"
+                  placeholder="Ej. Departamento"
+                />
               </label>
             </div>
             <div class="customFieldsBuilder">
@@ -361,84 +593,117 @@
                 <p>Crea campos adicionales para datos propios del ticket.</p>
               </div>
               <div id="customFieldsList" class="customFieldsList"></div>
-              <button id="addCustomFieldButton" class="secondaryAction" type="button">+ Agregar campo</button>
+              <button id="addCustomFieldButton" class="secondaryAction" type="button">
+                + Agregar campo
+              </button>
             </div>
           </div>
-          <p id="fieldsSettingsMessage" class="message" role="status" style="margin-top: 16px;"></p>
+          <p id="fieldsSettingsMessage" class="message" role="status" style="margin-top: 16px"></p>
         </div>
 
         <!-- Tab: Portal -->
         <div id="portalTab" class="tabPanel panel" role="tabpanel" hidden>
-          <div class="panelHeader" style="margin-bottom: 20px;">
+          <div class="panelHeader" style="margin-bottom: 20px">
             <h2>Portal público de tickets</h2>
-            <p>Comparte este enlace para que tus clientes puedan abrir tickets directamente sin acceder al panel interno.</p>
+            <p>
+              Comparte este enlace para que tus clientes puedan abrir tickets directamente sin
+              acceder al panel interno.
+            </p>
           </div>
           <div class="portalLinkBox">
             <code id="portalUrlDisplay"></code>
             <button id="copyPortalUrl" class="secondaryAction" type="button">Copiar</button>
           </div>
-          <div style="margin-top: 16px;">
-            <a id="openPortalLink" href="/portal" target="_blank" class="secondaryAction" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
+          <div style="margin-top: 16px">
+            <a
+              id="openPortalLink"
+              href="/portal"
+              target="_blank"
+              class="secondaryAction"
+              style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none"
+            >
               Abrir portal ↗
             </a>
           </div>
-          <p class="message" style="margin-top: 12px; color: var(--muted);">
+          <p class="message" style="margin-top: 12px; color: var(--muted)">
             El portal respeta la configuración de campos definida en la pestaña "Formulario".
           </p>
         </div>
 
         <!-- Tab: Correo entrante -->
         <div id="emailTab" class="tabPanel panel" role="tabpanel" hidden>
-          <div class="panelHeader" style="margin-bottom: 20px;">
+          <div class="panelHeader" style="margin-bottom: 20px">
             <h2>Correo entrante</h2>
-            <p>Conecta una bandeja de entrada IMAP para crear tickets automáticamente desde correos no leídos.</p>
+            <p>
+              Conecta una bandeja de entrada IMAP para crear tickets automáticamente desde correos
+              no leídos.
+            </p>
           </div>
 
           <form id="emailConfigForm" class="settingsForm">
             <label class="toggleRow">
               <span>Activar sondeo de correo</span>
-              <input id="emailEnabled" type="checkbox">
+              <input id="emailEnabled" type="checkbox" />
             </label>
 
             <div class="formGrid">
               <label>
                 Servidor IMAP
-                <input id="emailHost" type="text" placeholder="imap.gmail.com">
+                <input id="emailHost" type="text" placeholder="imap.gmail.com" />
               </label>
               <label>
                 Puerto
-                <input id="emailPort" type="number" value="993" min="1" max="65535">
+                <input id="emailPort" type="number" value="993" min="1" max="65535" />
               </label>
               <label class="toggleRow">
                 <span>Conexión segura (SSL/TLS)</span>
-                <input id="emailSecure" type="checkbox" checked>
+                <input id="emailSecure" type="checkbox" checked />
               </label>
               <label>
                 Usuario / correo
-                <input id="emailUsername" type="text" placeholder="soporte@empresa.com" autocomplete="off">
+                <input
+                  id="emailUsername"
+                  type="text"
+                  placeholder="soporte@empresa.com"
+                  autocomplete="off"
+                />
               </label>
               <label>
                 Contraseña
                 <div class="passwordWrapper">
-                  <input id="emailPassword" type="password" placeholder="Contraseña o App Password" autocomplete="new-password">
-                  <button type="button" class="eyeBtn" id="toggleEmailPassword" title="Mostrar/ocultar contraseña"></button>
+                  <input
+                    id="emailPassword"
+                    type="password"
+                    placeholder="Contraseña o App Password"
+                    autocomplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    class="eyeBtn"
+                    id="toggleEmailPassword"
+                    title="Mostrar/ocultar contraseña"
+                  ></button>
                 </div>
               </label>
               <label>
                 Carpeta IMAP
-                <input id="emailFolder" type="text" value="INBOX">
+                <input id="emailFolder" type="text" value="INBOX" />
               </label>
               <label>
                 Intervalo de sondeo (minutos)
-                <input id="emailPollInterval" type="number" value="5" min="1" max="60">
+                <input id="emailPollInterval" type="number" value="5" min="1" max="60" />
               </label>
               <label>
                 Remitentes ignorados
-                <input id="emailIgnoreSenders" type="text" placeholder="no-reply@accounts.google.com, noreply@google.com">
+                <input
+                  id="emailIgnoreSenders"
+                  type="text"
+                  placeholder="no-reply@accounts.google.com, noreply@google.com"
+                />
               </label>
               <label>
                 Área por defecto
-                <input id="emailDefaultArea" type="text" value="Correo">
+                <input id="emailDefaultArea" type="text" value="Correo" />
               </label>
               <label>
                 Urgencia por defecto
@@ -452,14 +717,16 @@
             </div>
 
             <div class="settingsActions">
-              <button type="button" id="testEmailBtn" class="secondaryAction">Probar conexión</button>
+              <button type="button" id="testEmailBtn" class="secondaryAction">
+                Probar conexión
+              </button>
               <button type="submit" class="primaryAction">Guardar configuración</button>
             </div>
-            <p id="emailTestResult" class="message" style="margin-top:10px;display:none;"></p>
+            <p id="emailTestResult" class="message" style="margin-top: 10px; display: none"></p>
           </form>
 
-          <div class="emailStatusBox" id="emailStatusBox" style="margin-top: 24px; display:none;">
-            <h3 style="margin: 0 0 10px;">Estado del sondeo</h3>
+          <div class="emailStatusBox" id="emailStatusBox" style="margin-top: 24px; display: none">
+            <h3 style="margin: 0 0 10px">Estado del sondeo</h3>
             <div class="emailStatusGrid">
               <span class="emailStatusLabel">Último sondeo</span>
               <span id="emailLastPoll">—</span>
@@ -470,7 +737,9 @@
               <span class="emailStatusLabel">Mensajes revisados</span>
               <span id="emailMessagesChecked">0</span>
             </div>
-            <button type="button" id="pollNowBtn" class="secondaryAction" style="margin-top:12px;">Sondear ahora</button>
+            <button type="button" id="pollNowBtn" class="secondaryAction" style="margin-top: 12px">
+              Sondear ahora
+            </button>
           </div>
         </div>
       </section>
@@ -484,16 +753,21 @@
           </div>
           <div class="sectionActions">
             <button id="exportCsvButton" class="secondaryAction" type="button">Exportar CSV</button>
-            <button id="adminDeleteSelectedButton" class="dangerButton" type="button" hidden>Eliminar selección</button>
+            <button id="adminDeleteSelectedButton" class="dangerButton" type="button" hidden>
+              Eliminar selección
+            </button>
             <button id="backFromAdminButton" class="ghostButton" type="button">Volver</button>
           </div>
         </div>
 
         <div class="adminFilters panel" aria-label="Filtros de administración">
-          <label>Buscar<input id="adminSearch" type="search" placeholder="ID, nombre, contacto o área…"></label>
-          <label>Desde<input id="adminDateFrom" type="date"></label>
-          <label>Hasta<input id="adminDateTo" type="date"></label>
-          <label>Estado
+          <label
+            >Buscar<input id="adminSearch" type="search" placeholder="ID, nombre, contacto o área…"
+          /></label>
+          <label>Desde<input id="adminDateFrom" type="date" /></label>
+          <label>Hasta<input id="adminDateTo" type="date" /></label>
+          <label
+            >Estado
             <select id="adminStatusFilter">
               <option value="todos">Todos</option>
               <option value="abierto">Abierto</option>
@@ -503,7 +777,8 @@
               <option value="cerrado">Cerrado</option>
             </select>
           </label>
-          <label>Urgencia
+          <label
+            >Urgencia
             <select id="adminUrgencyFilter">
               <option value="todos">Todas</option>
               <option value="baja">Baja</option>
@@ -517,57 +792,110 @@
         <div id="adminSummary" class="adminSummaryBar"></div>
         <div id="adminTicketTable"></div>
 
-        <details class="adminAccordion panel" style="margin-top: 16px;">
+        <details class="adminAccordion panel" style="margin-top: 16px">
           <summary>Cambiar contraseña</summary>
-          <form id="changePasswordForm" autocomplete="off" style="margin-top: 16px; display: grid; gap: 14px; max-width: 400px;">
-            <label>Contraseña actual
-              <div class="passwordWrapper"><input id="cpCurrent" type="password" required><button type="button" class="eyeBtn" id="toggleCpCurrent" title="Mostrar/ocultar"></button></div>
+          <form
+            id="changePasswordForm"
+            autocomplete="off"
+            style="margin-top: 16px; display: grid; gap: 14px; max-width: 400px"
+          >
+            <label
+              >Contraseña actual
+              <div class="passwordWrapper">
+                <input id="cpCurrent" type="password" required /><button
+                  type="button"
+                  class="eyeBtn"
+                  id="toggleCpCurrent"
+                  title="Mostrar/ocultar"
+                ></button>
+              </div>
             </label>
-            <label>Nueva contraseña
-              <div class="passwordWrapper"><input id="cpNew" type="password" required minlength="4"><button type="button" class="eyeBtn" id="toggleCpNew" title="Mostrar/ocultar"></button></div>
+            <label
+              >Nueva contraseña
+              <div class="passwordWrapper">
+                <input id="cpNew" type="password" required minlength="4" /><button
+                  type="button"
+                  class="eyeBtn"
+                  id="toggleCpNew"
+                  title="Mostrar/ocultar"
+                ></button>
+              </div>
             </label>
-            <label>Confirmar nueva
-              <div class="passwordWrapper"><input id="cpConfirm" type="password" required minlength="4"><button type="button" class="eyeBtn" id="toggleCpConfirm" title="Mostrar/ocultar"></button></div>
+            <label
+              >Confirmar nueva
+              <div class="passwordWrapper">
+                <input id="cpConfirm" type="password" required minlength="4" /><button
+                  type="button"
+                  class="eyeBtn"
+                  id="toggleCpConfirm"
+                  title="Mostrar/ocultar"
+                ></button>
+              </div>
             </label>
-            <button type="submit" class="primaryAction" style="justify-self: start;">Guardar contraseña</button>
+            <button type="submit" class="primaryAction" style="justify-self: start">
+              Guardar contraseña
+            </button>
             <p id="cpMessage" class="message" role="status"></p>
           </form>
         </details>
       </section>
-
     </main>
 
     <!-- ── Edit ticket modal ── -->
-    <div id="editModal" class="modalOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+    <div
+      id="editModal"
+      class="modalOverlay"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="editModalTitle"
+    >
       <div class="modalPanel panel">
         <div class="modalHeader">
           <div>
             <h2 id="editModalTitle">Editar ticket</h2>
             <p id="editModalTicketId" class="modalTicketId"></p>
           </div>
-          <button id="closeEditModal" class="ghostButton iconButton" type="button" aria-label="Cerrar modal">✕</button>
+          <button
+            id="closeEditModal"
+            class="ghostButton iconButton"
+            type="button"
+            aria-label="Cerrar modal"
+          >
+            ✕
+          </button>
         </div>
         <form id="editTicketForm" autocomplete="off">
-          <input type="hidden" id="editTicketId">
+          <input type="hidden" id="editTicketId" />
           <label>
             <span class="fieldLabel">Nombre</span>
-            <input id="editName" name="name" type="text" required>
+            <input id="editName" name="name" type="text" required />
           </label>
           <label id="editContactRow">
             <span class="fieldLabel">Contacto</span>
-            <input id="editContact" name="contact" type="text">
+            <input id="editContact" name="contact" type="text" />
           </label>
           <label id="editAreaRow">
             <span class="fieldLabel">Área</span>
-            <input id="editArea" name="area" type="text">
+            <input id="editArea" name="area" type="text" />
           </label>
           <label>
             <span class="fieldLabel">Asunto</span>
-            <input id="editSubject" name="subject" type="text" placeholder="Breve descripción del problema">
+            <input
+              id="editSubject"
+              name="subject"
+              type="text"
+              placeholder="Breve descripción del problema"
+            />
           </label>
           <label>
             <span class="fieldLabel">Descripción</span>
-            <textarea id="editDescription" name="description" rows="4" placeholder="Detalle del problema…"></textarea>
+            <textarea
+              id="editDescription"
+              name="description"
+              rows="4"
+              placeholder="Detalle del problema…"
+            ></textarea>
           </label>
           <label>
             <span class="fieldLabel">Urgencia</span>
@@ -597,7 +925,14 @@
       </div>
     </div>
 
-    <div id="ticketDetailModal" class="ticketDetailOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="ticketDetailTitle">
+    <div
+      id="ticketDetailModal"
+      class="ticketDetailOverlay"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ticketDetailTitle"
+    >
       <div class="ticketDetailShell">
         <header class="ticketDetailTop">
           <div>
@@ -605,8 +940,23 @@
             <h2 id="ticketDetailTitle">Detalle del ticket</h2>
           </div>
           <div class="detailActions">
-            <button id="detailDeleteButton" class="dangerButton" type="button">Eliminar</button>
-            <button id="closeTicketDetail" class="ghostButton iconButton" type="button" aria-label="Cerrar">x</button>
+            <button
+              id="detailDeleteButton"
+              class="dangerButton iconTrashButton"
+              type="button"
+              title="Eliminar ticket"
+              aria-label="Eliminar ticket"
+            >
+              🗑
+            </button>
+            <button
+              id="closeTicketDetail"
+              class="ghostButton iconButton"
+              type="button"
+              aria-label="Cerrar"
+            >
+              x
+            </button>
           </div>
         </header>
         <div class="ticketDetailLayout">
@@ -616,28 +966,45 @@
             <div class="resolutionBox">
               <label>
                 Que se realizo / nota de cierre
-                <textarea id="detailResolution" rows="6" placeholder="Describe la gestion realizada antes de resolver o cerrar..."></textarea>
+                <textarea
+                  id="detailResolution"
+                  rows="6"
+                  placeholder="Describe la gestion realizada antes de resolver o cerrar..."
+                ></textarea>
               </label>
               <p id="detailMessage" class="message"></p>
             </div>
+            <section class="ticketHistoryPanel" aria-label="Historial del ticket">
+              <h3>Historial</h3>
+              <div id="detailHistory" class="ticketHistory"></div>
+            </section>
           </section>
           <aside class="ticketProperties">
             <div class="propertyAvatar" id="detailAvatar">N</div>
             <h3 id="detailName"></h3>
             <p id="detailContact"></p>
-            <label>Estado
+            <label
+              >Estado
               <select id="detailStatus"></select>
             </label>
-            <label>Urgencia
+            <label
+              >Urgencia
               <select id="detailUrgency"></select>
             </label>
-            <label>Area
-              <input id="detailArea" type="text">
+            <label
+              >Area
+              <input id="detailArea" type="text" />
             </label>
             <div id="detailCustomFields" class="detailCustomFields"></div>
-            <button id="saveTicketDetail" class="primaryAction" type="button">Guardar ticket</button>
-            <button id="resolveTicketDetail" class="secondaryAction" type="button">Marcar resuelto</button>
-            <button id="closeTicketDetailStatus" class="secondaryAction" type="button">Cerrar ticket</button>
+            <button id="saveTicketDetail" class="primaryAction" type="button">
+              Guardar ticket
+            </button>
+            <button id="resolveTicketDetail" class="secondaryAction" type="button">
+              Marcar resuelto
+            </button>
+            <button id="closeTicketDetailStatus" class="secondaryAction" type="button">
+              Cerrar ticket
+            </button>
           </aside>
         </div>
       </div>
@@ -657,6 +1024,15 @@
         </select>
       </label>
       <button id="bulkApplyButton" class="primaryAction" type="button">Aplicar</button>
+      <button
+        id="bulkDeleteButton"
+        class="dangerButton iconTrashButton"
+        type="button"
+        title="Eliminar seleccionados"
+        aria-label="Eliminar seleccionados"
+      >
+        🗑
+      </button>
       <button id="bulkCancelButton" class="ghostButton bulkCancel" type="button">Cancelar</button>
     </div>
 

@@ -3,6 +3,7 @@
 Todas las versiones importantes de NeuroDesk quedan documentadas aquí.
 
 Para revertir a una versión específica:
+
 ```bash
 git checkout <commit-hash>
 # o en rama separada para no perder el estado actual:
@@ -15,6 +16,19 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 - Primer dígito: nuevas funcionalidades o cambios de flujo.
 - Segundo dígito: ajustes visuales, pulido y cambios estéticos.
+
+---
+
+## [9.2] - 2026-05-05
+
+### Tooling, tests y rediseño UI
+
+- **ESLint 10** configurado (`eslint.config.cjs`) con reglas Node.js + globals de Jest para archivos de test
+- **Prettier 3** configurado (`.prettierrc`) con `npm run format`; todos los archivos fuente formateados
+- **Jest 30 + Supertest 7**: 14 tests de API en `tests/api.test.js` (endpoints públicos, auth, creación y actualización de tickets)
+- `server.js` patched para testabilidad: DB configurable vía `ND_DB_PATH`, email poller deshabilitable con `ND_TEST=1`, exporta `server` y solo escucha cuando es el módulo principal
+- **UI**: corrección de nombres ("Neurodex"→"NeuroDesk", "Neurofix"→"NeuroDesk"), iconos de sidebar reemplazados por SVG limpios
+- **CSS**: bug de variables `var(--border)` y `var(--surface)` corregidos a `var(--line)` y `var(--soft)`; brand icon cambiado de verde a gradiente rojo de marca ("ND"); sidebar activo con estado visual de color de marca; bulk action bar rediseñada en oscuro; tipografía y espaciados refinados
 
 ---
 
@@ -158,6 +172,7 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 ### Autenticación de equipo + pantalla de administración
 
 **Autenticación:**
+
 - Login en `/login` con usuario y contraseña (sesión cookie HttpOnly, 24 h)
 - Todas las rutas del panel interno protegidas — `/portal` y la API pública siguen siendo accesibles sin sesión
 - Usuario inicial: `admin` / `neurofic` (mostrado en consola al primer arranque)
@@ -167,6 +182,7 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 - Nombre de usuario visible en topbar con botón "Salir"
 
 **Pantalla de administración:**
+
 - Vista "Admin" accesible desde el topbar
 - Tabla completa de todos los tickets con filtros: búsqueda libre, rango de fechas, estado, urgencia
 - Barra de resumen con conteo por estado (coloreado)
