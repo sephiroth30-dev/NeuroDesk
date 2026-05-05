@@ -1,8 +1,41 @@
 # Changelog
 
-Todas las versiones importantes de NeuroDesk quedaran documentadas en este archivo.
+Todas las versiones importantes de NeuroDesk quedan documentadas aquí.
 
-## [0.4.0] - 2026-05-05
+Para revertir a una versión específica:
+```bash
+git checkout <commit-hash>
+# o en rama separada para no perder el estado actual:
+git checkout -b rollback/vX.Y <commit-hash>
+```
+
+## Regla de versionado
+
+A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial).
+
+- Primer dígito: nuevas funcionalidades o cambios de flujo.
+- Segundo dígito: ajustes visuales, pulido y cambios estéticos.
+
+---
+
+## [5.0] - 2026-05-05 · commit `6c3a371`
+
+### Rediseño visual completo + log de versión
+
+- Fondo con gradiente suave (tintes de marca y azul)
+- Topbar con tinte de color de marca y versión visible como badge pill
+- Columnas kanban con encabezados coloreados por estado: azul (Abierto), ámbar (En proceso), morado (En espera), verde (Resuelto)
+- Borde izquierdo de tickets en el color de su urgencia: gris (baja), azul (media), ámbar (alta), rojo (crítica)
+- Badges de urgencia con paleta propia para los 4 niveles
+- Barras de distribución SLA coloreadas por urgencia y estado
+- Hover con elevación suave en cards, donuts y métricas
+- Inputs con estado de foco mejorado (ring de marca)
+- Startup log del servidor incluye versión: `NeuroDesk v5.0 listo en ...`
+- Esquema de versiones cambiado de `0.x.0` a `x.0`
+
+---
+
+## [0.4.0] - 2026-05-05 · commit `458f2f6`
 
 ### Agregado
 
@@ -59,14 +92,6 @@ Todas las versiones importantes de NeuroDesk quedaran documentadas en este archi
 - Se reduce el alto de las tarjetas de metricas para que el tablero gane protagonismo.
 - El tablero ahora limpia la vista no seleccionada para mostrar solo tarjetas o solo lista.
 - Se actualiza la version visible de la app a `0.2.1`.
-
-## Regla de versionado
-
-NeuroDesk usa versiones `estructura.funcional.estetica`.
-
-- Primer digito: cambios criticos, estructurales o de arquitectura.
-- Segundo digito: nuevas funcionalidades o cambios de flujo.
-- Tercer digito: ajustes visuales, pulido y cambios esteticos.
 
 ## [0.2.0] - 2026-05-05
 
