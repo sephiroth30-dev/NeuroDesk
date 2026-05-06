@@ -2,65 +2,236 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const Database = require("better-sqlite3");
 const { ImapFlow } = require("imapflow");
 const { simpleParser } = require("mailparser");
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
 const DATA_DIR = path.join(__dirname, "data");
-const DB_PATH = process.env.ND_DB_PATH || path.join(DATA_DIR, "neurodesk.sqlite");
+const STORE_PATH = process.env.ND_STORE_PATH || path.join(DATA_DIR, "neurodesk.json");
 const packageInfo = require("./package.json");
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const db = new Database(DB_PATH);
+const EMPTY_STORE = {
+  tickets: [],
+  config: {},
+  users: [],
+  processedEmails: [],
+  ticketHistory: [],
+};
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS tickets (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    contact TEXT,
-    area TEXT NOT NULL,
-    urgency TEXT NOT NULL,
-    status TEXT NOT NULL,
-    source TEXT NOT NULL,
-    created_at TEXT NOT NULL
-  );
-`);
+function loadStore() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(STORE_PATH, "utf8"));
+    return {
+      tickets: Array.isArray(parsed.tickets) ? parsed.tickets : [],
+      config: parsed.config && typeof parsed.config === "object" ? parsed.config : {},
+      users: Array.isArray(parsed.users) ? parsed.users : [],
+      processedEmails: Array.isArray(parsed.processedEmails) ? parsed.processedEmails : [],
+      ticketHistory: Array.isArray(parsed.ticketHistory) ? parsed.ticketHistory : [],
+    };
+  } catch (_) {
+    return JSON.parse(JSON.stringify(EMPTY_STORE));
+  }
+}
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS config (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  );
-`);
+const store = loadStore();
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    username TEXT PRIMARY KEY,
-    password_hash TEXT NOT NULL,
-    salt TEXT NOT NULL
-  );
-`);
+function saveStore() {
+  const tmpPath = `${STORE_PATH}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(store, null, 2));
+  fs.renameSync(tmpPath, STORE_PATH);
+}
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS processed_emails (
-    message_id TEXT PRIMARY KEY,
-    processed_at TEXT NOT NULL
-  );
-`);
+function statement(sql) {
+  const compact = sql.replace(/\s+/g, " ").trim();
+  if (compact.startsWith("PRAGMA table_info")) return { all: () => [] };
+  if (compact.startsWith("SELECT COUNT(*) AS total FROM tickets")) {
+    return { get: () => ({ total: store.tickets.length }) };
+  }
+  if (compact.startsWith("SELECT id, name, contact")) {
+    return {
+      all: () =>
+        [...store.tickets].sort(
+          (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || String(b.createdAt).localeCompare(String(a.createdAt))
+        ),
+    };
+  }
+  if (compact.startsWith("SELECT COALESCE(MAX")) {
+    return {
+      get: () => {
+        const max = store.tickets.reduce((highest, ticket) => {
+          const match = /^ND-(\d+)$/.exec(ticket.id || "");
+          return match ? Math.max(highest, Number(match[1])) : highest;
+        }, 1000);
+        return { nextNumber: max + 1 };
+      },
+    };
+  }
+  if (compact.startsWith("INSERT INTO tickets")) {
+    return {
+      run: (id, name, contact, area, urgency, status, source, subject, description, resolution, customFields, sortOrder, createdAt) => {
+        store.tickets.push({ id, name, contact, area, urgency, status, source, subject, description, resolution, customFields, sortOrder, createdAt });
+        saveStore();
+        return { changes: 1 };
+      },
+    };
+  }
+  if (compact === "UPDATE tickets SET status = ? WHERE id = ?") {
+    return {
+      run: (status, id) => {
+        const ticket = store.tickets.find((t) => t.id === id);
+        if (!ticket) return { changes: 0 };
+        ticket.status = status;
+        saveStore();
+        return { changes: 1 };
+      },
+    };
+  }
+  if (compact.startsWith("UPDATE tickets SET name = ?")) {
+    return {
+      run: (name, contact, area, urgency, status, subject, description, resolution, customFields, id) => {
+        const ticket = store.tickets.find((t) => t.id === id);
+        if (!ticket) return { changes: 0 };
+        Object.assign(ticket, { name, contact, area, urgency, status, subject, description, resolution, customFields });
+        saveStore();
+        return { changes: 1 };
+      },
+    };
+  }
+  if (compact === "UPDATE tickets SET status = ?, sort_order = ? WHERE id = ?") {
+    return {
+      run: (status, sortOrder, id) => {
+        const ticket = store.tickets.find((t) => t.id === id);
+        if (!ticket) return { changes: 0 };
+        Object.assign(ticket, { status, sortOrder });
+        saveStore();
+        return { changes: 1 };
+      },
+    };
+  }
+  if (compact === "DELETE FROM tickets WHERE id = ?") {
+    return {
+      run: (id) => {
+        const before = store.tickets.length;
+        store.tickets = store.tickets.filter((ticket) => ticket.id !== id);
+        saveStore();
+        return { changes: before - store.tickets.length };
+      },
+    };
+  }
+  if (compact.startsWith("DELETE FROM tickets WHERE id IN")) {
+    return {
+      run: (...ids) => {
+        const set = new Set(ids);
+        const before = store.tickets.length;
+        store.tickets = store.tickets.filter((ticket) => !set.has(ticket.id));
+        saveStore();
+        return { changes: before - store.tickets.length };
+      },
+    };
+  }
+  if (compact === "DELETE FROM ticket_history WHERE ticket_id = ?") {
+    return {
+      run: (ticketId) => {
+        const before = store.ticketHistory.length;
+        store.ticketHistory = store.ticketHistory.filter((item) => item.ticketId !== ticketId);
+        saveStore();
+        return { changes: before - store.ticketHistory.length };
+      },
+    };
+  }
+  if (compact.startsWith("INSERT INTO ticket_history")) {
+    return {
+      run: (id, ticketId, note, status, createdAt) => {
+        store.ticketHistory.push({ id, ticketId, note, status, createdAt });
+        saveStore();
+        return { changes: 1 };
+      },
+    };
+  }
+  if (compact.startsWith("SELECT id, note, status")) {
+    return {
+      all: (ticketId) =>
+        store.ticketHistory
+          .filter((item) => item.ticketId === ticketId)
+          .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))),
+    };
+  }
+  if (compact.startsWith("INSERT INTO config")) {
+    return {
+      run: (key, value) => {
+        store.config[key] = value;
+        saveStore();
+        return { changes: 1 };
+      },
+    };
+  }
+  if (compact === "SELECT value FROM config WHERE key = 'app_config'") {
+    return { get: () => (store.config.app_config ? { value: store.config.app_config } : undefined) };
+  }
+  if (compact === "SELECT value FROM config WHERE key = 'email_config'") {
+    return { get: () => (store.config.email_config ? { value: store.config.email_config } : undefined) };
+  }
+  if (compact === "SELECT COUNT(*) AS total FROM users") {
+    return { get: () => ({ total: store.users.length }) };
+  }
+  if (compact === "SELECT * FROM users WHERE username = ?") {
+    return { get: (username) => store.users.find((user) => user.username === username) };
+  }
+  if (compact.startsWith("INSERT INTO users")) {
+    return {
+      run: (username, passwordHash, salt) => {
+        store.users.push({ username, password_hash: passwordHash, salt });
+        saveStore();
+        return { changes: 1 };
+      },
+    };
+  }
+  if (compact.startsWith("UPDATE users SET password_hash")) {
+    return {
+      run: (passwordHash, salt, username) => {
+        const user = store.users.find((item) => item.username === username);
+        if (!user) return { changes: 0 };
+        Object.assign(user, { password_hash: passwordHash, salt });
+        saveStore();
+        return { changes: 1 };
+      },
+    };
+  }
+  if (compact === "SELECT 1 FROM processed_emails WHERE message_id = ?") {
+    return {
+      get: (messageId) => store.processedEmails.some((item) => item.messageId === messageId) ? { 1: 1 } : undefined,
+    };
+  }
+  if (compact.startsWith("INSERT OR IGNORE INTO processed_emails")) {
+    return {
+      run: (messageId, processedAt) => {
+        if (store.processedEmails.some((item) => item.messageId === messageId)) return { changes: 0 };
+        store.processedEmails.push({ messageId, processedAt });
+        saveStore();
+        return { changes: 1 };
+      },
+    };
+  }
+  if (compact === "DELETE FROM processed_emails WHERE processed_at < ?") {
+    return {
+      run: (cutoff) => {
+        const before = store.processedEmails.length;
+        store.processedEmails = store.processedEmails.filter((item) => String(item.processedAt) >= cutoff);
+        saveStore();
+        return { changes: before - store.processedEmails.length };
+      },
+    };
+  }
+  throw new Error(`Unsupported storage statement: ${compact}`);
+}
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS ticket_history (
-    id TEXT PRIMARY KEY,
-    ticket_id TEXT NOT NULL,
-    note TEXT NOT NULL,
-    status TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
-  );
-`);
+const db = {
+  exec() {},
+  prepare: statement,
+};
 
 // Run column migrations immediately — must be before prepared statements are compiled
 (function runMigrations() {
