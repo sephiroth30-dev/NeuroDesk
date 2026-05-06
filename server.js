@@ -2,7 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { DatabaseSync } = require("node:sqlite");
+const Database = require("better-sqlite3");
 const { ImapFlow } = require("imapflow");
 const { simpleParser } = require("mailparser");
 
@@ -14,7 +14,7 @@ const packageInfo = require("./package.json");
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const db = new DatabaseSync(DB_PATH);
+const db = new Database(DB_PATH);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS tickets (

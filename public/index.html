@@ -118,6 +118,9 @@
     <main class="shell">
       <!-- ── Topbar ── -->
       <section class="topbar" aria-label="Encabezado de NeuroDesk">
+        <button id="mobileMenuButton" class="mobileMenuButton" type="button" aria-label="Abrir menú" aria-expanded="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
         <div>
           <p class="eyebrow">Neurofic</p>
           <h1>NeuroDesk</h1>
@@ -1036,6 +1039,36 @@
       <button id="bulkCancelButton" class="ghostButton bulkCancel" type="button">Cancelar</button>
     </div>
 
+    <!-- Mobile sidebar overlay -->
+    <div id="sidebarOverlay" class="sidebarOverlay" aria-hidden="true"></div>
+
     <script src="/app.js" defer></script>
+    <script>
+      // Mobile sidebar drawer — no dependency on app.js load order
+      (function () {
+        var btn = document.getElementById("mobileMenuButton");
+        var overlay = document.getElementById("sidebarOverlay");
+        var navItems = document.querySelectorAll(".sidebarNav .sidebarItem");
+
+        function openSidebar() {
+          document.body.classList.add("sidebarMobileOpen");
+          btn && btn.setAttribute("aria-expanded", "true");
+        }
+        function closeSidebar() {
+          document.body.classList.remove("sidebarMobileOpen");
+          btn && btn.setAttribute("aria-expanded", "false");
+        }
+
+        btn && btn.addEventListener("click", function () {
+          document.body.classList.contains("sidebarMobileOpen") ? closeSidebar() : openSidebar();
+        });
+        overlay && overlay.addEventListener("click", closeSidebar);
+        navItems.forEach(function (item) {
+          item.addEventListener("click", function () {
+            if (window.innerWidth <= 768) closeSidebar();
+          });
+        });
+      })();
+    </script>
   </body>
 </html>
