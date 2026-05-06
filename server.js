@@ -6,12 +6,17 @@ const { ImapFlow } = require("imapflow");
 const { simpleParser } = require("mailparser");
 
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.ND_HOST || "0.0.0.0";
 const PUBLIC_DIR = path.join(__dirname, "public");
 const DATA_DIR = path.join(__dirname, "data");
 const STORE_PATH = process.env.ND_STORE_PATH || path.join(DATA_DIR, "neurodesk.json");
 const packageInfo = require("./package.json");
 
-fs.mkdirSync(DATA_DIR, { recursive: true });
+try {
+  fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
+} catch (err) {
+  console.error("[NeuroDesk] No se pudo preparar la carpeta de datos:", err.message);
+}
 
 const EMPTY_STORE = {
   tickets: [],
@@ -39,9 +44,14 @@ function loadStore() {
 const store = loadStore();
 
 function saveStore() {
-  const tmpPath = `${STORE_PATH}.tmp`;
-  fs.writeFileSync(tmpPath, JSON.stringify(store, null, 2));
-  fs.renameSync(tmpPath, STORE_PATH);
+  try {
+    fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
+    const tmpPath = `${STORE_PATH}.tmp`;
+    fs.writeFileSync(tmpPath, JSON.stringify(store, null, 2));
+    fs.renameSync(tmpPath, STORE_PATH);
+  } catch (err) {
+    console.error("[NeuroDesk] No se pudo guardar datos en disco; continuando en memoria:", err.message);
+  }
 }
 
 function statement(sql) {
@@ -1123,6 +1133,11 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "GET" && req.url === "/api/health") {
+    sendJson(res, 200, { ok: true, version: packageInfo.version, store: STORE_PATH });
+    return;
+  }
+
   if (req.method === "GET" && req.url === "/api/version") {
     sendJson(res, 200, { version: packageInfo.version });
     return;
@@ -1338,7 +1353,7 @@ async function handleApi(req, res) {
 // ── Main server ───────────────────────────────────────────────────────────────
 
 const isPublicApi = (method, url) =>
-  (method === "GET" && (url === "/api/version" || url === "/api/config")) ||
+  (method === "GET" && (url === "/api/health" || url === "/api/version" || url === "/api/config")) ||
   (method === "POST" && (url === "/api/tickets" || url === "/api/email/inbound"));
 
 const server = http.createServer(async (req, res) => {
@@ -1394,8 +1409,9 @@ process.on("unhandledRejection", (reason) => {
 });
 
 if (require.main === module) {
-  server.listen(PORT, () => {
-    console.log(`NeuroDesk v${packageInfo.version} listo en http://localhost:${PORT}`);
+  server.listen(PORT, HOST, () => {
+    console.log(`NeuroDesk v${packageInfo.version} listo en http://${HOST}:${PORT}`);
+    console.log(`Datos: ${STORE_PATH}`);
     console.log(`Portal público en http://localhost:${PORT}/portal`);
   });
 
