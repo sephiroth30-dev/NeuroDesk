@@ -1408,7 +1408,25 @@ process.on("unhandledRejection", (reason) => {
   console.error("[NeuroDesk] unhandledRejection:", reason);
 });
 
-if (require.main === module) {
+function startServer() {
+  const isSocket = Number.isNaN(Number(PORT));
+  const onListening = () => {
+    const target = isSocket ? PORT : `${HOST}:${PORT}`;
+    console.log(`NeuroDesk v${packageInfo.version} listo en ${target}`);
+    console.log(`Node ${process.version} | cwd ${process.cwd()}`);
+    console.log(`Datos: ${STORE_PATH}`);
+  };
+
+  if (isSocket) server.listen(PORT, onListening);
+  else server.listen(Number(PORT), HOST, onListening);
+
+  server.on("error", (err) => {
+    console.error("[NeuroDesk] server error:", err.message, err.stack);
+  });
+}
+
+/*
+if (false) {
   server.listen(PORT, HOST, () => {
     console.log(`NeuroDesk v${packageInfo.version} listo en http://${HOST}:${PORT}`);
     console.log(`Datos: ${STORE_PATH}`);
@@ -1419,5 +1437,10 @@ if (require.main === module) {
     console.error("[NeuroDesk] server error:", err.message);
   });
 }
+*/
 
-module.exports = { server };
+if ((require.main === module || process.env.NODE_ENV === "production") && !process.env.ND_TEST) {
+  startServer();
+}
+
+module.exports = { server, startServer };
