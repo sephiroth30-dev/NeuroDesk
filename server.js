@@ -1,6 +1,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 const crypto = require("crypto");
 const { ImapFlow } = require("imapflow");
 const { simpleParser } = require("mailparser");
@@ -10,7 +11,9 @@ const PORT = process.env.PORT || 3000;
 const HOST = process.env.ND_HOST || "0.0.0.0";
 const PUBLIC_DIR = path.join(__dirname, "public");
 const DATA_DIR = path.join(__dirname, "data");
-const STORE_PATH = process.env.ND_STORE_PATH || path.join(DATA_DIR, "neurodesk.json");
+// Datos fuera del directorio del proyecto para sobrevivir git pull y re-clones.
+// Override posible con ND_STORE_PATH si se necesita una ruta específica.
+const STORE_PATH = process.env.ND_STORE_PATH || path.join(os.homedir(), ".neurodesk", "data.json");
 const packageInfo = require("./package.json");
 
 try {

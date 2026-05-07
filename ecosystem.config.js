@@ -1,7 +1,5 @@
-// PM2 ecosystem — configuración de producción para soporte.easystem.co
+// PM2 ecosystem — producción soporte.easystem.co
 // Uso: pm2 start ecosystem.config.js
-//      pm2 restart neurodesk
-
 module.exports = {
   apps: [
     {
@@ -14,9 +12,6 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT: 3000,
-        // CRÍTICO: datos fuera del directorio del proyecto.
-        // Nunca se borra con git pull, git clean ni re-clones.
-        ND_STORE_PATH: "/var/lib/neurodesk/data.json",
       },
     },
   ],

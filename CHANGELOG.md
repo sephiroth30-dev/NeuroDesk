@@ -19,6 +19,20 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [11.7] - 2026-05-07
+
+### Fix definitivo en código: datos en home del usuario, sin configuración de servidor
+
+- `STORE_PATH` por defecto cambiado de `./data/neurodesk.json` (dentro del proyecto) a `~/.neurodesk/data.json` (home del usuario del servidor)
+- En cPanel: los datos quedan en `/home/tu_usuario/.neurodesk/data.json` — fuera del proyecto, intocable por git
+- El directorio `~/.neurodesk/` se crea automáticamente al arrancar si no existe
+- Sin variables de entorno ni configuración adicional requerida
+- `ecosystem.config.js` simplificado (ya no necesita `ND_STORE_PATH` hardcodeado)
+
+**Migración automática al hacer git pull + reiniciar:** el servidor arranca con la nueva ruta y crea el archivo vacío si no existe. La primera vez que configures el correo se guardará en la nueva ubicación permanente.
+
+---
+
 ## [11.6] - 2026-05-07
 
 ### Fix definitivo: datos de producción fuera del directorio del proyecto
