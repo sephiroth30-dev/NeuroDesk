@@ -19,6 +19,23 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [11.8] - 2026-05-07
+
+### UI: sidebar, ajustes, portal y usuarios
+
+- **Sidebar**: botón "Salir" movido al panel inferior del sidebar con icono; nombre de usuario visible ahí mismo
+- **Topbar**: botón "+ Crear ticket" renombrado a "+ Nuevo", barra más compacta
+- **Tablero**: botón "Mostrar cerrados" simplificado a "Cerrados"
+- **Ajustes**: botones "Guardar cambios" y "Volver" movidos al pie de la página (fuera del encabezado)
+- **Placeholders**: color mucho más tenue en todos los campos de la app y del portal público
+- **Portal público**: paleta actualizada a morado/rosa (igual que la app interna)
+- **Usuarios**: nuevo botón "Editar nombre" por usuario para renombrar sin recrear
+- **Contraseñas**: confirmación doble al crear usuario y al cambiar contraseña desde la lista
+- **Tabs de ajustes (escritorio)**: tamaño de botones reducido para evitar scroll horizontal
+- **API**: endpoint `PATCH /api/users/:username` para renombrar usuarios
+
+---
+
 ## [11.7] - 2026-05-07
 
 ### Fix definitivo en código: datos en home del usuario, sin configuración de servidor

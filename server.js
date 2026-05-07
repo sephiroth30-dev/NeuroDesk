@@ -220,6 +220,17 @@ function statement(sql) {
   if (compact === "SELECT username FROM users") {
     return { all: () => store.users.map((u) => ({ username: u.username })) };
   }
+  if (compact === "UPDATE users SET username = ? WHERE username = ?") {
+    return {
+      run: (newUsername, oldUsername) => {
+        const user = store.users.find((u) => u.username === oldUsername);
+        if (!user) return { changes: 0 };
+        user.username = newUsername;
+        saveStore();
+        return { changes: 1 };
+      },
+    };
+  }
   if (compact === "DELETE FROM users WHERE username = ?") {
     return {
       run: (username) => {
@@ -469,6 +480,7 @@ const updatePasswordStmt = db.prepare(
 );
 const listUsersStmt = db.prepare("SELECT username FROM users");
 const deleteUserStmt = db.prepare("DELETE FROM users WHERE username = ?");
+const renameUserStmt = db.prepare("UPDATE users SET username = ? WHERE username = ?");
 const getEmailConfigStmt = db.prepare("SELECT value FROM config WHERE key = 'email_config'");
 const getNotificationsConfigStmt = db.prepare("SELECT value FROM config WHERE key = 'notifications_config'");
 const isEmailProcessedStmt = db.prepare("SELECT 1 FROM processed_emails WHERE message_id = ?");
@@ -1760,6 +1772,23 @@ async function handleApi(req, res) {
       updatePasswordStmt.run(hashPassword(newPass, newSalt), newSalt, target);
       sendJson(res, 200, { ok: true });
     } catch { sendJson(res, 400, { error: "No se pudo cambiar la contraseña." }); }
+    return;
+  }
+
+  if (req.method === "PATCH" && /^\/api\/users\/[^/]+$/.test(req.url)) {
+    const target = decodeURIComponent(req.url.slice("/api/users/".length));
+    try {
+      const body = await readBody(req);
+      const newUsername = String(body.username || "").trim().toLowerCase();
+      if (!newUsername || newUsername.length < 2 || !/^[a-z0-9_.-]+$/.test(newUsername)) {
+        sendJson(res, 400, { error: "Usuario inválido (mín. 2 chars, solo letras/números/._-)." });
+        return;
+      }
+      if (!getUserStmt.get(target)) { sendJson(res, 404, { error: "Usuario no encontrado." }); return; }
+      if (newUsername !== target && getUserStmt.get(newUsername)) { sendJson(res, 409, { error: "El usuario ya existe." }); return; }
+      renameUserStmt.run(newUsername, target);
+      sendJson(res, 200, { username: newUsername });
+    } catch { sendJson(res, 400, { error: "No se pudo renombrar el usuario." }); }
     return;
   }
 

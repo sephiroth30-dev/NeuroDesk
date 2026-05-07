@@ -60,6 +60,12 @@ body {
   color: var(--text);
 }
 
+input::placeholder,
+textarea::placeholder {
+  color: #c5d0de;
+  font-weight: 400;
+}
+
 /* ── Sidebar ── */
 .sidebar {
   position: fixed;
@@ -163,8 +169,29 @@ body {
   font-weight: 700;
 }
 
+.sidebarFooter {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sidebarCurrentUser {
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.sidebarCollapsed .sidebarCurrentUser {
+  display: none;
+}
+
 .sidebarCollapse {
-  margin-top: auto;
   color: var(--muted);
   border-top: 1px solid var(--line);
   border-radius: 0;
@@ -1723,7 +1750,7 @@ body.sidebarCollapsed .ticketDetailOverlay {
 }
 
 .tabButton {
-  padding: 8px 16px;
+  padding: 8px 11px;
   border: 0;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
@@ -1731,7 +1758,7 @@ body.sidebarCollapsed .ticketDetailOverlay {
   background: transparent;
   color: var(--muted);
   font-weight: 600;
-  font-size: 0.845rem;
+  font-size: 0.8rem;
   cursor: pointer;
   white-space: nowrap;
   transition: color 0.13s;
@@ -2745,16 +2772,25 @@ label .fieldLabel {
   flex-wrap: wrap;
 }
 
+.userEditNameForm,
 .userChangePassForm {
   width: 100%;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
+  align-items: start;
   margin-top: 8px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
 
+.userPassInputs {
+  display: grid;
+  gap: 6px;
+  grid-column: 1;
+}
+
+.userEditNameForm input,
 .userChangePassForm input {
   padding: 8px 10px;
   border: 1px solid var(--line);
@@ -2766,11 +2802,20 @@ label .fieldLabel {
   box-sizing: border-box;
 }
 
+.userEditNameForm input:focus,
 .userChangePassForm input:focus {
   outline: none;
   border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
   background: #fff;
+}
+
+.settingsFooter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  margin-top: 0;
 }
 
 .usersNewSection {
@@ -2789,6 +2834,7 @@ label .fieldLabel {
 }
 
 @media (max-width: 768px) {
+  .userEditNameForm,
   .userChangePassForm {
     grid-template-columns: 1fr;
   }

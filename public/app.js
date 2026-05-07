@@ -1663,7 +1663,7 @@ statusFilter.addEventListener("change", (e) => {
 const toggleClosedBtn = document.querySelector("#toggleClosedBtn");
 toggleClosedBtn?.addEventListener("click", () => {
   showClosedTickets = !showClosedTickets;
-  toggleClosedBtn.textContent = showClosedTickets ? "Ocultar cerrados" : "Mostrar cerrados";
+  toggleClosedBtn.textContent = showClosedTickets ? "Ocultar cerrados" : "Cerrados";
   toggleClosedBtn.classList.toggle("active", showClosedTickets);
   selectedTickets.clear();
   updateBulkBar();
@@ -1867,12 +1867,21 @@ function renderUsers(users) {
         <div class="userCardAvatar">${escapeHtml(u.charAt(0).toUpperCase())}</div>
         <div class="userCardName">${escapeHtml(u)}${isSelf ? ' <span class="userCardSelf">tú</span>' : ""}</div>
         <div class="userCardActions">
+          <button class="ghostButton userEditNameBtn" type="button" style="font-size:0.82rem">Editar nombre</button>
           <button class="ghostButton userChangePassBtn" type="button" style="font-size:0.82rem">Cambiar contraseña</button>
           ${!isSelf ? `<button class="dangerButton userDeleteBtn" type="button" style="font-size:0.82rem" title="Eliminar usuario">Eliminar</button>` : ""}
         </div>
-        <form class="userChangePassForm" hidden>
-          <input type="password" placeholder="Nueva contraseña (mín. 4 chars)" autocomplete="new-password" />
+        <form class="userEditNameForm" hidden>
+          <input type="text" placeholder="Nuevo nombre de usuario" autocomplete="off" />
           <button type="submit" class="primaryAction" style="font-size:0.82rem;white-space:nowrap">Guardar</button>
+          <p class="message" style="grid-column:1/-1;margin:0"></p>
+        </form>
+        <form class="userChangePassForm" hidden>
+          <div class="userPassInputs">
+            <input class="userNewPassInput" type="password" placeholder="Nueva contraseña (mín. 4 chars)" autocomplete="new-password" />
+            <input class="userConfirmPassInput" type="password" placeholder="Confirmar contraseña" autocomplete="new-password" />
+          </div>
+          <button type="submit" class="primaryAction" style="font-size:0.82rem;white-space:nowrap;align-self:start">Guardar</button>
           <p class="message" style="grid-column:1/-1;margin:0"></p>
         </form>
       </div>`;
@@ -1894,10 +1903,21 @@ usersList?.addEventListener("click", async (e) => {
   if (!card) return;
   const username = card.dataset.username;
 
+  if (e.target.closest(".userEditNameBtn")) {
+    const form = card.querySelector(".userEditNameForm");
+    const passForm = card.querySelector(".userChangePassForm");
+    passForm.hidden = true;
+    form.hidden = !form.hidden;
+    if (!form.hidden) { form.querySelector("input").value = username; form.querySelector("input").focus(); }
+    return;
+  }
+
   if (e.target.closest(".userChangePassBtn")) {
     const form = card.querySelector(".userChangePassForm");
+    const nameForm = card.querySelector(".userEditNameForm");
+    nameForm.hidden = true;
     form.hidden = !form.hidden;
-    if (!form.hidden) form.querySelector("input").focus();
+    if (!form.hidden) form.querySelector(".userNewPassInput").focus();
     return;
   }
 
@@ -1914,28 +1934,64 @@ usersList?.addEventListener("click", async (e) => {
 });
 
 usersList?.addEventListener("submit", async (e) => {
-  const form = e.target.closest(".userChangePassForm");
-  if (!form) return;
   e.preventDefault();
-  const card = form.closest(".userCard");
+  const card = e.target.closest(".userCard");
+  if (!card) return;
   const username = card.dataset.username;
-  const passInput = form.querySelector("input");
-  const msgEl = form.querySelector(".message");
-  msgEl.textContent = "";
-  try {
-    const res = await fetch(`/api/users/${encodeURIComponent(username)}/password`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: passInput.value }),
-    });
-    const data = await res.json();
-    if (!res.ok) { msgEl.textContent = data.error || "Error al cambiar contraseña."; return; }
-    passInput.value = "";
-    form.hidden = true;
+
+  if (e.target.closest(".userEditNameForm")) {
+    const form = e.target.closest(".userEditNameForm");
+    const input = form.querySelector("input");
+    const msgEl = form.querySelector(".message");
     msgEl.textContent = "";
-  } catch {
-    msgEl.textContent = "Error de conexión.";
+    const newName = input.value.trim().toLowerCase();
+    if (!newName) { msgEl.textContent = "El nombre no puede estar vacío."; return; }
+    try {
+      const res = await fetch(`/api/users/${encodeURIComponent(username)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: newName }),
+      });
+      const data = await res.json();
+      if (!res.ok) { msgEl.textContent = data.error || "Error al renombrar usuario."; return; }
+      await loadUsers();
+    } catch {
+      msgEl.textContent = "Error de conexión.";
+    }
+    return;
   }
+
+  if (e.target.closest(".userChangePassForm")) {
+    const form = e.target.closest(".userChangePassForm");
+    const passInput = form.querySelector(".userNewPassInput");
+    const confirmInput = form.querySelector(".userConfirmPassInput");
+    const msgEl = form.querySelector(".message");
+    msgEl.textContent = "";
+    if (passInput.value !== confirmInput.value) {
+      msgEl.textContent = "Las contraseñas no coinciden.";
+      return;
+    }
+    try {
+      const res = await fetch(`/api/users/${encodeURIComponent(username)}/password`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: passInput.value }),
+      });
+      const data = await res.json();
+      if (!res.ok) { msgEl.textContent = data.error || "Error al cambiar contraseña."; return; }
+      passInput.value = "";
+      confirmInput.value = "";
+      form.hidden = true;
+    } catch {
+      msgEl.textContent = "Error de conexión.";
+    }
+  }
+});
+
+document.querySelector("#toggleNewUserPassConfirm")?.addEventListener("click", () => {
+  const input = document.querySelector("#newUserPasswordConfirm");
+  if (!input) return;
+  input.type = input.type === "password" ? "text" : "password";
 });
 
 newUserForm?.addEventListener("submit", async (e) => {
@@ -1944,6 +2000,11 @@ newUserForm?.addEventListener("submit", async (e) => {
   newUserMessage.textContent = "";
   const username = newUsernameInput.value.trim();
   const password = newUserPasswordInput.value;
+  const confirmPassword = document.querySelector("#newUserPasswordConfirm")?.value;
+  if (confirmPassword !== undefined && password !== confirmPassword) {
+    newUserMessage.textContent = "Las contraseñas no coinciden.";
+    return;
+  }
   try {
     const res = await fetch("/api/users", {
       method: "POST",
