@@ -369,9 +369,9 @@ function renderStats(stats) {
     statResolvedTodayCount.textContent = resolvedToday;
   }
 
-  slaDetailCompliance.textContent = `${compliance}%`;
-  slaDetailDonut.style.setProperty("--value", compliance);
-  slaDetailDonut.style.setProperty("--donut-color", complianceColor(compliance));
+  if (slaDetailCompliance) slaDetailCompliance.textContent = `${compliance}%`;
+  if (slaDetailDonut) slaDetailDonut.style.setProperty("--value", compliance);
+  if (slaDetailDonut) slaDetailDonut.style.setProperty("--donut-color", complianceColor(compliance));
 
   renderBars(slaStatusBars, statuses, stats.byStatus || {});
   renderBars(slaUrgencyBars, urgencies, stats.byUrgency || {});
@@ -1799,9 +1799,9 @@ async function doRefresh() {
 
   renderSlaFilters();
   renderTickets();
+  renderVersion(version);
   renderStats(stats);
   renderSlaReport();
-  renderVersion(version);
 }
 
 function connectLiveUpdates() {
