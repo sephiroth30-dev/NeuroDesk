@@ -19,6 +19,22 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [11.10] - 2026-05-07
+
+### Tarjetas del panel como filtros + fixes móvil
+
+- **Stat cards clicables**: cada tarjeta del panel actúa como atajo de filtro
+  - *Tickets activos* → filtra tablero a abiertos/en proceso/en espera
+  - *SLA vencido* → filtra tablero a tickets con SLA incumplido
+  - *Cumplimiento SLA* → navega a la vista de estadísticas SLA
+  - *Resueltos hoy* → filtra tablero a resueltos en las últimas 24h
+  - Click en tarjeta activa la desactiva (toggle)
+  - Cambiar el selector de estado limpia el filtro de tarjeta
+- **Móvil topbar fix**: botón "+ Nuevo" alineado al extremo derecho; se eliminó `flex-wrap: wrap` que lo desplazaba al centro
+- **Móvil botón guardar**: "Guardar cambios" en Ajustes es ancho completo en pantallas pequeñas
+
+---
+
 ## [11.9] - 2026-05-07
 
 ### Fix UI: topbar, formularios usuarios, admin y ajustes

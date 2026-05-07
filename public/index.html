@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/styles.css?v=11.9" />
+    <link rel="stylesheet" href="/styles.css?v=11.10" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -141,25 +141,25 @@
       <!-- ── Overview ── -->
       <section id="overviewView" class="view active" aria-label="Vista inicial de soporte">
         <section class="statsGrid" aria-label="Métricas principales">
-          <article class="statCard">
+          <article class="statCard" data-stat-filter="activos" role="button" tabindex="0" title="Ver tickets activos">
             <svg class="statCardIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
             <p class="statCardLabel">Tickets activos</p>
             <strong class="statCardValue" id="statActiveCount">0</strong>
             <p class="statCardSub">Abiertos o en progreso</p>
           </article>
-          <article class="statCard statCard--danger">
+          <article class="statCard statCard--danger" data-stat-filter="sla_vencido" role="button" tabindex="0" title="Ver tickets con SLA vencido">
             <svg class="statCardIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <p class="statCardLabel">SLA vencido</p>
             <strong class="statCardValue" id="statBreachedCount">0</strong>
             <p class="statCardSub">Fuera del acuerdo de nivel</p>
           </article>
-          <article class="statCard">
+          <article class="statCard" data-stat-filter="cumplimiento_sla" role="button" tabindex="0" title="Ver estadísticas SLA">
             <svg class="statCardIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             <p class="statCardLabel">Cumplimiento SLA</p>
             <strong class="statCardValue" id="statComplianceCount">100%</strong>
             <p class="statCardSub">Tickets dentro del objetivo</p>
           </article>
-          <article class="statCard statCard--ok">
+          <article class="statCard statCard--ok" data-stat-filter="resueltos_hoy" role="button" tabindex="0" title="Ver resueltos hoy">
             <svg class="statCardIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             <p class="statCardLabel">Resueltos hoy</p>
             <strong class="statCardValue" id="statResolvedTodayCount">0</strong>
@@ -1135,7 +1135,7 @@
     <!-- Mobile sidebar overlay -->
     <div id="sidebarOverlay" class="sidebarOverlay" aria-hidden="true"></div>
 
-    <script src="/app.js?v=11.9" defer></script>
+    <script src="/app.js?v=11.10" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {

@@ -421,9 +421,27 @@ button[type="submit"]:active {
   transition: box-shadow 0.18s, transform 0.18s;
 }
 
+.statCard[data-stat-filter] {
+  cursor: pointer;
+  user-select: none;
+}
+
 .statCard:hover {
   box-shadow: var(--shadow-hover);
   transform: translateY(-1px);
+}
+
+.statCard--active {
+  background: var(--brand-soft);
+  border-color: var(--brand);
+}
+
+.statCard--active .statCardLabel {
+  color: var(--brand);
+}
+
+.statCard--active::before {
+  background: var(--brand-gradient);
 }
 
 .statCard::before {
@@ -1385,8 +1403,7 @@ tbody tr:last-child td {
   }
 
   .topbar {
-    flex-wrap: wrap;
-    padding: 10px 14px;
+    padding: 8px 12px;
     gap: 8px;
     margin-bottom: 10px;
   }
@@ -1402,8 +1419,7 @@ tbody tr:last-child td {
   }
 
   .topBarRight {
-    flex: 1;
-    min-width: 0;
+    flex: 0 0 auto;
     gap: 6px;
     justify-content: flex-end;
   }
@@ -2852,6 +2868,14 @@ label .fieldLabel {
   .userEditNameForm,
   .userChangePassForm {
     grid-template-columns: 1fr;
+  }
+
+  .settingsFooter {
+    padding: 12px 16px;
+  }
+
+  .settingsFooter button {
+    width: 100%;
   }
   .userCardActions {
     width: 100%;

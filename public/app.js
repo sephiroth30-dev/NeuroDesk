@@ -116,6 +116,27 @@ const cpMessage = document.querySelector("#cpMessage");
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let currentFilter = "todos";
+let statFilter = null;
+
+function applyStatFilter(key) {
+  statFilter = key;
+  statusFilter.value = "todos";
+  currentFilter = "todos";
+  document.querySelectorAll("[data-stat-filter]").forEach((c) => {
+    c.classList.toggle("statCard--active", c.dataset.statFilter === key);
+  });
+  if (key === "resueltos_hoy" && !showClosedTickets) {
+    showClosedTickets = true;
+    if (toggleClosedBtn) { toggleClosedBtn.textContent = "Ocultar cerrados"; toggleClosedBtn.classList.add("active"); }
+  }
+  renderTickets();
+  document.querySelector("#ticketBoard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function clearStatFilter() {
+  statFilter = null;
+  document.querySelectorAll("[data-stat-filter]").forEach((c) => c.classList.remove("statCard--active"));
+}
 let boardView = "cards";
 let cachedTickets = [];
 let appConfig = null;
@@ -402,6 +423,18 @@ function renderBars(container, items, values) {
 // ── Ticket board ──────────────────────────────────────────────────────────────
 
 function getVisibleTickets() {
+  const today = new Date().toDateString();
+  if (statFilter === "activos") {
+    return cachedTickets.filter((t) => ["abierto", "en_proceso", "en_espera"].includes(t.status));
+  }
+  if (statFilter === "sla_vencido") {
+    return cachedTickets.filter((t) => t.sla && t.sla.breached && t.status !== "cerrado");
+  }
+  if (statFilter === "resueltos_hoy") {
+    return cachedTickets.filter(
+      (t) => (t.status === "resuelto" || t.status === "cerrado") && t.resolvedAt && new Date(t.resolvedAt).toDateString() === today
+    );
+  }
   let tickets = showClosedTickets ? cachedTickets : cachedTickets.filter((t) => t.status !== "cerrado");
   if (currentFilter === "todos") return tickets;
   return tickets.filter((t) => t.status === currentFilter);
@@ -1654,10 +1687,28 @@ exportSlaButton.addEventListener("click", () => {
 });
 
 statusFilter.addEventListener("change", (e) => {
+  clearStatFilter();
   currentFilter = e.target.value;
   selectedTickets.clear();
   updateBulkBar();
   renderTickets();
+});
+
+document.querySelector(".statsGrid")?.addEventListener("click", (e) => {
+  const card = e.target.closest("[data-stat-filter]");
+  if (!card) return;
+  const key = card.dataset.statFilter;
+  if (key === "cumplimiento_sla") { showView("sla"); return; }
+  if (statFilter === key) { clearStatFilter(); renderTickets(); return; }
+  applyStatFilter(key);
+});
+
+document.querySelector(".statsGrid")?.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const card = e.target.closest("[data-stat-filter]");
+  if (!card) return;
+  e.preventDefault();
+  card.click();
 });
 
 const toggleClosedBtn = document.querySelector("#toggleClosedBtn");
