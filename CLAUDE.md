@@ -2,36 +2,38 @@
 
 ## ⚠️ ESTE PROYECTO ESTÁ EN PRODUCCIÓN
 
-Está corriendo con datos reales y configuración activa. Cualquier cambio debe ser **no destructivo**.
+Desplegado en **soporte.easystem.co** con datos reales. Cualquier cambio debe ser **no destructivo**.
 
 ---
 
-## Base de Datos — NUNCA tocar `data/neurodesk.sqlite`
+## Almacenamiento de datos — NUNCA tocar `data/`
 
-- **NO** borrar, recrear ni reemplazar `data/neurodesk.sqlite`
-- **NO** hacer `DROP TABLE`, `DROP COLUMN` ni sentencias que eliminen datos
-- **NO** vaciar tablas (`DELETE FROM ... WHERE 1=1`, `TRUNCATE`, etc.)
-- **NO** correr migraciones que destruyan o recreen tablas existentes
+El servidor usa **`data/neurodesk.json`** como base de datos (no SQLite). Este archivo contiene:
+- Todos los tickets abiertos y cerrados
+- Configuración de correo entrante (SMTP/IMAP + App Password de Gmail)
+- Configuración de notificaciones
+- Configuración de SLA y campos
+- Usuarios y sesiones
 
-Si el esquema necesita evolucionar, **solo agregar**:
-```sql
--- ✅ Siempre aditivo
-ALTER TABLE tickets ADD COLUMN nueva_columna TEXT DEFAULT '';
-```
+**Reglas absolutas:**
+- **NO** borrar, sobreescribir ni reinicializar `data/neurodesk.json`
+- **NO** commitear archivos dentro de `data/` (está en `.gitignore` completo)
+- **NO** hacer `rm -rf data/` ni `git clean -fd` en el servidor de producción
+- **NO** cambiar `STORE_PATH` ni la ruta del archivo de datos sin migrar primero
 
-El servidor ya tiene lógica de migración aditiva en el arranque (`-- Run column migrations`). Úsala, no la reemplaces.
+Si el servidor arranca sin `data/neurodesk.json`, arranca **con cero datos** — todos los tickets y configuración se pierden.
 
 ---
 
-## Configuración guardada en BD — NO sobrescribir
+## Configuración guardada — NO sobrescribir con defaults
 
-Las siguientes claves en la tabla `config` contienen configuración ingresada manualmente por el usuario (incluye credenciales de Gmail / App Password):
+Las siguientes claves en `store.config` contienen datos ingresados manualmente por el usuario:
 
-- `email_config` — SMTP, cuenta Gmail, App Password
-- `notifications_config` — reglas de notificaciones
-- `app_config` — SLA, campos habilitados, nombre de la empresa
+- `email_config` — host IMAP, App Password de Gmail, carpeta, intervalo de polling
+- `notifications_config` — SMTP de salida, emails de admin, plantillas de notificación
+- `app_config` — SLA por urgencia, campos habilitados, campos personalizados
 
-**Regla:** nunca ejecutar `upsertConfigStmt` con valores hardcodeados o de ejemplo que pisen la configuración existente. Los defaults solo se aplican si no existe el registro.
+**Regla:** en `loadStore()`, los defaults solo se aplican si la clave no existe. Si se agregan nuevas claves a los defaults, usar `Object.assign({}, DEFAULT, existingConfig)` (existing tiene precedencia), nunca reemplazar el objeto completo.
 
 ---
 
@@ -39,26 +41,40 @@ Las siguientes claves en la tabla `config` contienen configuración ingresada ma
 
 | Archivo/Carpeta | Razón |
 |---|---|
-| `data/neurodesk.sqlite` | BD de producción con tickets y configuración |
+| `data/neurodesk.json` | Base de datos de producción (tickets + config + usuarios) |
+| `data/` (toda la carpeta) | Ignorada en git — nunca subir ni borrar |
 | `.env` (si existe) | Variables de entorno con credenciales |
 
 ---
 
 ## Estrategia de cambios seguros
 
-1. **Cambios en `server.js`**: modificar lógica, rutas y endpoints sin alterar esquema de BD
+1. **Cambios en `server.js`**: modificar lógica, rutas y endpoints
 2. **Cambios de UI**: modificar `public/app.js`, `public/styles.css`, `public/index.html` libremente
-3. **Nuevas columnas**: solo `ALTER TABLE ... ADD COLUMN` con `DEFAULT` para no romper registros existentes
-4. **Nuevas tablas**: `CREATE TABLE IF NOT EXISTS` — nunca sin `IF NOT EXISTS`
-5. **Seeds / datos de prueba**: nunca en producción; si se necesitan, ponerlos detrás de una flag `NODE_ENV=development`
+3. **Nuevos campos en el store**: agregar con `?? defaultValue` — nunca reemplazar la estructura raíz
+4. **Nuevas claves de config**: usar `deepMerge(DEFAULT, existing)` para que existing siempre gane
+5. **Seeds / datos de prueba**: nunca en producción; detrás de `NODE_ENV=development`
+
+---
+
+## Deploy seguro en soporte.easystem.co
+
+```bash
+# En el servidor de producción, el flujo correcto es:
+git pull origin main        # solo actualiza código
+npm install                 # solo si package.json cambió
+# NUNCA: rm -rf data/ | git clean -fd | npm run reset
+# El proceso (PM2/node) se reinicia, lee data/neurodesk.json intacto
+```
 
 ---
 
 ## Antes de cada entrega, verificar
 
-- [ ] ¿El cambio modifica el esquema de BD de forma destructiva?
-- [ ] ¿Se sobrescribe alguna clave de `config` con valores de ejemplo?
-- [ ] ¿Se toca `data/neurodesk.sqlite` directamente?
+- [ ] ¿El cambio modifica o reinicializa `data/neurodesk.json`?
+- [ ] ¿Se sobrescribe alguna clave de config con valores de ejemplo?
 - [ ] ¿Se requiere reconfigurar Gmail o App Password para que funcione?
+- [ ] ¿El `.gitignore` sigue ignorando `data/` completo?
+- [ ] ¿Los nuevos defaults usan merge (no replace) sobre la config existente?
 
 Si alguna respuesta es **sí**, replantear el enfoque antes de entregar.

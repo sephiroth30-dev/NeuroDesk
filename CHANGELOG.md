@@ -19,6 +19,21 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [11.3] - 2026-05-07
+
+### Protección de datos y responsive ajustes
+
+#### Protección de datos de producción
+- `.gitignore` actualizado: ahora ignora `data/` completo (antes solo `.sqlite`). Esto garantiza que `neurodesk.json` (tickets, email config, configuración) **nunca sea sobreescrito ni eliminado por operaciones de git** en el servidor de producción.
+
+#### Configuración — Mobile (≤768px)
+- Tab bar de ajustes: reemplazado scroll horizontal por grilla 2×2. Todos los tabs son visibles sin deslizar: [Tiempos SLA] [Formulario] / [Portal público] [Correo entrante] / [Notificaciones] (ancho completo al ser impar)
+- Campos de formulario: ancho 100%, padding de toque cómodo (10px), font-size 0.938rem
+- Botones de acción dentro del form: apilados verticalmente, ancho completo
+- Panel de cada tab: padding lateral reducido a 16px para mejor uso del espacio
+
+---
+
 ## [11.2] - 2026-05-07
 
 ### Responsive móvil — Detalle de ticket
