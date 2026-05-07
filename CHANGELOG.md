@@ -19,6 +19,14 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [11.11] - 2026-05-07
+
+### Fix: botón "+ Nuevo" pegado al extremo derecho del topbar
+
+- **CSS selector fix**: cambiado `.topbar > div` a `.topbar > div:not(.topBarRight)` — el selector anterior aplicaba `flex: 1` a todos los divs hijos del topbar (logo y botón por igual), haciendo que el botón quedara centrado en vez de al extremo derecho
+
+---
+
 ## [11.10] - 2026-05-07
 
 ### Tarjetas del panel como filtros + fixes móvil

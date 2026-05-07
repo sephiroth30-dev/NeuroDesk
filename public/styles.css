@@ -279,7 +279,7 @@ body.sidebarCollapsed .shell {
   margin-bottom: 14px;
 }
 
-.topbar > div {
+.topbar > div:not(.topBarRight) {
   flex: 1;
 }
 
