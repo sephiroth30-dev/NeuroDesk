@@ -19,6 +19,22 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [11.1] - 2026-05-06
+
+### Correcciones y ajustes de UI
+
+#### Notificaciones
+- Corregido: cambio de estado vía drag-and-drop no enviaba notificación — ahora `updateTicketPosition` detecta cambio de estado y dispara `status_changed` / `resolved` según corresponda
+
+#### Header
+- Eliminado borde gradiente morado/rosa en la parte superior del topbar
+
+#### Responsive móvil
+- Tarjetas de métricas: grilla 2×2 mantenida en todos los tamaños de pantalla (antes colapsaba a 1 columna en <480px)
+- Botones del tablero (Tarjetas / Lista / Mostrar cerrados): ahora tienen el mismo tamaño, mismo espaciado y están alineados en una sola fila
+
+---
+
 ## [11.0] - 2026-05-06
 
 ### Rediseño visual completo — UI/UX overhaul + responsividad

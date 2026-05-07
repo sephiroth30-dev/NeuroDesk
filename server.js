@@ -848,14 +848,30 @@ function updateTicketFull(id, data) {
 function updateTicketPosition(id, status, orderedIds) {
   if (!ticketStatuses.includes(status) || !Array.isArray(orderedIds) || !orderedIds.includes(id))
     return null;
+  const rawTicket = store.tickets.find((t) => t.id === id);
+  const oldStatus = rawTicket?.status;
   orderedIds
     .filter((ticketId) => typeof ticketId === "string")
     .slice(0, 500)
     .forEach((ticketId, index) => {
       updateTicketPositionStmt.run(status, index + 1, String(ticketId));
     });
+  if (status === "resuelto" && rawTicket && !rawTicket.resolvedAt) {
+    rawTicket.resolvedAt = new Date().toISOString();
+    saveStore();
+  } else if (status !== "resuelto" && rawTicket && rawTicket.resolvedAt) {
+    rawTicket.resolvedAt = null;
+    saveStore();
+  }
   notifyClients("ticketsChanged", { action: "position", id });
-  return getTickets().find((t) => t.id === id);
+  const ticket = getTickets().find((t) => t.id === id);
+  if (ticket && oldStatus !== status) {
+    const notifType = status === "resuelto" ? "resolved" : "status_changed";
+    sendTicketNotification(notifType, ticket, { oldStatus }).catch((err) =>
+      console.error("[NeuroDesk] Notification error (position):", err.message)
+    );
+  }
+  return ticket;
 }
 
 function getSlaState(ticket) {

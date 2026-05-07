@@ -249,8 +249,6 @@ body.sidebarCollapsed .shell {
   gap: 16px;
   padding: 8px 20px;
   margin-bottom: 14px;
-  border-top: 3px solid transparent;
-  border-image: var(--brand-gradient) 1;
 }
 
 .eyebrow {
@@ -1378,14 +1376,33 @@ tbody tr:last-child td {
   }
 
   .boardTools,
-  .viewToggle,
   .sectionActions {
     width: 100%;
   }
 
-  .viewToggle button,
+  /* Botones del tablero: 3 columnas iguales en una fila */
+  .boardTools {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
   .boardTools label {
-    flex: 1;
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  /* viewToggle transparente: sus botones se convierten en hijos directos del grid */
+  .boardTools .viewToggle {
+    display: contents;
+  }
+
+  .boardTools .viewToggle button,
+  .boardTools #toggleClosedBtn {
+    width: 100%;
+    min-height: 36px;
+    text-align: center;
+    white-space: normal;
   }
 
   .slaDetailGrid,
@@ -1427,7 +1444,6 @@ tbody tr:last-child td {
 @media (max-width: 540px) {
   .topActions,
   .formActions,
-  .viewToggle,
   .sectionActions {
     display: grid;
   }
@@ -1439,6 +1455,14 @@ tbody tr:last-child td {
   .statsGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
+  }
+
+  .statCard {
+    padding: 14px 14px 12px;
+  }
+
+  .statCardValue {
+    font-size: 1.6rem;
   }
 
   .donutCard {
@@ -2532,9 +2556,9 @@ label .fieldLabel {
     grid-template-columns: 1fr;
   }
 
-  /* Stats grid: single column on very small screens */
+  /* Stats grid: keep 2 columns even on small screens */
   .statsGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
     gap: 6px;
   }
 
