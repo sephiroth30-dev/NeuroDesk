@@ -143,45 +143,30 @@
 
       <!-- ── Overview ── -->
       <section id="overviewView" class="view active" aria-label="Vista inicial de soporte">
-        <section class="donutsHero" aria-label="Indicadores de salud operativa">
-          <article class="donutCard">
-            <div
-              class="donut donutHero"
-              id="slaDonut"
-              style="--value: 100; --donut-color: var(--donut-ok)"
-            >
-              <span id="metricSla">100%</span>
-            </div>
-            <div>
-              <p class="donutTitle">Adherencia SLA</p>
-              <p class="donutSub">Tickets dentro del objetivo</p>
-            </div>
+        <section class="statsGrid" aria-label="Métricas principales">
+          <article class="statCard">
+            <svg class="statCardIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+            <p class="statCardLabel">Tickets activos</p>
+            <strong class="statCardValue" id="statActiveCount">0</strong>
+            <p class="statCardSub">Abiertos o en progreso</p>
           </article>
-          <article class="donutCard">
-            <div
-              class="donut donutHero"
-              id="activeDonut"
-              style="--value: 0; --donut-color: var(--donut-info)"
-            >
-              <span id="statOpen">0</span>
-            </div>
-            <div>
-              <p class="donutTitle">Tickets activos</p>
-              <p class="donutSub">Abiertos o en progreso</p>
-            </div>
+          <article class="statCard statCard--danger">
+            <svg class="statCardIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <p class="statCardLabel">SLA vencido</p>
+            <strong class="statCardValue" id="statBreachedCount">0</strong>
+            <p class="statCardSub">Fuera del acuerdo de nivel</p>
           </article>
-          <article class="donutCard">
-            <div
-              class="donut donutHero"
-              id="breachedDonut"
-              style="--value: 0; --donut-color: var(--donut-warn)"
-            >
-              <span id="metricBreached">0</span>
-            </div>
-            <div>
-              <p class="donutTitle">SLA vencido</p>
-              <p class="donutSub">Fuera del acuerdo de nivel</p>
-            </div>
+          <article class="statCard">
+            <svg class="statCardIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <p class="statCardLabel">Cumplimiento SLA</p>
+            <strong class="statCardValue" id="statComplianceCount">100%</strong>
+            <p class="statCardSub">Tickets dentro del objetivo</p>
+          </article>
+          <article class="statCard statCard--ok">
+            <svg class="statCardIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <p class="statCardLabel">Resueltos hoy</p>
+            <strong class="statCardValue" id="statResolvedTodayCount">0</strong>
+            <p class="statCardSub">Cerrados en las últimas 24h</p>
           </article>
         </section>
 

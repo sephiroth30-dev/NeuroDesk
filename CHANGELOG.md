@@ -19,6 +19,38 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [11.0] - 2026-05-06
+
+### Rediseño visual completo — UI/UX overhaul + responsividad
+
+#### Paleta morado/rosa
+- Reemplazada paleta roja (`#c82032`) por morado/rosa degradado (`#7c3aed → #db2777`)
+- Nueva variable `--brand-gradient` usada en botones primarios, acento del topbar y tarjetas de métricas
+- Sidebar: ícono de marca ahora usa el degradado; ítem activo en morado
+- Todos los focus rings y sombras actualizados a morado
+
+#### Header compacto
+- Topbar reducido en altura (padding 8px vs 12px anterior)
+- Borde izquierdo rojo eliminado; reemplazado por franja superior degradada morado/rosa
+- H1 más compacto (`1.1rem` fijo)
+
+#### Métricas rediseñadas (4 cards planas)
+- Eliminados 3 donuts circulares; reemplazados por 4 stat cards rectangulares
+- Cards: Tickets activos · SLA vencido · Cumplimiento SLA · Resueltos hoy
+- Acento de 3px de color en la parte superior de cada card (morado/rojo/verde según tipo)
+- "Resueltos hoy" calculado en tiempo real desde `cachedTickets` usando `resolvedAt`
+- Grid responsivo: 4 columnas desktop → 2×2 tablet → 1 columna mobile pequeño
+
+#### Sidebar responsivo
+- Tablet (769–1024px): se contrae automáticamente al iniciar
+- Al hacer hover sobre el sidebar colapsado en tablet, se expande con overlay sin mover el contenido
+- Mobile (<768px): comportamiento drawer existente sin cambios
+
+#### Responsividad general
+- Todos los botones primarios usan `var(--brand-gradient)` (morado→rosa)
+- Toggle activo usa degradado
+- Stat cards responsivas en breakpoints 900px, 540px y 480px
+
 ## [10.1] - 2026-05-06
 
 ### Fix: layout del detalle de ticket en viewports intermedios

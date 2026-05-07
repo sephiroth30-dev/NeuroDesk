@@ -7,9 +7,10 @@
   --muted: #64748b;
   --graphite: #1e293b;
   --line: #e2e8f0;
-  --brand: #c82032;
-  --brand-dark: #9f1827;
-  --brand-soft: #fff0f2;
+  --brand: #7c3aed;
+  --brand-dark: #6d28d9;
+  --brand-soft: #f5f3ff;
+  --brand-gradient: linear-gradient(135deg, #7c3aed, #db2777);
   --ok: #059669;
   --warn: #d97706;
   --danger: #dc2626;
@@ -92,12 +93,12 @@ body {
   height: 32px;
   flex-shrink: 0;
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+  background: var(--brand-gradient);
   color: #fff;
   font-size: 0.65rem;
   font-weight: 900;
   letter-spacing: 0.02em;
-  box-shadow: 0 2px 8px rgba(200, 32, 50, 0.28);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.28);
 }
 
 .sidebarBrand strong {
@@ -245,10 +246,11 @@ body.sidebarCollapsed .shell {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 12px 20px;
-  margin-bottom: 18px;
-  border-left: 3px solid var(--brand);
+  gap: 16px;
+  padding: 8px 20px;
+  margin-bottom: 14px;
+  border-top: 3px solid transparent;
+  border-image: var(--brand-gradient) 1;
 }
 
 .eyebrow {
@@ -261,10 +263,10 @@ body.sidebarCollapsed .shell {
 }
 
 h1 {
-  font-size: clamp(1.2rem, 2.5vw, 1.5rem);
+  font-size: 1.1rem;
   font-weight: 800;
   line-height: 1.1;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   color: var(--graphite);
 }
 
@@ -310,15 +312,15 @@ button[type="submit"] {
 .primaryAction,
 button[type="submit"] {
   border: 0;
-  background: var(--brand);
+  background: var(--brand-gradient);
   color: #ffffff;
-  box-shadow: 0 1px 3px rgba(200, 32, 50, 0.3);
+  box-shadow: 0 1px 3px rgba(124, 58, 237, 0.3);
 }
 
 .primaryAction:hover,
 button[type="submit"]:hover {
-  background: var(--brand-dark);
-  box-shadow: 0 3px 10px rgba(200, 32, 50, 0.35);
+  background: linear-gradient(135deg, var(--brand-dark), #be185d);
+  box-shadow: 0 3px 10px rgba(124, 58, 237, 0.35);
   transform: translateY(-1px);
 }
 
@@ -343,7 +345,7 @@ button[type="submit"]:active {
 
 .toggleButton.active {
   border-color: var(--brand);
-  background: var(--brand);
+  background: var(--brand-gradient);
   color: #ffffff;
 }
 
@@ -361,6 +363,93 @@ button[type="submit"]:active {
 }
 
 /* ── Donut Hero ── */
+/* ── Stats Grid ── */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.statCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 18px 20px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: box-shadow 0.18s, transform 0.18s;
+}
+
+.statCard:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
+}
+
+.statCard::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--brand-gradient);
+}
+
+.statCard--danger::before {
+  background: linear-gradient(90deg, var(--danger), #f87171);
+}
+
+.statCard--ok::before {
+  background: linear-gradient(90deg, var(--ok), #34d399);
+}
+
+.statCardIcon {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  color: var(--line);
+  opacity: 0.7;
+}
+
+.statCardLabel {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0;
+}
+
+.statCardValue {
+  display: block;
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--graphite);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 6px 0 2px;
+}
+
+.statCard--danger .statCardValue {
+  color: var(--danger);
+}
+
+.statCard--ok .statCardValue {
+  color: var(--ok);
+}
+
+.statCardSub {
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* keep donutsHero for backwards compat with SLA view donuts */
 .donutsHero {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -744,7 +833,7 @@ select {
 input:focus,
 select:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(200, 32, 50, 0.1);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
   border-color: var(--brand);
   background: #ffffff;
 }
@@ -1090,7 +1179,7 @@ tbody tr:last-child td {
   outline: none;
   border-color: var(--brand);
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(200, 32, 50, 0.1);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
 }
 
 .message {
@@ -1166,9 +1255,37 @@ tbody tr:last-child td {
   }
 }
 
+/* Tablet: sidebar auto-collapsed with hover expansion */
+@media (min-width: 769px) and (max-width: 1024px) {
+  body.sidebarCollapsed .sidebar {
+    transition: width 0.18s ease, box-shadow 0.18s;
+  }
+  body.sidebarCollapsed .sidebar:hover {
+    width: 232px;
+    box-shadow: var(--shadow-md);
+    z-index: 55;
+  }
+  body.sidebarCollapsed .sidebar:hover b,
+  body.sidebarCollapsed .sidebar:hover .sidebarBrand strong {
+    display: block !important;
+  }
+  body.sidebarCollapsed .sidebar:hover .sidebarItem {
+    justify-content: flex-start !important;
+    padding-inline: 10px !important;
+  }
+  body.sidebarCollapsed .sidebar:hover .sidebarCollapse {
+    margin-inline: -10px !important;
+    width: calc(100% + 20px) !important;
+    padding-inline: 20px !important;
+  }
+}
+
 @media (max-width: 900px) {
-  .donutsHero,
+  .statsGrid,
   .infoGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .donutsHero {
     grid-template-columns: 1fr;
   }
   .donutCard {
@@ -1319,8 +1436,8 @@ tbody tr:last-child td {
     grid-template-columns: 80px 1fr 28px;
   }
 
-  .donutsHero {
-    grid-template-columns: 1fr;
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 
@@ -1663,7 +1780,7 @@ body.sidebarCollapsed .ticketDetailOverlay {
 }
 
 .fieldConfigRow:has(input[type="checkbox"]:checked) {
-  border-color: rgba(200, 32, 50, 0.2);
+  border-color: rgba(124, 58, 237, 0.2);
   background: var(--brand-soft);
 }
 
@@ -1814,7 +1931,7 @@ body.sidebarCollapsed .ticketDetailOverlay {
 .bulkLabel select:focus {
   outline: none;
   border-color: var(--brand);
-  box-shadow: 0 0 0 2px rgba(200, 32, 50, 0.3);
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.3);
   background: #334155;
 }
 
@@ -2168,7 +2285,7 @@ label .fieldLabel {
 .settingsForm .formGrid select:focus {
   outline: none;
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px rgba(200, 32, 50, 0.1);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
   background: #fff;
 }
 
@@ -2246,7 +2363,7 @@ label .fieldLabel {
 .templateEditor textarea:focus {
   outline: none;
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px rgba(200, 32, 50, 0.1);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
 }
 
 .templatePreview {
@@ -2415,8 +2532,9 @@ label .fieldLabel {
     grid-template-columns: 1fr;
   }
 
-  /* Donuts: compact */
-  .donutsHero {
+  /* Stats grid: single column on very small screens */
+  .statsGrid {
+    grid-template-columns: 1fr;
     gap: 6px;
   }
 

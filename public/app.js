@@ -23,13 +23,12 @@ const kanbanBoard = document.querySelector("#kanbanBoard");
 const ticketListView = document.querySelector("#ticketListView");
 const statusFilter = document.querySelector("#statusFilter");
 const appVersion = document.querySelector("#appVersion");
-const metricSla = document.querySelector("#metricSla");
-const metricBreached = document.querySelector("#metricBreached");
+const statActiveCount = document.querySelector("#statActiveCount");
+const statBreachedCount = document.querySelector("#statBreachedCount");
+const statComplianceCount = document.querySelector("#statComplianceCount");
+const statResolvedTodayCount = document.querySelector("#statResolvedTodayCount");
 const metricRemaining = document.querySelector("#metricRemaining");
 const slaFilteredCount = document.querySelector("#slaFilteredCount");
-const slaDonut = document.querySelector("#slaDonut");
-const activeDonut = document.querySelector("#activeDonut");
-const breachedDonut = document.querySelector("#breachedDonut");
 const slaDetailDonut = document.querySelector("#slaDetailDonut");
 const slaDetailCompliance = document.querySelector("#slaDetailCompliance");
 const slaStatusBars = document.querySelector("#slaStatusBars");
@@ -354,23 +353,23 @@ function renderStats(stats) {
   const compliance = stats.slaCompliance || 0;
   const active = stats.open || 0;
   const breached = stats.breached || 0;
-  const resolved = stats.byStatus?.resuelto || 0;
-  const total = active + resolved;
 
-  metricSla.textContent = `${compliance}%`;
-  metricBreached.textContent = breached;
-  document.querySelector("#statOpen").textContent = active;
+  if (statActiveCount) statActiveCount.textContent = active;
+  if (statBreachedCount) statBreachedCount.textContent = breached;
+  if (statComplianceCount) statComplianceCount.textContent = `${compliance}%`;
+
+  if (statResolvedTodayCount) {
+    const today = new Date().toDateString();
+    const resolvedToday = cachedTickets.filter(
+      (t) =>
+        (t.status === "resuelto" || t.status === "cerrado") &&
+        t.resolvedAt &&
+        new Date(t.resolvedAt).toDateString() === today
+    ).length;
+    statResolvedTodayCount.textContent = resolvedToday;
+  }
+
   slaDetailCompliance.textContent = `${compliance}%`;
-
-  slaDonut.style.setProperty("--value", compliance);
-  slaDonut.style.setProperty("--donut-color", complianceColor(compliance));
-
-  const activeRatio = total > 0 ? Math.round((active / total) * 100) : 0;
-  activeDonut.style.setProperty("--value", activeRatio);
-
-  const breachRate = active > 0 ? Math.round((breached / active) * 100) : 0;
-  breachedDonut.style.setProperty("--value", breachRate);
-
   slaDetailDonut.style.setProperty("--value", compliance);
   slaDetailDonut.style.setProperty("--donut-color", complianceColor(compliance));
 
@@ -1138,6 +1137,20 @@ customFieldsList?.addEventListener("click", (e) => {
 sidebarToggle?.addEventListener("click", () => {
   document.body.classList.toggle("sidebarCollapsed");
 });
+
+// Auto-collapse sidebar on tablet (769–1024px)
+(function initResponsiveSidebar() {
+  if (window.innerWidth > 768 && window.innerWidth <= 1024) {
+    document.body.classList.add("sidebarCollapsed");
+  }
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 768 && window.innerWidth <= 1024) {
+      if (!document.body.classList.contains("sidebarCollapsed")) {
+        document.body.classList.add("sidebarCollapsed");
+      }
+    }
+  });
+})();
 
 sidebarOverviewButton?.addEventListener("click", () => showView("overview"));
 
