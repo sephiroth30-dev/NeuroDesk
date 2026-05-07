@@ -745,14 +745,14 @@ function renderSlaReport() {
   const filtered = getFilteredSlaTickets();
   const summary = summarizeTickets(filtered);
 
-  slaFilteredCount.textContent = filtered.length;
-  slaDetailCompliance.textContent = `${summary.compliance}%`;
-  metricRemaining.textContent = `${summary.avgRemainingHours}h`;
-  slaDetailDonut.style.setProperty("--value", summary.compliance);
-  slaDetailDonut.style.setProperty("--donut-color", complianceColor(summary.compliance));
+  if (slaFilteredCount) slaFilteredCount.textContent = filtered.length;
+  if (slaDetailCompliance) slaDetailCompliance.textContent = `${summary.compliance}%`;
+  if (metricRemaining) metricRemaining.textContent = `${summary.avgRemainingHours}h`;
+  if (slaDetailDonut) slaDetailDonut.style.setProperty("--value", summary.compliance);
+  if (slaDetailDonut) slaDetailDonut.style.setProperty("--donut-color", complianceColor(summary.compliance));
   renderBars(slaStatusBars, statuses, summary.byStatus);
   renderBars(slaUrgencyBars, urgencies, summary.byUrgency);
-  slaReportMeta.textContent = `Generado ${formatDate.format(new Date())} · ${filtered.length} tickets`;
+  if (slaReportMeta) slaReportMeta.textContent = `Generado ${formatDate.format(new Date())} · ${filtered.length} tickets`;
   renderSlaTicketTable(filtered);
 }
 
