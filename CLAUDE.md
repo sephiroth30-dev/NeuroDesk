@@ -59,12 +59,37 @@ Las siguientes claves en `store.config` contienen datos ingresados manualmente p
 
 ## Deploy seguro en soporte.easystem.co
 
+### Causa raíz de pérdidas de datos
+`data/neurodesk.json` vive dentro del directorio del proyecto. Cualquier `git clean -fd`, re-clone o script de deploy que limpie la carpeta lo destruye.
+
+### Solución permanente: ND_STORE_PATH fuera del proyecto
+El archivo `ecosystem.config.js` apunta los datos a `/var/lib/neurodesk/data.json`.
+Esa ruta nunca es tocada por git ni por deploys.
+
+### Migración única (ejecutar en el servidor una sola vez)
 ```bash
-# En el servidor de producción, el flujo correcto es:
+# 1. Crear el directorio de datos fuera del proyecto
+sudo mkdir -p /var/lib/neurodesk
+sudo chown $USER:$USER /var/lib/neurodesk
+
+# 2. Si ya existe data/neurodesk.json con datos, moverlo
+cp data/neurodesk.json /var/lib/neurodesk/data.json 2>/dev/null || echo "no habia datos previos"
+
+# 3. Iniciar/reiniciar con PM2 usando el ecosystem
+pm2 start ecosystem.config.js
+# o si ya corre:
+pm2 restart neurodesk --update-env
+
+# 4. Verificar que arrancó con la ruta correcta (debe decir /var/lib/neurodesk/data.json)
+pm2 logs neurodesk --lines 10
+```
+
+### Flujo de deploy después de la migración
+```bash
 git pull origin main        # solo actualiza código
-npm install                 # solo si package.json cambió
+npm install --omit=dev      # solo si package.json cambió
+pm2 restart neurodesk       # reinicia — datos en /var/lib/neurodesk/data.json intactos
 # NUNCA: rm -rf data/ | git clean -fd | npm run reset
-# El proceso (PM2/node) se reinicia, lee data/neurodesk.json intacto
 ```
 
 ---

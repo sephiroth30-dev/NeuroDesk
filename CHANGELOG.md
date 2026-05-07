@@ -19,6 +19,26 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [11.6] - 2026-05-07
+
+### Fix definitivo: datos de producción fuera del directorio del proyecto
+
+#### Causa raíz identificada
+`data/neurodesk.json` vivía dentro del proyecto — cualquier `git clean -fd`, re-clone o script de deploy que limpie la carpeta lo destruía silenciosamente.
+
+#### Cambios
+- `ecosystem.config.js` (nuevo): configuración de PM2 con `ND_STORE_PATH=/var/lib/neurodesk/data.json` — los datos quedan en una ruta que git nunca toca
+- `CLAUDE.md` actualizado: instrucciones de migración única y flujo de deploy seguro documentados
+
+#### Migración requerida en el servidor (una sola vez)
+```bash
+sudo mkdir -p /var/lib/neurodesk && sudo chown $USER:$USER /var/lib/neurodesk
+cp data/neurodesk.json /var/lib/neurodesk/data.json 2>/dev/null || true
+pm2 start ecosystem.config.js   # o: pm2 restart neurodesk --update-env
+```
+
+---
+
 ## [11.5] - 2026-05-07
 
 ### Gestión de usuarios, versión en login y seguridad
