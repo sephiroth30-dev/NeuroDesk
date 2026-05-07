@@ -900,6 +900,8 @@ function renderTicketHistory(ticket) {
     return;
   }
   detailHistory.innerHTML = history
+    .slice()
+    .reverse()
     .map(
       (item) => `
     <article class="historyItem">

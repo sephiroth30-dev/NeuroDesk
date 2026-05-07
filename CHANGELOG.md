@@ -19,6 +19,21 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [11.2] - 2026-05-07
+
+### Responsive móvil — Detalle de ticket
+
+#### Layout vertical en mobile (≤768px)
+- Detalle de ticket rediseñado para mobile: layout ahora es columna única en lugar de la vista dividida izquierda/derecha del escritorio
+- Orden de secciones en mobile: descripción del ticket → textarea de gestión → historial → información del ticket → botones de acción
+- Descripción y textarea ocupan el 100% del ancho disponible
+- Historial ordenado de más reciente a más antiguo en todas las pantallas
+- Avatar centrado en la sección de propiedades del ticket
+- Botones (Guardar, Marcar resuelto, Cerrar ticket) ocupan el 100% del ancho, centrados y con padding inferior de 32px para evitar el área segura de iOS
+- Añadido `-webkit-overflow-scrolling: touch` al overlay para scroll fluido en iOS Safari
+
+---
+
 ## [11.1] - 2026-05-06
 
 ### Correcciones y ajustes de UI

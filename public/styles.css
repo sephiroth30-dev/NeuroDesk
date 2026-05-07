@@ -2502,7 +2502,7 @@ label .fieldLabel {
     gap: 8px;
   }
 
-  /* Ticket detail: full screen on mobile */
+  /* Ticket detail: pantalla completa en mobile, layout vertical */
   .ticketDetailOverlay {
     position: fixed;
     inset: 0;
@@ -2510,19 +2510,65 @@ label .fieldLabel {
     border-radius: 0;
     width: 100%;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     z-index: 80;
   }
 
   .ticketDetailShell {
-    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
   }
 
+  /* Forzar columna única y orden vertical */
+  .ticketDetailLayout {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+
+  /* Sección descripción + textarea + historial */
   .ticketConversation {
-    padding: 18px 16px;
+    padding: 20px 16px;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    overflow: visible;
   }
 
+  #detailResolution {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 120px;
+    font-size: 0.938rem;
+  }
+
+  /* Sección info del ticket */
   .ticketProperties {
-    padding: 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px 16px 32px;
+    border-top: 1px solid var(--line);
+  }
+
+  /* Avatar centrado */
+  .propertyAvatar {
+    margin: 0 auto;
+  }
+
+  /* Nombre y contacto centrados */
+  .ticketProperties > h3,
+  .ticketProperties > p {
+    text-align: center;
+  }
+
+  /* Botones: ancho completo y centrados */
+  #saveTicketDetail,
+  #resolveTicketDetail,
+  #closeTicketDetailStatus {
+    width: 100%;
+    text-align: center;
+    margin-top: 4px;
   }
 }
 
