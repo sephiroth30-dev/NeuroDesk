@@ -1157,6 +1157,15 @@ tbody tr:last-child td {
   }
 }
 
+@media (max-width: 1024px) {
+  .ticketDetailLayout {
+    grid-template-columns: 1fr;
+  }
+  .ticketProperties {
+    border-top: 1px solid var(--line);
+  }
+}
+
 @media (max-width: 900px) {
   .donutsHero,
   .infoGrid {
@@ -1168,12 +1177,6 @@ tbody tr:last-child td {
   }
   .customFieldRow {
     grid-template-columns: 1fr;
-  }
-  .ticketDetailLayout {
-    grid-template-columns: 1fr;
-  }
-  .ticketProperties {
-    border-top: 1px solid var(--line);
   }
   .ticketConversation {
     padding: 22px;
@@ -1373,7 +1376,7 @@ tbody tr:last-child td {
 }
 
 .ticketDetailOverlay {
-  width: min(1300px, calc(100% - 32px));
+  width: min(1300px, calc(100vw - 232px - 32px));
   margin: 16px auto 24px;
   margin-left: calc(232px + max(16px, (100vw - 1548px) / 2));
   border: 1px solid var(--line);
@@ -1395,6 +1398,7 @@ tbody tr:last-child td {
 }
 
 body.sidebarCollapsed .ticketDetailOverlay {
+  width: min(1300px, calc(100vw - 56px - 32px));
   margin-left: calc(56px + max(16px, (100vw - 1372px) / 2));
 }
 

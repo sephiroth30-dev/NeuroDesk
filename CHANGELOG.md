@@ -19,6 +19,17 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [10.1] - 2026-05-06
+
+### Fix: layout del detalle de ticket en viewports intermedios
+
+- **Bug crítico corregido**: el panel derecho (`ticketProperties`) salía del viewport en pantallas de ~1350px porque el cálculo de ancho del overlay no restaba el ancho del sidebar
+- `.ticketDetailOverlay` ahora usa `width: min(1300px, calc(100vw - 232px - 32px))` en lugar de `calc(100% - 32px)`, restando correctamente los 232px del sidebar
+- `body.sidebarCollapsed .ticketDetailOverlay` ahora incluye `width: min(1300px, calc(100vw - 56px - 32px))` para el sidebar colapsado (56px)
+- El breakpoint de colapso a columna única del layout del detalle se movió de 900px → 1024px (tablet y ventanas reducidas), cumpliendo el requerimiento: >1024px = dos columnas, 768–1024px = columna única, <768px = pantalla completa
+
+---
+
 ## [10.0] - 2026-05-06
 
 ### Notificaciones por correo, tickets cerrados y diseño responsive
