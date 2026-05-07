@@ -273,10 +273,20 @@ body.sidebarCollapsed .shell {
 .topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 8px 20px;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 6px 16px;
   margin-bottom: 14px;
+}
+
+.topbar > div {
+  flex: 1;
+}
+
+#createTicketButton {
+  height: 36px;
+  padding: 0 16px;
+  flex-shrink: 0;
 }
 
 .eyebrow {
@@ -2770,6 +2780,11 @@ label .fieldLabel {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.userEditNameForm[hidden],
+.userChangePassForm[hidden] {
+  display: none;
 }
 
 .userEditNameForm,

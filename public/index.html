@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/styles.css?v=11.8" />
+    <link rel="stylesheet" href="/styles.css?v=11.9" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -883,7 +883,6 @@
         </div>
         <div class="settingsFooter panel">
           <button id="saveSettingsButton" class="primaryAction" type="button">Guardar cambios</button>
-          <button id="backFromSettingsButton" class="ghostButton" type="button">Volver</button>
         </div>
       </section>
 
@@ -935,52 +934,6 @@
         <div id="adminSummary" class="adminSummaryBar"></div>
         <div id="adminTicketTable"></div>
 
-        <details class="adminAccordion panel" style="margin-top: 16px">
-          <summary>Cambiar contraseña</summary>
-          <form
-            id="changePasswordForm"
-            autocomplete="off"
-            style="margin-top: 16px; display: grid; gap: 14px; max-width: 400px"
-          >
-            <label
-              >Contraseña actual
-              <div class="passwordWrapper">
-                <input id="cpCurrent" type="password" required /><button
-                  type="button"
-                  class="eyeBtn"
-                  id="toggleCpCurrent"
-                  title="Mostrar/ocultar"
-                ></button>
-              </div>
-            </label>
-            <label
-              >Nueva contraseña
-              <div class="passwordWrapper">
-                <input id="cpNew" type="password" required minlength="4" /><button
-                  type="button"
-                  class="eyeBtn"
-                  id="toggleCpNew"
-                  title="Mostrar/ocultar"
-                ></button>
-              </div>
-            </label>
-            <label
-              >Confirmar nueva
-              <div class="passwordWrapper">
-                <input id="cpConfirm" type="password" required minlength="4" /><button
-                  type="button"
-                  class="eyeBtn"
-                  id="toggleCpConfirm"
-                  title="Mostrar/ocultar"
-                ></button>
-              </div>
-            </label>
-            <button type="submit" class="primaryAction" style="justify-self: start">
-              Guardar contraseña
-            </button>
-            <p id="cpMessage" class="message" role="status"></p>
-          </form>
-        </details>
       </section>
     </main>
 
@@ -1182,7 +1135,7 @@
     <!-- Mobile sidebar overlay -->
     <div id="sidebarOverlay" class="sidebarOverlay" aria-hidden="true"></div>
 
-    <script src="/app.js?v=11.8" defer></script>
+    <script src="/app.js?v=11.9" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {

@@ -19,6 +19,17 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [11.9] - 2026-05-07
+
+### Fix UI: topbar, formularios usuarios, admin y ajustes
+
+- **Topbar**: botón "+ Nuevo" alineado al extremo derecho, misma altura que el ícono hamburger
+- **Usuarios**: fix — los formularios "Editar nombre" y "Cambiar contraseña" ahora se mantienen ocultos hasta hacer clic en el botón correspondiente (CSS `display:grid` sobreescribía el atributo `hidden`)
+- **Admin/Tickets**: eliminado el accordion "Cambiar contraseña" — está disponible en Configuración → Usuarios
+- **Ajustes**: eliminado el botón "Volver" del pie, queda solo "Guardar cambios"
+
+---
+
 ## [11.8] - 2026-05-07
 
 ### UI: sidebar, ajustes, portal y usuarios

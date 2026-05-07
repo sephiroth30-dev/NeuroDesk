@@ -1527,7 +1527,7 @@ document.querySelectorAll(".tplTestBtn").forEach((btn) => {
 });
 
 // Change password
-changePasswordForm.addEventListener("submit", async (e) => {
+changePasswordForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   cpMessage.textContent = "";
   const newPass = document.querySelector("#cpNew").value;
@@ -1637,7 +1637,7 @@ settingsButton.addEventListener("click", () => {
   loadNotificationsSettings();
   showView("settings");
 });
-backFromSettings.addEventListener("click", () => showView("overview"));
+backFromSettings?.addEventListener("click", () => showView("overview"));
 adminButton.addEventListener("click", () => {
   renderAdminView();
   showView("admin");
