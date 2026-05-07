@@ -125,6 +125,7 @@ let adminSelected = new Set();
 let refreshInFlight = null;
 let liveEvents = null;
 let activeTicketId = null;
+let showClosedTickets = false;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -402,8 +403,9 @@ function renderBars(container, items, values) {
 // ── Ticket board ──────────────────────────────────────────────────────────────
 
 function getVisibleTickets() {
-  if (currentFilter === "todos") return cachedTickets;
-  return cachedTickets.filter((t) => t.status === currentFilter);
+  let tickets = showClosedTickets ? cachedTickets : cachedTickets.filter((t) => t.status !== "cerrado");
+  if (currentFilter === "todos") return tickets;
+  return tickets.filter((t) => t.status === currentFilter);
 }
 
 function renderTickets() {
@@ -422,7 +424,8 @@ function renderTickets() {
 }
 
 function renderKanban(tickets) {
-  kanbanBoard.innerHTML = statuses
+  const visibleStatuses = showClosedTickets ? statuses : statuses.filter((s) => s.key !== "cerrado");
+  kanbanBoard.innerHTML = visibleStatuses
     .map((status) => {
       const cols = tickets.filter((t) => t.status === status.key);
       const cards = cols.map(renderTicketCard).join("");
@@ -1215,6 +1218,7 @@ function initPasswordToggle(inputId, btnId) {
 }
 
 initPasswordToggle("emailPassword", "toggleEmailPassword");
+initPasswordToggle("smtpPass", "toggleSmtpPass");
 initPasswordToggle("cpCurrent", "toggleCpCurrent");
 initPasswordToggle("cpNew", "toggleCpNew");
 initPasswordToggle("cpConfirm", "toggleCpConfirm");
@@ -1337,6 +1341,176 @@ saveSettingsButton.addEventListener("click", async () => {
   }
 });
 
+// ── Notifications settings ────────────────────────────────────────────────────
+
+const DEFAULT_TEMPLATES_CLIENT = {
+  received: {
+    subject: "Tu ticket #{{ticket_id}} fue recibido — NeuroDesk",
+    body: "Hola {{user_name}},\n\nHemos recibido tu ticket #{{ticket_id}}: \"{{ticket_title}}\".\n\nUn agente lo atenderá a la brevedad.\n\nGracias por comunicarte con nosotros.\n\nNeurofic · NeuroDesk",
+  },
+  status_changed: {
+    subject: "Actualización del ticket #{{ticket_id}} — {{new_status}}",
+    body: "Hola {{user_name}},\n\nEl estado de tu ticket #{{ticket_id}} \"{{ticket_title}}\" ha cambiado:\n\nEstado anterior: {{old_status}}\nNuevo estado: {{new_status}}\n\nSi tienes preguntas, puedes responder a este correo.\n\nNeurofic · NeuroDesk",
+  },
+  resolved: {
+    subject: "Tu ticket #{{ticket_id}} fue resuelto — NeuroDesk",
+    body: "Hola {{user_name}},\n\nNos complace informarte que tu ticket #{{ticket_id}} \"{{ticket_title}}\" ha sido resuelto.\n\nResumen de la atención:\n{{resolution_notes}}\n\nGracias por tu confianza en Neurofic.\n\nNeurofic · NeuroDesk",
+  },
+};
+
+const SAMPLE_VARS = {
+  ticket_id: "ND-1001",
+  ticket_title: "Error en la aplicación",
+  user_name: "María García",
+  user_email: "maria@ejemplo.com",
+  old_status: "Abierto",
+  new_status: "En proceso",
+  agent_name: "Carlos López",
+  resolution_notes: "Se reinició el servicio y se verificó el funcionamiento correcto.",
+};
+
+function renderTemplateClient(tpl, vars) {
+  return String(tpl || "").replace(/\{\{(\w+)\}\}/g, (match, key) =>
+    vars[key] !== undefined ? String(vars[key]) : match
+  );
+}
+
+function updateTemplatePreview(type) {
+  const subject = document.querySelector(`#tpl_${type}_subject`)?.value || "";
+  const body = document.querySelector(`#tpl_${type}_body`)?.value || "";
+  const preview = document.querySelector(`#tpl_${type}_preview`);
+  if (!preview) return;
+  const renderedSubject = renderTemplateClient(subject, SAMPLE_VARS);
+  const renderedBody = renderTemplateClient(body, SAMPLE_VARS);
+  preview.innerHTML = `<strong>Vista previa — Asunto:</strong> ${escapeHtml(renderedSubject)}<br><br>${escapeHtml(renderedBody).replace(/\n/g, "<br>")}`;
+}
+
+async function loadNotificationsSettings() {
+  try {
+    const cfg = await requestJson("/api/notifications/config");
+    document.querySelector("#smtpEnabled").checked = cfg.smtp?.enabled || false;
+    document.querySelector("#smtpHost").value = cfg.smtp?.host || "";
+    document.querySelector("#smtpPort").value = cfg.smtp?.port || 587;
+    document.querySelector("#smtpSecure").checked = cfg.smtp?.secure || false;
+    document.querySelector("#smtpUser").value = cfg.smtp?.user || "";
+    document.querySelector("#smtpPass").value = cfg.smtp?.pass ? "••••••••" : "";
+    document.querySelector("#smtpFrom").value = cfg.smtp?.from || "";
+    document.querySelector("#adminEmailsList").value = cfg.adminEmails || "";
+    const templates = cfg.templates || {};
+    ["received", "status_changed", "resolved"].forEach((type) => {
+      const tpl = templates[type] || DEFAULT_TEMPLATES_CLIENT[type];
+      const subjectEl = document.querySelector(`#tpl_${type}_subject`);
+      const bodyEl = document.querySelector(`#tpl_${type}_body`);
+      if (subjectEl) subjectEl.value = tpl.subject || "";
+      if (bodyEl) bodyEl.value = tpl.body || "";
+      updateTemplatePreview(type);
+    });
+  } catch (_) {}
+}
+
+document.querySelector("#notificationsConfigForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const result = document.querySelector("#notifConfigResult");
+  result.style.display = "none";
+  const body = {
+    smtp: {
+      enabled: document.querySelector("#smtpEnabled").checked,
+      host: document.querySelector("#smtpHost").value.trim(),
+      port: parseInt(document.querySelector("#smtpPort").value) || 587,
+      secure: document.querySelector("#smtpSecure").checked,
+      user: document.querySelector("#smtpUser").value.trim(),
+      pass: document.querySelector("#smtpPass").value,
+      from: document.querySelector("#smtpFrom").value.trim(),
+    },
+    adminEmails: document.querySelector("#adminEmailsList").value.trim(),
+    templates: {
+      received: {
+        subject: document.querySelector("#tpl_received_subject")?.value || "",
+        body: document.querySelector("#tpl_received_body")?.value || "",
+      },
+      status_changed: {
+        subject: document.querySelector("#tpl_status_changed_subject")?.value || "",
+        body: document.querySelector("#tpl_status_changed_body")?.value || "",
+      },
+      resolved: {
+        subject: document.querySelector("#tpl_resolved_subject")?.value || "",
+        body: document.querySelector("#tpl_resolved_body")?.value || "",
+      },
+    },
+  };
+  try {
+    await requestJson("/api/notifications/config", { method: "PUT", body: JSON.stringify(body) });
+    result.style.display = "block";
+    result.style.color = "var(--ok)";
+    result.textContent = "Configuración SMTP guardada correctamente.";
+  } catch (err) {
+    result.style.display = "block";
+    result.style.color = "var(--danger)";
+    result.textContent = err.message;
+  }
+});
+
+document.querySelectorAll(".saveTplBtn").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    const type = btn.dataset.tplType;
+    const subject = document.querySelector(`#tpl_${type}_subject`)?.value || "";
+    const body = document.querySelector(`#tpl_${type}_body`)?.value || "";
+    try {
+      const current = await requestJson("/api/notifications/config");
+      current.templates = current.templates || {};
+      current.templates[type] = { subject, body };
+      if (current.smtp?.pass === "••••••••") current.smtp.pass = "••••••••";
+      await requestJson("/api/notifications/config", { method: "PUT", body: JSON.stringify(current) });
+      btn.textContent = "¡Guardado!";
+      setTimeout(() => { btn.textContent = "Guardar plantilla"; }, 2000);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+});
+
+document.querySelectorAll("[data-restore-tpl]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const type = btn.dataset.restoreTpl;
+    const defaults = DEFAULT_TEMPLATES_CLIENT[type];
+    if (!defaults) return;
+    const subjectEl = document.querySelector(`#tpl_${type}_subject`);
+    const bodyEl = document.querySelector(`#tpl_${type}_body`);
+    if (subjectEl) subjectEl.value = defaults.subject;
+    if (bodyEl) bodyEl.value = defaults.body;
+    updateTemplatePreview(type);
+  });
+});
+
+document.querySelectorAll(".tplTestBtn").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    const type = btn.dataset.tplType;
+    const adminEmails = document.querySelector("#adminEmailsList")?.value.trim();
+    const smtpUser = document.querySelector("#smtpUser")?.value.trim();
+    const to = adminEmails?.split(",")[0]?.trim() || smtpUser || "";
+    if (!to || !to.includes("@")) {
+      alert("Agrega al menos un correo admin o configura el usuario SMTP para enviar la prueba.");
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = "Enviando…";
+    try {
+      await requestJson("/api/notifications/test", { method: "POST", body: JSON.stringify({ to, type }) });
+      btn.textContent = `¡Enviado a ${to}!`;
+      setTimeout(() => { btn.textContent = "Enviar prueba"; btn.disabled = false; }, 3000);
+    } catch (err) {
+      alert(err.message);
+      btn.textContent = "Enviar prueba";
+      btn.disabled = false;
+    }
+  });
+});
+
+["received", "status_changed", "resolved"].forEach((type) => {
+  document.querySelector(`#tpl_${type}_subject`)?.addEventListener("input", () => updateTemplatePreview(type));
+  document.querySelector(`#tpl_${type}_body`)?.addEventListener("input", () => updateTemplatePreview(type));
+});
+
 // Change password
 changePasswordForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -1445,6 +1619,7 @@ backToOverviewButton.addEventListener("click", () => showView("overview"));
 settingsButton.addEventListener("click", () => {
   populateSettingsPanel();
   loadEmailSettings();
+  loadNotificationsSettings();
   showView("settings");
 });
 backFromSettings.addEventListener("click", () => showView("overview"));
@@ -1465,6 +1640,16 @@ exportSlaButton.addEventListener("click", () => {
 
 statusFilter.addEventListener("change", (e) => {
   currentFilter = e.target.value;
+  selectedTickets.clear();
+  updateBulkBar();
+  renderTickets();
+});
+
+const toggleClosedBtn = document.querySelector("#toggleClosedBtn");
+toggleClosedBtn?.addEventListener("click", () => {
+  showClosedTickets = !showClosedTickets;
+  toggleClosedBtn.textContent = showClosedTickets ? "Ocultar cerrados" : "Mostrar cerrados";
+  toggleClosedBtn.classList.toggle("active", showClosedTickets);
   selectedTickets.clear();
   updateBulkBar();
   renderTickets();

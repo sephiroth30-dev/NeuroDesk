@@ -825,6 +825,18 @@ select:focus {
   color: var(--status-done);
 }
 
+.kanbanColumn[data-status="cerrado"] header {
+  border-bottom: 2px solid var(--muted);
+  background: #f1f5f9;
+}
+.kanbanColumn[data-status="cerrado"] h3 {
+  color: var(--muted);
+}
+.kanbanColumn[data-status="cerrado"] header span {
+  background: rgba(100, 116, 139, 0.12);
+  color: var(--muted);
+}
+
 .kanbanColumn header {
   display: flex;
   align-items: center;
@@ -2185,4 +2197,240 @@ label .fieldLabel {
   .settingsForm .formGrid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── Template editor ── */
+.templateEditor {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  margin-bottom: 14px;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.templateEditorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.templateEditorTitle {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--graphite);
+}
+
+.templateEditor textarea {
+  resize: vertical;
+  min-height: 100px;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 0.82rem;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: #fff;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.13s, box-shadow 0.13s;
+}
+
+.templateEditor textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(200, 32, 50, 0.1);
+}
+
+.templatePreview {
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.55;
+  min-height: 40px;
+  word-break: break-word;
+}
+
+.templatePreview strong {
+  color: var(--graphite);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Responsive overhaul ── */
+
+/* Minimum touch targets on mobile */
+@media (max-width: 768px) {
+  .primaryAction,
+  .secondaryAction,
+  .ghostButton,
+  .toggleButton,
+  button[type="submit"],
+  .dangerButton {
+    min-height: 44px;
+    padding-block: 10px;
+  }
+
+  .sidebarItem {
+    min-height: 44px;
+    padding-block: 8px;
+  }
+
+  .statusSelect {
+    min-height: 44px;
+    font-size: 0.875rem;
+  }
+
+  .tabButton {
+    min-height: 40px;
+    padding: 10px 14px;
+  }
+
+  /* Font sizes minimum 14px on mobile */
+  .ticketMeta,
+  .ticketSubject,
+  .donutSub,
+  .fieldConfigDesc {
+    font-size: 0.875rem;
+  }
+
+  .kanbanColumn h3 {
+    font-size: 0.875rem;
+  }
+
+  .badge,
+  .sla,
+  .statusPill {
+    font-size: 0.72rem;
+    padding: 3px 10px;
+  }
+
+  /* Table: allow horizontal scroll with better min-width */
+  table {
+    min-width: 560px;
+  }
+
+  /* Kanban: ensure cards are readable at 360px */
+  .kanbanBoard {
+    grid-template-columns: repeat(4, minmax(80vw, 1fr));
+  }
+
+  .ticketCard {
+    padding: 14px;
+  }
+
+  .ticketName {
+    font-size: 0.938rem;
+  }
+
+  /* Forms fully functional on mobile */
+  .ticketForm {
+    width: 100%;
+    padding: 0;
+  }
+
+  /* Board header stacks nicely */
+  .boardHeader {
+    gap: 10px;
+  }
+
+  .boardTools {
+    gap: 8px;
+  }
+
+  /* Section header wraps actions below title */
+  .sectionHeader {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .sectionActions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Ticket detail: full screen on mobile */
+  .ticketDetailOverlay {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    border-radius: 0;
+    width: 100%;
+    overflow-y: auto;
+    z-index: 80;
+  }
+
+  .ticketDetailShell {
+    min-height: 100vh;
+  }
+
+  .ticketConversation {
+    padding: 18px 16px;
+  }
+
+  .ticketProperties {
+    padding: 18px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Very small screens: stack board tools vertically */
+  .boardHeader {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .boardTools {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .viewToggle {
+    display: flex;
+  }
+
+  /* Topbar: tighter */
+  .topbar {
+    padding: 8px 12px;
+  }
+
+  .topbar h1 {
+    font-size: 0.938rem;
+  }
+
+  /* Admin filters stack */
+  .adminFilters {
+    grid-template-columns: 1fr;
+  }
+
+  /* Donuts: compact */
+  .donutsHero {
+    gap: 6px;
+  }
+
+  .donutCard {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  /* Panel padding reduced */
+  .metricCard,
+  .chartPanel,
+  .panel {
+    padding: 14px;
+  }
+}
+
+/* Status pill for cerrado */
+.statusPill.status-cerrado {
+  background: #f1f5f9;
+  color: var(--muted);
 }

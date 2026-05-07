@@ -4,6 +4,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { ImapFlow } = require("imapflow");
 const { simpleParser } = require("mailparser");
+const nodemailer = require("nodemailer");
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.ND_HOST || "0.0.0.0";
@@ -184,6 +185,9 @@ function statement(sql) {
   if (compact === "SELECT value FROM config WHERE key = 'email_config'") {
     return { get: () => (store.config.email_config ? { value: store.config.email_config } : undefined) };
   }
+  if (compact === "SELECT value FROM config WHERE key = 'notifications_config'") {
+    return { get: () => (store.config.notifications_config ? { value: store.config.notifications_config } : undefined) };
+  }
   if (compact === "SELECT COUNT(*) AS total FROM users") {
     return { get: () => ({ total: store.users.length }) };
   }
@@ -323,6 +327,36 @@ const DEFAULT_EMAIL_CONFIG = {
   defaultUrgency: "media",
 };
 
+const DEFAULT_NOTIFICATIONS_CONFIG = {
+  smtp: {
+    enabled: false,
+    host: "",
+    port: 587,
+    secure: false,
+    user: "",
+    pass: "",
+    from: "NeuroDesk <no-reply@example.com>",
+  },
+  adminEmails: "",
+  templates: {
+    received: {
+      subject: "Tu ticket #{{ticket_id}} fue recibido — NeuroDesk",
+      body: "Hola {{user_name}},\n\nHemos recibido tu ticket #{{ticket_id}}: \"{{ticket_title}}\".\n\nUn agente lo atenderá a la brevedad.\n\nGracias por comunicarte con nosotros.\n\nNeurofic · NeuroDesk",
+    },
+    status_changed: {
+      subject: "Actualización del ticket #{{ticket_id}} — {{new_status}}",
+      body: "Hola {{user_name}},\n\nEl estado de tu ticket #{{ticket_id}} \"{{ticket_title}}\" ha cambiado:\n\nEstado anterior: {{old_status}}\nNuevo estado: {{new_status}}\n\nSi tienes preguntas, puedes responder a este correo.\n\nNeurofic · NeuroDesk",
+    },
+    resolved: {
+      subject: "Tu ticket #{{ticket_id}} fue resuelto — NeuroDesk",
+      body: "Hola {{user_name}},\n\nNos complace informarte que tu ticket #{{ticket_id}} \"{{ticket_title}}\" ha sido resuelto.\n\nResumen de la atención:\n{{resolution_notes}}\n\nGracias por tu confianza en Neurofic.\n\nNeurofic · NeuroDesk",
+    },
+  },
+};
+
+let notificationsConfig = JSON.parse(JSON.stringify(DEFAULT_NOTIFICATIONS_CONFIG));
+let smtpTransporter = null;
+
 let emailConfig = JSON.parse(JSON.stringify(DEFAULT_EMAIL_CONFIG));
 const emailPollStatus = {
   lastPoll: null,
@@ -396,6 +430,7 @@ const updatePasswordStmt = db.prepare(
   "UPDATE users SET password_hash = ?, salt = ? WHERE username = ?"
 );
 const getEmailConfigStmt = db.prepare("SELECT value FROM config WHERE key = 'email_config'");
+const getNotificationsConfigStmt = db.prepare("SELECT value FROM config WHERE key = 'notifications_config'");
 const isEmailProcessedStmt = db.prepare("SELECT 1 FROM processed_emails WHERE message_id = ?");
 const markEmailProcessedStmt = db.prepare(
   "INSERT OR IGNORE INTO processed_emails (message_id, processed_at) VALUES (?, ?)"
@@ -407,9 +442,11 @@ const cleanOldEmailsStmt = db.prepare("DELETE FROM processed_emails WHERE proces
 migrateDatabase();
 loadConfig();
 loadEmailConfig();
+loadNotificationsConfig();
 seedDemoTicket();
 seedAdminUser();
 if (!process.env.ND_TEST) startEmailPoller();
+if (!process.env.ND_TEST) startAutoCloser();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -685,6 +722,9 @@ function insertTicket(ticket) {
     ticket.createdAt
   );
   notifyClients("ticketsChanged", { action: "created", id: ticket.id, source: ticket.source });
+  sendTicketNotification("received", ticket).catch((err) =>
+    console.error("[NeuroDesk] Notification error (received):", err.message)
+  );
   return ticket;
 }
 
@@ -718,10 +758,29 @@ function addTicketHistory(ticketId, note, status) {
 
 function updateTicketStatus(id, status) {
   if (!ticketStatuses.includes(status)) return null;
+  const rawTicket = store.tickets.find((t) => t.id === id);
+  const oldStatus = rawTicket?.status;
   const result = updateTicketStatusStmt.run(status, id);
   if (result.changes === 0) return null;
+  const updated = store.tickets.find((t) => t.id === id);
+  if (updated) {
+    if (status === "resuelto" && !updated.resolvedAt) {
+      updated.resolvedAt = new Date().toISOString();
+      saveStore();
+    } else if (status !== "resuelto" && updated.resolvedAt) {
+      updated.resolvedAt = null;
+      saveStore();
+    }
+  }
   notifyClients("ticketsChanged", { action: "status", id });
-  return getTickets().find((t) => t.id === id);
+  const ticket = getTickets().find((t) => t.id === id);
+  if (ticket && oldStatus !== status) {
+    const notifType = status === "resuelto" ? "resolved" : "status_changed";
+    sendTicketNotification(notifType, ticket, { oldStatus }).catch((err) =>
+      console.error("[NeuroDesk] Notification error (status):", err.message)
+    );
+  }
+  return ticket;
 }
 
 function updateTicketFull(id, data) {
@@ -749,6 +808,8 @@ function updateTicketFull(id, data) {
   if (!name || !appConfig.sla[urgency] || !ticketStatuses.includes(status)) return null;
   if ((status === "resuelto" || status === "cerrado") && !resolution && !resolutionNote)
     return null;
+  const rawTicket = store.tickets.find((t) => t.id === id);
+  const oldStatus = rawTicket?.status;
   const result = updateTicketFullStmt.run(
     name,
     contact,
@@ -762,9 +823,26 @@ function updateTicketFull(id, data) {
     id
   );
   if (result.changes === 0) return null;
+  const updatedRaw = store.tickets.find((t) => t.id === id);
+  if (updatedRaw) {
+    if (status === "resuelto" && !updatedRaw.resolvedAt) {
+      updatedRaw.resolvedAt = new Date().toISOString();
+      saveStore();
+    } else if (status !== "resuelto" && updatedRaw.resolvedAt) {
+      updatedRaw.resolvedAt = null;
+      saveStore();
+    }
+  }
   if (resolutionNote) addTicketHistory(id, resolutionNote, status);
   notifyClients("ticketsChanged", { action: "updated", id });
-  return getTickets().find((t) => t.id === id);
+  const ticket = getTickets().find((t) => t.id === id);
+  if (ticket && oldStatus !== status) {
+    const notifType = status === "resuelto" ? "resolved" : "status_changed";
+    sendTicketNotification(notifType, ticket, { oldStatus, resolutionNote }).catch((err) =>
+      console.error("[NeuroDesk] Notification error (full update):", err.message)
+    );
+  }
+  return ticket;
 }
 
 function updateTicketPosition(id, status, orderedIds) {
@@ -878,6 +956,143 @@ function saveEmailConfig(incoming) {
   upsertConfigStmt.run("email_config", JSON.stringify(emailConfig));
   startEmailPoller();
   return emailConfig;
+}
+
+// ── Notifications config ──────────────────────────────────────────────────────
+
+function loadNotificationsConfig() {
+  const row = getNotificationsConfigStmt.get();
+  if (!row) return;
+  try {
+    const saved = JSON.parse(row.value);
+    notificationsConfig = {
+      smtp: Object.assign(JSON.parse(JSON.stringify(DEFAULT_NOTIFICATIONS_CONFIG.smtp)), saved.smtp || {}),
+      adminEmails: typeof saved.adminEmails === "string" ? saved.adminEmails : "",
+      templates: {
+        received: Object.assign({}, DEFAULT_NOTIFICATIONS_CONFIG.templates.received, (saved.templates || {}).received || {}),
+        status_changed: Object.assign({}, DEFAULT_NOTIFICATIONS_CONFIG.templates.status_changed, (saved.templates || {}).status_changed || {}),
+        resolved: Object.assign({}, DEFAULT_NOTIFICATIONS_CONFIG.templates.resolved, (saved.templates || {}).resolved || {}),
+      },
+    };
+    smtpTransporter = null;
+  } catch (_) {}
+}
+
+function saveNotificationsConfig(incoming) {
+  const smtp = incoming.smtp || {};
+  const pass = smtp.pass === "••••••••" ? notificationsConfig.smtp.pass : String(smtp.pass || "").trim();
+  notificationsConfig = {
+    smtp: {
+      enabled: smtp.enabled === true || smtp.enabled === "true",
+      host: String(smtp.host || "").trim(),
+      port: parseInt(smtp.port) || 587,
+      secure: smtp.secure === true || smtp.secure === "true",
+      user: String(smtp.user || "").trim(),
+      pass,
+      from: String(smtp.from || "").trim(),
+    },
+    adminEmails: String(incoming.adminEmails || "").trim(),
+    templates: {
+      received: sanitizeTemplate(incoming.templates?.received, DEFAULT_NOTIFICATIONS_CONFIG.templates.received),
+      status_changed: sanitizeTemplate(incoming.templates?.status_changed, DEFAULT_NOTIFICATIONS_CONFIG.templates.status_changed),
+      resolved: sanitizeTemplate(incoming.templates?.resolved, DEFAULT_NOTIFICATIONS_CONFIG.templates.resolved),
+    },
+  };
+  smtpTransporter = null;
+  upsertConfigStmt.run("notifications_config", JSON.stringify(notificationsConfig));
+  return notificationsConfig;
+}
+
+function sanitizeTemplate(tpl, defaults) {
+  if (!tpl || typeof tpl !== "object") return { ...defaults };
+  return {
+    subject: String(tpl.subject || defaults.subject).trim().slice(0, 500) || defaults.subject,
+    body: String(tpl.body || defaults.body).trim().slice(0, 10000) || defaults.body,
+  };
+}
+
+// ── Email sending (outbound SMTP) ─────────────────────────────────────────────
+
+function escapeHtmlServer(str) {
+  return String(str || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]);
+}
+
+function textToHtml(text) {
+  return `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b;line-height:1.6">
+${escapeHtmlServer(text).replace(/\n/g, "<br>")}
+<hr style="margin-top:28px;border:0;border-top:1px solid #e2e8f0">
+<p style="color:#94a3b8;font-size:12px;margin-top:10px">NeuroDesk · Neurofic</p>
+</div>`;
+}
+
+function renderTemplate(template, vars) {
+  return String(template || "").replace(/\{\{(\w+)\}\}/g, (match, key) => (vars[key] !== undefined ? String(vars[key]) : match));
+}
+
+function getSmtpTransporter() {
+  if (smtpTransporter) return smtpTransporter;
+  const cfg = notificationsConfig.smtp;
+  if (!cfg || !cfg.enabled || !cfg.host || !cfg.user || !cfg.pass) return null;
+  smtpTransporter = nodemailer.createTransport({
+    host: cfg.host,
+    port: cfg.port || 587,
+    secure: cfg.secure || false,
+    auth: { user: cfg.user, pass: cfg.pass },
+  });
+  return smtpTransporter;
+}
+
+async function sendEmail(to, subject, text) {
+  const transporter = getSmtpTransporter();
+  if (!transporter) return;
+  const from = notificationsConfig.smtp.from || notificationsConfig.smtp.user;
+  try {
+    await transporter.sendMail({ from, to, subject, text, html: textToHtml(text) });
+  } catch (err) {
+    console.error("[NeuroDesk] SMTP error:", err.message);
+    smtpTransporter = null;
+  }
+}
+
+const STATUS_LABELS = {
+  abierto: "Abierto", en_proceso: "En proceso", en_espera: "En espera",
+  resuelto: "Resuelto", cerrado: "Cerrado",
+};
+
+async function sendTicketNotification(type, ticket, opts = {}) {
+  if (!notificationsConfig.smtp?.enabled) return;
+  const tpl = notificationsConfig.templates?.[type] || DEFAULT_NOTIFICATIONS_CONFIG.templates[type];
+  if (!tpl) return;
+
+  const vars = {
+    ticket_id: ticket.id,
+    ticket_title: ticket.subject || ticket.description || "(sin asunto)",
+    user_name: ticket.name,
+    user_email: ticket.contact || "",
+    old_status: STATUS_LABELS[opts.oldStatus] || opts.oldStatus || "",
+    new_status: STATUS_LABELS[ticket.status] || ticket.status,
+    agent_name: opts.agentName || "Un agente",
+    resolution_notes: ticket.resolution || opts.resolutionNote || "(sin resumen)",
+  };
+
+  const subject = renderTemplate(tpl.subject, vars);
+  const bodyText = renderTemplate(tpl.body, vars);
+
+  const adminEmails = String(notificationsConfig.adminEmails || "")
+    .split(",").map((e) => e.trim()).filter(Boolean);
+
+  const promises = [];
+
+  if (ticket.contact && ticket.contact.includes("@")) {
+    promises.push(sendEmail(ticket.contact, subject, bodyText));
+  }
+
+  if (adminEmails.length > 0) {
+    const adminBody = `${bodyText}\n\n---\nSolicitante: ${ticket.name}\nContacto: ${ticket.contact || "—"}`;
+    promises.push(sendEmail(adminEmails.join(", "), `[Admin] ${subject}`, adminBody));
+  }
+
+  await Promise.allSettled(promises);
 }
 
 function detectUrgency(subject, body) {
@@ -1044,6 +1259,32 @@ function startEmailPoller() {
   const intervalMs = (emailConfig.pollIntervalMinutes || 5) * 60 * 1000;
   pollEmails().catch(() => {});
   emailPollerTimer = setInterval(() => pollEmails().catch(() => {}), intervalMs);
+}
+
+// ── Auto-close resolved tickets after 24h ────────────────────────────────────
+
+function startAutoCloser() {
+  function runAutoClose() {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const toClose = store.tickets.filter(
+      (t) => t.status === "resuelto" && t.resolvedAt && t.resolvedAt < cutoff
+    );
+    for (const ticket of toClose) {
+      const oldStatus = ticket.status;
+      ticket.status = "cerrado";
+      ticket.resolvedAt = null;
+      addTicketHistory(ticket.id, "Cerrado automáticamente después de 24 h en estado resuelto.", "cerrado");
+      const snapshot = { ...ticket };
+      sendTicketNotification("status_changed", snapshot, { oldStatus }).catch(() => {});
+    }
+    if (toClose.length > 0) {
+      saveStore();
+      notifyClients("ticketsChanged", { action: "status" });
+      console.log(`[NeuroDesk] Auto-cerrados ${toClose.length} ticket(s) resuelto(s) hace más de 24 h.`);
+    }
+  }
+  runAutoClose();
+  setInterval(runAutoClose, 10 * 60 * 1000);
 }
 
 // ── Auth handler ──────────────────────────────────────────────────────────────
@@ -1347,6 +1588,56 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "GET" && req.url === "/api/notifications/config") {
+    const safe = JSON.parse(JSON.stringify(notificationsConfig));
+    if (safe.smtp?.pass) safe.smtp.pass = "••••••••";
+    sendJson(res, 200, safe);
+    return;
+  }
+
+  if (req.method === "PUT" && req.url === "/api/notifications/config") {
+    try {
+      const body = await readBody(req);
+      const saved = saveNotificationsConfig(body);
+      const safe = JSON.parse(JSON.stringify(saved));
+      if (safe.smtp?.pass) safe.smtp.pass = "••••••••";
+      sendJson(res, 200, safe);
+    } catch {
+      sendJson(res, 400, { error: "No se pudo guardar la configuración de notificaciones." });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/notifications/test") {
+    try {
+      const body = await readBody(req);
+      const to = String(body.to || "").trim();
+      if (!to || !to.includes("@")) {
+        sendJson(res, 400, { error: "Dirección de correo inválida." });
+        return;
+      }
+      const type = String(body.type || "received");
+      const tpl = notificationsConfig.templates?.[type] || DEFAULT_NOTIFICATIONS_CONFIG.templates[type] || DEFAULT_NOTIFICATIONS_CONFIG.templates.received;
+      const sampleVars = {
+        ticket_id: "ND-1001",
+        ticket_title: "Error de ejemplo en aplicación",
+        user_name: "Usuario de Prueba",
+        user_email: to,
+        old_status: "Abierto",
+        new_status: "En proceso",
+        agent_name: "Agente de Soporte",
+        resolution_notes: "Se reinició el servicio y se verificó el funcionamiento correcto.",
+      };
+      const subject = renderTemplate(tpl.subject, sampleVars);
+      const bodyText = renderTemplate(tpl.body, sampleVars);
+      await sendEmail(to, `[TEST] ${subject}`, bodyText);
+      sendJson(res, 200, { ok: true });
+    } catch (err) {
+      sendJson(res, 400, { error: err.message || "No se pudo enviar el correo de prueba." });
+    }
+    return;
+  }
+
   sendJson(res, 404, { error: "Ruta no encontrada." });
 }
 
@@ -1355,6 +1646,7 @@ async function handleApi(req, res) {
 const isPublicApi = (method, url) =>
   (method === "GET" && (url === "/api/health" || url === "/api/version" || url === "/api/config")) ||
   (method === "POST" && (url === "/api/tickets" || url === "/api/email/inbound"));
+// All /api/notifications/* routes require authentication (handled by default guard)
 
 const server = http.createServer(async (req, res) => {
   // Portal — always public

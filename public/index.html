@@ -209,6 +209,9 @@
                 </button>
                 <button class="toggleButton" type="button" data-board-view="list">Lista</button>
               </div>
+              <button id="toggleClosedBtn" class="ghostButton" type="button" title="Mostrar u ocultar tickets cerrados">
+                Mostrar cerrados
+              </button>
             </div>
           </div>
           <div id="kanbanBoard" class="kanbanBoard"></div>
@@ -456,6 +459,15 @@
             type="button"
           >
             Correo entrante
+          </button>
+          <button
+            class="tabButton"
+            data-tab="notificationsTab"
+            role="tab"
+            aria-selected="false"
+            type="button"
+          >
+            Notificaciones
           </button>
         </div>
 
@@ -743,6 +755,105 @@
             <button type="button" id="pollNowBtn" class="secondaryAction" style="margin-top: 12px">
               Sondear ahora
             </button>
+          </div>
+        </div>
+
+        <!-- Tab: Notificaciones -->
+        <div id="notificationsTab" class="tabPanel panel" role="tabpanel" hidden>
+          <div class="panelHeader" style="margin-bottom: 20px">
+            <h2>Notificaciones por correo saliente</h2>
+            <p>Configura el servidor SMTP para enviar notificaciones automáticas a usuarios y administradores.</p>
+          </div>
+
+          <!-- SMTP -->
+          <form id="notificationsConfigForm" class="settingsForm">
+            <div style="margin-bottom: 18px">
+              <strong style="font-size: 0.84rem; color: var(--graphite)">Servidor SMTP (correo saliente)</strong>
+            </div>
+            <label class="toggleRow">
+              <span>Activar envío de notificaciones</span>
+              <input id="smtpEnabled" type="checkbox" />
+            </label>
+            <div class="formGrid">
+              <label>Servidor SMTP<input id="smtpHost" type="text" placeholder="smtp.gmail.com" /></label>
+              <label>Puerto<input id="smtpPort" type="number" value="587" min="1" max="65535" /></label>
+              <label class="toggleRow"><span>Usar SSL/TLS</span><input id="smtpSecure" type="checkbox" /></label>
+              <label>Usuario / correo<input id="smtpUser" type="text" placeholder="soporte@empresa.com" autocomplete="off" /></label>
+              <label>Contraseña
+                <div class="passwordWrapper">
+                  <input id="smtpPass" type="password" placeholder="Contraseña o App Password" autocomplete="new-password" />
+                  <button type="button" class="eyeBtn" id="toggleSmtpPass" title="Mostrar/ocultar contraseña"></button>
+                </div>
+              </label>
+              <label>Remitente (From)<input id="smtpFrom" type="text" placeholder='NeuroDesk &lt;no-reply@empresa.com&gt;' /></label>
+            </div>
+
+            <!-- Admin emails -->
+            <div style="margin-top: 22px; margin-bottom: 10px">
+              <strong style="font-size: 0.84rem; color: var(--graphite)">Correos de administradores</strong>
+              <p style="font-size: 0.78rem; color: var(--muted); margin-top: 4px">Recibirán copia de todas las notificaciones. Separa múltiples correos con comas.</p>
+            </div>
+            <label>Correos admin
+              <input id="adminEmailsList" type="text" placeholder="admin@empresa.com, soporte@empresa.com" />
+            </label>
+
+            <div class="settingsActions" style="margin-top: 20px">
+              <button type="submit" class="primaryAction">Guardar configuración SMTP</button>
+            </div>
+            <p id="notifConfigResult" class="message" style="margin-top: 10px; display: none"></p>
+          </form>
+
+          <!-- Templates -->
+          <div style="margin-top: 28px; border-top: 1px solid var(--line); padding-top: 22px">
+            <strong style="font-size: 0.84rem; color: var(--graphite)">Plantillas de correo</strong>
+            <p style="font-size: 0.78rem; color: var(--muted); margin-top: 4px; margin-bottom: 16px">
+              Variables disponibles: <code>{{ticket_id}}</code> <code>{{ticket_title}}</code> <code>{{user_name}}</code> <code>{{user_email}}</code> <code>{{old_status}}</code> <code>{{new_status}}</code> <code>{{agent_name}}</code> <code>{{resolution_notes}}</code>
+            </p>
+
+            <!-- Template: received -->
+            <div class="templateEditor" id="tplEditor_received">
+              <div class="templateEditorHeader">
+                <span class="templateEditorTitle">Ticket recibido</span>
+                <div style="display:flex;gap:8px">
+                  <button type="button" class="ghostButton presetBtn" data-restore-tpl="received" style="font-size:0.78rem;min-height:30px;padding:4px 10px">Restaurar por defecto</button>
+                  <button type="button" class="secondaryAction tplTestBtn" data-tpl-type="received" style="font-size:0.78rem;min-height:30px;padding:4px 10px">Enviar prueba</button>
+                </div>
+              </div>
+              <label style="margin-top:10px">Asunto<input type="text" id="tpl_received_subject" /></label>
+              <label style="margin-top:8px">Cuerpo<textarea id="tpl_received_body" rows="5"></textarea></label>
+              <div class="templatePreview" id="tpl_received_preview"></div>
+              <button type="button" class="primaryAction saveTplBtn" data-tpl-type="received" style="margin-top:10px;font-size:0.8rem">Guardar plantilla</button>
+            </div>
+
+            <!-- Template: status_changed -->
+            <div class="templateEditor" id="tplEditor_status_changed">
+              <div class="templateEditorHeader">
+                <span class="templateEditorTitle">Cambio de estado</span>
+                <div style="display:flex;gap:8px">
+                  <button type="button" class="ghostButton presetBtn" data-restore-tpl="status_changed" style="font-size:0.78rem;min-height:30px;padding:4px 10px">Restaurar por defecto</button>
+                  <button type="button" class="secondaryAction tplTestBtn" data-tpl-type="status_changed" style="font-size:0.78rem;min-height:30px;padding:4px 10px">Enviar prueba</button>
+                </div>
+              </div>
+              <label style="margin-top:10px">Asunto<input type="text" id="tpl_status_changed_subject" /></label>
+              <label style="margin-top:8px">Cuerpo<textarea id="tpl_status_changed_body" rows="5"></textarea></label>
+              <div class="templatePreview" id="tpl_status_changed_preview"></div>
+              <button type="button" class="primaryAction saveTplBtn" data-tpl-type="status_changed" style="margin-top:10px;font-size:0.8rem">Guardar plantilla</button>
+            </div>
+
+            <!-- Template: resolved -->
+            <div class="templateEditor" id="tplEditor_resolved">
+              <div class="templateEditorHeader">
+                <span class="templateEditorTitle">Ticket resuelto</span>
+                <div style="display:flex;gap:8px">
+                  <button type="button" class="ghostButton presetBtn" data-restore-tpl="resolved" style="font-size:0.78rem;min-height:30px;padding:4px 10px">Restaurar por defecto</button>
+                  <button type="button" class="secondaryAction tplTestBtn" data-tpl-type="resolved" style="font-size:0.78rem;min-height:30px;padding:4px 10px">Enviar prueba</button>
+                </div>
+              </div>
+              <label style="margin-top:10px">Asunto<input type="text" id="tpl_resolved_subject" /></label>
+              <label style="margin-top:8px">Cuerpo<textarea id="tpl_resolved_body" rows="5"></textarea></label>
+              <div class="templatePreview" id="tpl_resolved_preview"></div>
+              <button type="button" class="primaryAction saveTplBtn" data-tpl-type="resolved" style="margin-top:10px;font-size:0.8rem">Guardar plantilla</button>
+            </div>
           </div>
         </div>
       </section>

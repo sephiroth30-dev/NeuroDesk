@@ -19,6 +19,53 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [10.0] - 2026-05-06
+
+### Notificaciones por correo, tickets cerrados y diseño responsive
+
+#### Feature 1 — Notificaciones por correo saliente (SMTP)
+- **Confirmación al crear ticket**: se envía correo automático al solicitante y a los admins cuando se crea un nuevo ticket
+- **Cambio de estado**: correo automático al usuario y admins cada vez que un ticket cambia de estado
+- **Ticket resuelto**: correo específico al marcar como "resuelto", con resumen de la resolución
+- **Cierre automático a las 24h**: tickets en estado "resuelto" se cierran automáticamente a las 24 horas (scheduler `setInterval` cada 10 min + historial automático)
+- **Correos de admin**: copia de todas las notificaciones al(los) correo(s) configurado(s) en ajustes
+- Usa **nodemailer** (SMTP puro, sin dependencias nativas); errores se loguean y no crashean la app
+
+#### Feature 2 — Ocultar tickets cerrados por defecto
+- El tablero Kanban y la vista de lista ya **no muestran tickets cerrados** por defecto
+- Nuevo botón **"Mostrar cerrados"** en las herramientas del tablero para activar/desactivar su visibilidad
+- La columna "Cerrado" del Kanban también se oculta cuando no están visibles
+- El panel de administración sigue mostrando todos los tickets (incluso cerrados) para auditoría
+
+#### Feature 3 — Panel de configuración de notificaciones
+- Nueva pestaña **"Notificaciones"** en Ajustes con:
+  - Configuración SMTP completa (host, puerto, SSL, usuario, contraseña, remitente)
+  - Lista de correos de administradores (comma-separated)
+  - Editor de plantillas para los 3 tipos de notificación (recibido, cambio de estado, resuelto)
+  - **Vista previa en tiempo real** con datos de muestra mientras se edita
+  - Botón **"Restaurar por defecto"** por plantilla
+  - Botón **"Enviar prueba"** que envía la plantilla al primer correo admin configurado
+  - Variables soportadas: `{{ticket_id}}`, `{{ticket_title}}`, `{{user_name}}`, `{{user_email}}`, `{{old_status}}`, `{{new_status}}`, `{{agent_name}}`, `{{resolution_notes}}`
+
+#### Feature 4 — Responsive móvil mejorado
+- **Targets táctiles**: todos los botones tienen mínimo 44×44 px en móvil
+- **Tamaño de fuente mínimo 14px** en pantallas < 768px (corregidos badges, meta info, columnas kanban)
+- **Kanban en móvil**: tarjetas al 80% del viewport con scroll horizontal natural
+- **Ticket detail**: pasa a pantalla completa en móvil (position fixed, inset 0)
+- **Breakpoint 480px**: board tools y admin filters colapsan a columna única
+- Estilo nuevo para columna/pill "Cerrado" en kanban y tabla de admin
+- Nuevos estilos para el editor de plantillas y la vista previa
+
+#### Nuevos endpoints API
+- `GET /api/notifications/config` — configuración SMTP + plantillas
+- `PUT /api/notifications/config` — guardar configuración
+- `POST /api/notifications/test` — enviar correo de prueba
+
+#### Variables de entorno para SMTP (se configuran en la UI, no se requieren en env)
+- Se recomienda configurar vía la pestaña "Notificaciones" en Ajustes
+
+---
+
 ## [9.4] - 2026-05-05
 
 ### Responsive real + rediseño portal
