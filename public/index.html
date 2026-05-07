@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/styles.css?v=11.12" />
+    <link rel="stylesheet" href="/styles.css?v=11.13" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -1130,7 +1130,37 @@
     <!-- Mobile sidebar overlay -->
     <div id="sidebarOverlay" class="sidebarOverlay" aria-hidden="true"></div>
 
-    <script src="/app.js?v=11.10" defer></script>
+    <!-- ── Closure reason modal ── -->
+    <div
+      id="closureReasonModal"
+      class="modalOverlay"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="closureReasonTitle"
+    >
+      <div class="modalPanel panel">
+        <div class="modalHeader">
+          <h2 id="closureReasonTitle">Cerrar ticket</h2>
+          <button id="cancelClosureX" class="ghostButton iconButton" type="button" aria-label="Cancelar">✕</button>
+        </div>
+        <label>
+          <span class="fieldLabel" id="closureReasonLabel">Motivo de cierre</span>
+          <textarea
+            id="closureReasonText"
+            rows="4"
+            placeholder="Describe la gestión realizada..."
+          ></textarea>
+        </label>
+        <p id="closureReasonError" class="message" style="color:var(--danger)" role="alert"></p>
+        <div class="formActions">
+          <button id="confirmClosureBtn" class="primaryAction" type="button">Cerrar ticket</button>
+          <button id="cancelClosureBtn" class="ghostButton" type="button">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/app.js?v=11.13" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {

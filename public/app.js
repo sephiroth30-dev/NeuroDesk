@@ -83,6 +83,16 @@ const editTicketId = document.querySelector("#editTicketId");
 const editModalTicketId = document.querySelector("#editModalTicketId");
 const closeEditModal = document.querySelector("#closeEditModal");
 const cancelEditButton = document.querySelector("#cancelEditButton");
+
+// Closure reason modal
+const closureReasonModal = document.querySelector("#closureReasonModal");
+const closureReasonTitle = document.querySelector("#closureReasonTitle");
+const closureReasonLabel = document.querySelector("#closureReasonLabel");
+const closureReasonText = document.querySelector("#closureReasonText");
+const closureReasonError = document.querySelector("#closureReasonError");
+const confirmClosureBtn = document.querySelector("#confirmClosureBtn");
+const cancelClosureBtn = document.querySelector("#cancelClosureBtn");
+const cancelClosureX = document.querySelector("#cancelClosureX");
 const editName = document.querySelector("#editName");
 const editContact = document.querySelector("#editContact");
 const editArea = document.querySelector("#editArea");
@@ -145,6 +155,7 @@ let adminSelected = new Set();
 let refreshInFlight = null;
 let liveEvents = null;
 let activeTicketId = null;
+let pendingClosureStatus = null;
 let showClosedTickets = false;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -981,15 +992,17 @@ async function saveDetail(statusOverride) {
     detailMessage.textContent = "Agrega la nota de lo realizado antes de resolver o cerrar.";
     return;
   }
-  const currentTicket = cachedTickets.find((t) => t.id === activeTicketId);
-  if (payload.resolutionNote && currentTicket && payload.status === currentTicket.status) {
-    const wantsStatusChange = confirm(
-      "Guardaste una nota. ¿Deseas cambiar el estado del ticket ahora?"
-    );
-    if (wantsStatusChange) {
-      detailStatus.focus();
-      detailMessage.textContent = "Selecciona el nuevo estado y vuelve a guardar.";
-      return;
+  if (!statusOverride) {
+    const currentTicket = cachedTickets.find((t) => t.id === activeTicketId);
+    if (payload.resolutionNote && currentTicket && payload.status === currentTicket.status) {
+      const wantsStatusChange = confirm(
+        "Guardaste una nota. ¿Deseas cambiar el estado del ticket ahora?"
+      );
+      if (wantsStatusChange) {
+        detailStatus.focus();
+        detailMessage.textContent = "Selecciona el nuevo estado y vuelve a guardar.";
+        return;
+      }
     }
   }
   await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}`, {
@@ -1018,22 +1031,52 @@ document.addEventListener("click", (e) => {
   if (ticket) openTicketDetail(ticket);
 });
 
+function showClosureModal(statusOverride) {
+  pendingClosureStatus = statusOverride;
+  const isResolve = statusOverride === "resuelto";
+  closureReasonTitle.textContent = isResolve ? "Marcar como resuelto" : "Cerrar ticket";
+  closureReasonLabel.textContent = isResolve ? "Motivo de resolución" : "Motivo de cierre";
+  confirmClosureBtn.textContent = isResolve ? "Marcar resuelto" : "Cerrar ticket";
+  closureReasonText.value = detailResolution.value.trim();
+  closureReasonError.textContent = "";
+  closureReasonModal.hidden = false;
+  setTimeout(() => closureReasonText.focus(), 50);
+}
+
+function hideClosureModal() {
+  closureReasonModal.hidden = true;
+  closureReasonText.value = "";
+  closureReasonError.textContent = "";
+  pendingClosureStatus = null;
+}
+
+cancelClosureX.addEventListener("click", hideClosureModal);
+cancelClosureBtn.addEventListener("click", hideClosureModal);
+confirmClosureBtn.addEventListener("click", async () => {
+  const reason = closureReasonText.value.trim();
+  if (!reason) {
+    closureReasonError.textContent = "El motivo es requerido para cerrar o resolver el ticket.";
+    closureReasonText.focus();
+    return;
+  }
+  const status = pendingClosureStatus;
+  hideClosureModal();
+  detailResolution.value = reason;
+  try {
+    await saveDetail(status);
+  } catch (err) {
+    detailMessage.textContent = err.message;
+  }
+});
+
 closeTicketDetail.addEventListener("click", closeTicketDetailModal);
 saveTicketDetail.addEventListener("click", () =>
   saveDetail().catch((err) => {
     detailMessage.textContent = err.message;
   })
 );
-resolveTicketDetail.addEventListener("click", () =>
-  saveDetail("resuelto").catch((err) => {
-    detailMessage.textContent = err.message;
-  })
-);
-closeTicketDetailStatus.addEventListener("click", () =>
-  saveDetail("cerrado").catch((err) => {
-    detailMessage.textContent = err.message;
-  })
-);
+resolveTicketDetail.addEventListener("click", () => showClosureModal("resuelto"));
+closeTicketDetailStatus.addEventListener("click", () => showClosureModal("cerrado"));
 detailDeleteButton.addEventListener("click", async () => {
   if (!activeTicketId) return;
   await deleteTicket(activeTicketId);

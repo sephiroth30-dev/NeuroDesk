@@ -19,6 +19,20 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [11.13] - 2026-05-07
+
+### Motivo de cierre/resolución obligatorio con modal dedicado
+
+- **Modal de motivo**: al presionar "Marcar resuelto" o "Cerrar ticket" aparece un modal que pide el motivo antes de cerrar — garantiza trazabilidad en todos los cierres
+- **Título dinámico**: el modal muestra "Marcar como resuelto" o "Cerrar ticket" según la acción, y el botón de confirmación se etiqueta acorde
+- **Pre-relleno inteligente**: si el textarea de notas ya tenía contenido, el modal lo muestra como punto de partida
+- **Validación inline**: si el campo queda vacío al confirmar, muestra error dentro del modal sin cerrarlo
+- **Flujo automático**: al confirmar, guarda el motivo, cambia el estado, cierra la vista de detalle y regresa al tablero — sin pasos extra
+- **Botón guardar inalterado**: "Guardar ticket" mantiene su flujo actual (sin modal, sin cambio de estado forzado)
+- Versiones CSS/JS cache-busting actualizadas a `?v=11.13`
+
+---
+
 ## [11.12] - 2026-05-07
 
 ### Sidebar: icono activo sombreado + nuevo icono de colapsar
