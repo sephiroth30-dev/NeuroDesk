@@ -1831,10 +1831,144 @@ logoutButton.addEventListener("click", async () => {
 
 showView("overview");
 
+// ── User management ───────────────────────────────────────────────────────────
+
+let currentUsername = "";
+
+const usersList = document.querySelector("#usersList");
+const newUserForm = document.querySelector("#newUserForm");
+const newUsernameInput = document.querySelector("#newUsername");
+const newUserPasswordInput = document.querySelector("#newUserPassword");
+const newUserMessage = document.querySelector("#newUserMessage");
+const toggleNewUserPass = document.querySelector("#toggleNewUserPass");
+
+const EYE_OPEN_SVG = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const EYE_CLOSED_SVG = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+
+if (toggleNewUserPass) {
+  toggleNewUserPass.innerHTML = EYE_OPEN_SVG;
+  toggleNewUserPass.addEventListener("click", () => {
+    const isPass = newUserPasswordInput.type === "password";
+    newUserPasswordInput.type = isPass ? "text" : "password";
+    toggleNewUserPass.innerHTML = isPass ? EYE_CLOSED_SVG : EYE_OPEN_SVG;
+  });
+}
+
+function renderUsers(users) {
+  if (!usersList) return;
+  if (!users.length) {
+    usersList.innerHTML = '<p class="empty compact">No hay usuarios registrados.</p>';
+    return;
+  }
+  usersList.innerHTML = users.map((u) => {
+    const isSelf = u === currentUsername;
+    return `
+      <div class="userCard" data-username="${escapeHtml(u)}">
+        <div class="userCardAvatar">${escapeHtml(u.charAt(0).toUpperCase())}</div>
+        <div class="userCardName">${escapeHtml(u)}${isSelf ? ' <span class="userCardSelf">tú</span>' : ""}</div>
+        <div class="userCardActions">
+          <button class="ghostButton userChangePassBtn" type="button" style="font-size:0.82rem">Cambiar contraseña</button>
+          ${!isSelf ? `<button class="dangerButton userDeleteBtn" type="button" style="font-size:0.82rem" title="Eliminar usuario">Eliminar</button>` : ""}
+        </div>
+        <form class="userChangePassForm" hidden>
+          <input type="password" placeholder="Nueva contraseña (mín. 4 chars)" autocomplete="new-password" />
+          <button type="submit" class="primaryAction" style="font-size:0.82rem;white-space:nowrap">Guardar</button>
+          <p class="message" style="grid-column:1/-1;margin:0"></p>
+        </form>
+      </div>`;
+  }).join("");
+}
+
+async function loadUsers() {
+  if (!usersList) return;
+  try {
+    const data = await requestJson("/api/users");
+    renderUsers(data.users || []);
+  } catch {
+    usersList.innerHTML = '<p class="empty compact">No se pudo cargar la lista de usuarios.</p>';
+  }
+}
+
+usersList?.addEventListener("click", async (e) => {
+  const card = e.target.closest(".userCard");
+  if (!card) return;
+  const username = card.dataset.username;
+
+  if (e.target.closest(".userChangePassBtn")) {
+    const form = card.querySelector(".userChangePassForm");
+    form.hidden = !form.hidden;
+    if (!form.hidden) form.querySelector("input").focus();
+    return;
+  }
+
+  if (e.target.closest(".userDeleteBtn")) {
+    if (!confirm(`¿Eliminar el usuario "${username}"? Esta acción no se puede deshacer.`)) return;
+    try {
+      await fetch(`/api/users/${encodeURIComponent(username)}`, { method: "DELETE" });
+      await loadUsers();
+    } catch {
+      alert("No se pudo eliminar el usuario.");
+    }
+    return;
+  }
+});
+
+usersList?.addEventListener("submit", async (e) => {
+  const form = e.target.closest(".userChangePassForm");
+  if (!form) return;
+  e.preventDefault();
+  const card = form.closest(".userCard");
+  const username = card.dataset.username;
+  const passInput = form.querySelector("input");
+  const msgEl = form.querySelector(".message");
+  msgEl.textContent = "";
+  try {
+    const res = await fetch(`/api/users/${encodeURIComponent(username)}/password`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: passInput.value }),
+    });
+    const data = await res.json();
+    if (!res.ok) { msgEl.textContent = data.error || "Error al cambiar contraseña."; return; }
+    passInput.value = "";
+    form.hidden = true;
+    msgEl.textContent = "";
+  } catch {
+    msgEl.textContent = "Error de conexión.";
+  }
+});
+
+newUserForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!newUserMessage) return;
+  newUserMessage.textContent = "";
+  const username = newUsernameInput.value.trim();
+  const password = newUserPasswordInput.value;
+  try {
+    const res = await fetch("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) { newUserMessage.textContent = data.error || "Error al crear usuario."; return; }
+    newUsernameInput.value = "";
+    newUserPasswordInput.value = "";
+    newUserMessage.textContent = `Usuario "${data.username}" creado correctamente.`;
+    await loadUsers();
+  } catch {
+    newUserMessage.textContent = "Error de conexión.";
+  }
+});
+
+// Load users when tab is opened
+document.querySelector('[data-tab="usersTab"]')?.addEventListener("click", loadUsers);
+
 async function init() {
   try {
     const me = await requestJson("/api/auth/me");
     currentUser.textContent = me.username;
+    currentUsername = me.username;
   } catch {
     window.location.replace("/login");
     return;

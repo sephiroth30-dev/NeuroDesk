@@ -19,6 +19,31 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [11.5] - 2026-05-07
+
+### Gestión de usuarios, versión en login y seguridad
+
+#### Gestión de usuarios (Ajustes → Usuarios)
+- Nueva pestaña "Usuarios" en el panel de configuración
+- Lista todos los usuarios activos con avatar de inicial
+- **Crear usuario**: formulario con usuario + contraseña (validación mínimo 2/4 chars, solo alfanumérico)
+- **Cambiar contraseña**: formulario inline expandible por usuario, sin salir de la vista
+- **Eliminar usuario**: con confirmación; protecciones: no se puede eliminar el propio usuario ni el último existente
+- El usuario activo aparece marcado con etiqueta "tú"
+- Nuevos endpoints: `GET /api/users`, `POST /api/users`, `DELETE /api/users/:username`, `PUT /api/users/:username/password`
+
+#### Login
+- Versión de la app visible en la esquina inferior derecha del login (texto gris pequeño, no interactivo)
+- Se obtiene dinámicamente de `/api/version`
+
+#### Seguridad — Rate limiting en login
+- Máximo 10 intentos fallidos por IP en ventana de 15 minutos
+- Responde `429 Too Many Requests` al sobrepasar el límite
+- El contador se resetea automáticamente tras un login exitoso
+- Soporta `X-Forwarded-For` para detectar IP real detrás de nginx/proxy
+
+---
+
 ## [11.4] - 2026-05-07
 
 ### Layout — corrección overflow en 1024×768 y aprovechamiento de pantallas grandes

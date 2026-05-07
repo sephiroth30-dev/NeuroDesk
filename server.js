@@ -214,6 +214,20 @@ function statement(sql) {
       },
     };
   }
+  if (compact === "SELECT username FROM users") {
+    return { all: () => store.users.map((u) => ({ username: u.username })) };
+  }
+  if (compact === "DELETE FROM users WHERE username = ?") {
+    return {
+      run: (username) => {
+        const idx = store.users.findIndex((u) => u.username === username);
+        if (idx === -1) return { changes: 0 };
+        store.users.splice(idx, 1);
+        saveStore();
+        return { changes: 1 };
+      },
+    };
+  }
   if (compact === "SELECT 1 FROM processed_emails WHERE message_id = ?") {
     return {
       get: (messageId) => store.processedEmails.some((item) => item.messageId === messageId) ? { 1: 1 } : undefined,
@@ -268,6 +282,27 @@ const db = {
 
 const sessions = new Map();
 const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+// ── Login rate limiting ───────────────────────────────────────────────────────
+const loginAttempts = new Map();
+const LOGIN_MAX = 10;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
+function getClientIp(req) {
+  return (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket.remoteAddress || "unknown";
+}
+
+function checkLoginRateLimit(ip) {
+  const now = Date.now();
+  let entry = loginAttempts.get(ip);
+  if (!entry || now > entry.resetAt) entry = { count: 0, resetAt: now + LOGIN_WINDOW_MS };
+  if (entry.count >= LOGIN_MAX) { loginAttempts.set(ip, entry); return false; }
+  entry.count++;
+  loginAttempts.set(ip, entry);
+  return true;
+}
+
+function resetLoginRateLimit(ip) { loginAttempts.delete(ip); }
 const SESSION_COOKIE_MAX_AGE = 86400;
 
 function hashPassword(password, salt) {
@@ -429,6 +464,8 @@ const insertUserStmt = db.prepare(
 const updatePasswordStmt = db.prepare(
   "UPDATE users SET password_hash = ?, salt = ? WHERE username = ?"
 );
+const listUsersStmt = db.prepare("SELECT username FROM users");
+const deleteUserStmt = db.prepare("DELETE FROM users WHERE username = ?");
 const getEmailConfigStmt = db.prepare("SELECT value FROM config WHERE key = 'email_config'");
 const getNotificationsConfigStmt = db.prepare("SELECT value FROM config WHERE key = 'notifications_config'");
 const isEmailProcessedStmt = db.prepare("SELECT 1 FROM processed_emails WHERE message_id = ?");
@@ -1327,6 +1364,11 @@ async function handleAuth(req, res) {
   }
 
   if (req.method === "POST" && req.url === "/api/auth/login") {
+    const ip = getClientIp(req);
+    if (!checkLoginRateLimit(ip)) {
+      sendJson(res, 429, { error: "Demasiados intentos fallidos. Espera 15 minutos." });
+      return;
+    }
     try {
       const body = await readBody(req);
       const username = String(body.username || "")
@@ -1338,6 +1380,7 @@ async function handleAuth(req, res) {
         sendJson(res, 401, { error: "Usuario o contraseña incorrectos." });
         return;
       }
+      resetLoginRateLimit(ip);
       const token = createSession(username);
       res.writeHead(200, {
         "Content-Type": "application/json; charset=utf-8",
@@ -1661,6 +1704,59 @@ async function handleApi(req, res) {
     } catch (err) {
       sendJson(res, 400, { error: err.message || "No se pudo enviar el correo de prueba." });
     }
+    return;
+  }
+
+  // ── User management ──────────────────────────────────────────────────────────
+
+  const session2 = getAuthSession(req);
+  if (!session2) { sendJson(res, 401, { error: "No autenticado." }); return; }
+
+  if (req.method === "GET" && req.url === "/api/users") {
+    sendJson(res, 200, { users: listUsersStmt.all().map((u) => u.username) });
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/users") {
+    try {
+      const body = await readBody(req);
+      const username = String(body.username || "").trim().toLowerCase();
+      const password = String(body.password || "");
+      if (!username || username.length < 2 || !/^[a-z0-9_.-]+$/.test(username)) {
+        sendJson(res, 400, { error: "Usuario inválido (mín. 2 chars, solo letras/números/._-)." });
+        return;
+      }
+      if (password.length < 4) { sendJson(res, 400, { error: "Contraseña mínimo 4 caracteres." }); return; }
+      if (getUserStmt.get(username)) { sendJson(res, 409, { error: "El usuario ya existe." }); return; }
+      const salt = crypto.randomBytes(16).toString("hex");
+      insertUserStmt.run(username, hashPassword(password, salt), salt);
+      sendJson(res, 201, { username });
+    } catch { sendJson(res, 400, { error: "No se pudo crear el usuario." }); }
+    return;
+  }
+
+  if (req.method === "DELETE" && req.url.startsWith("/api/users/")) {
+    const target = decodeURIComponent(req.url.slice("/api/users/".length));
+    if (!target) { sendJson(res, 400, { error: "Usuario no especificado." }); return; }
+    if (target === session2.username) { sendJson(res, 400, { error: "No puedes eliminar tu propio usuario." }); return; }
+    if (countUsersStmt.get().total <= 1) { sendJson(res, 400, { error: "Debe existir al menos un usuario." }); return; }
+    const result = deleteUserStmt.run(target);
+    if (result.changes === 0) { sendJson(res, 404, { error: "Usuario no encontrado." }); return; }
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  if (req.method === "PUT" && /^\/api\/users\/[^/]+\/password$/.test(req.url)) {
+    const target = decodeURIComponent(req.url.split("/")[3]);
+    try {
+      const body = await readBody(req);
+      const newPass = String(body.password || "").trim();
+      if (newPass.length < 4) { sendJson(res, 400, { error: "Contraseña mínimo 4 caracteres." }); return; }
+      if (!getUserStmt.get(target)) { sendJson(res, 404, { error: "Usuario no encontrado." }); return; }
+      const newSalt = crypto.randomBytes(16).toString("hex");
+      updatePasswordStmt.run(hashPassword(newPass, newSalt), newSalt, target);
+      sendJson(res, 200, { ok: true });
+    } catch { sendJson(res, 400, { error: "No se pudo cambiar la contraseña." }); }
     return;
   }
 

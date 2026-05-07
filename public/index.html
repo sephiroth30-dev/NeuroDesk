@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/styles.css?v=11.4" />
+    <link rel="stylesheet" href="/styles.css?v=11.5" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -454,6 +454,15 @@
           >
             Notificaciones
           </button>
+          <button
+            class="tabButton"
+            data-tab="usersTab"
+            role="tab"
+            aria-selected="false"
+            type="button"
+          >
+            Usuarios
+          </button>
         </div>
 
         <!-- Tab: SLA -->
@@ -841,6 +850,39 @@
             </div>
           </div>
         </div>
+
+        <!-- Tab: Usuarios -->
+        <div id="usersTab" class="tabPanel panel" role="tabpanel" hidden>
+          <div class="panelHeader" style="margin-bottom: 20px">
+            <h2>Usuarios del sistema</h2>
+            <p>Gestiona las cuentas con acceso al panel interno de NeuroDesk.</p>
+          </div>
+
+          <div id="usersList" class="usersList"></div>
+
+          <div class="usersNewSection">
+            <h3 class="usersNewTitle">Agregar usuario</h3>
+            <form id="newUserForm" class="usersNewForm settingsForm" autocomplete="off">
+              <div class="formGrid">
+                <label>
+                  Usuario
+                  <input id="newUsername" type="text" placeholder="ej. soporte2" autocomplete="off" />
+                </label>
+                <label>
+                  Contraseña
+                  <div class="passwordWrapper">
+                    <input id="newUserPassword" type="password" placeholder="Mínimo 4 caracteres" autocomplete="new-password" />
+                    <button type="button" class="eyeBtn" id="toggleNewUserPass" title="Mostrar/ocultar"></button>
+                  </div>
+                </label>
+              </div>
+              <div class="settingsActions" style="margin-top: 14px">
+                <button type="submit" class="primaryAction">Crear usuario</button>
+              </div>
+              <p id="newUserMessage" class="message" style="margin-top: 10px"></p>
+            </form>
+          </div>
+        </div>
       </section>
 
       <!-- ── Admin ── -->
@@ -1138,7 +1180,7 @@
     <!-- Mobile sidebar overlay -->
     <div id="sidebarOverlay" class="sidebarOverlay" aria-hidden="true"></div>
 
-    <script src="/app.js?v=11.4" defer></script>
+    <script src="/app.js?v=11.5" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {

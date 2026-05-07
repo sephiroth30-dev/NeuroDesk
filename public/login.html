@@ -186,6 +186,17 @@
         opacity: 0.8;
       }
 
+      .appVersion {
+        position: fixed;
+        bottom: 14px;
+        right: 18px;
+        font-size: 0.72rem;
+        color: #b0b8c8;
+        letter-spacing: 0.02em;
+        pointer-events: none;
+        user-select: none;
+      }
+
       .passwordWrapper {
         position: relative;
         display: flex;
@@ -310,6 +321,13 @@
           btn.disabled = false;
         }
       });
+
+      fetch("/api/version").then(r => r.json()).then(d => {
+        const el = document.createElement("p");
+        el.className = "appVersion";
+        el.textContent = "v" + d.version;
+        document.body.appendChild(el);
+      }).catch(() => {});
     </script>
   </body>
 </html>
