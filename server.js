@@ -1033,19 +1033,29 @@ function getSmtpTransporter() {
   if (smtpTransporter) return smtpTransporter;
   const cfg = notificationsConfig.smtp;
   if (!cfg || !cfg.enabled || !cfg.host || !cfg.user || !cfg.pass) return null;
-  smtpTransporter = nodemailer.createTransport({
+  const port = cfg.port || 587;
+  // port 465 → SSL nativo (secure: true); port 587/25 → STARTTLS (secure: false)
+  const secure = port === 465 ? true : false;
+  const transportOpts = {
     host: cfg.host,
-    port: cfg.port || 587,
-    secure: cfg.secure || false,
+    port,
+    secure,
     auth: { user: cfg.user, pass: cfg.pass },
-  });
+    tls: { rejectUnauthorized: false },
+  };
+  if (!secure) transportOpts.requireTLS = true;
+  smtpTransporter = nodemailer.createTransport(transportOpts);
   return smtpTransporter;
 }
 
 async function sendEmail(to, subject, text) {
   const transporter = getSmtpTransporter();
   if (!transporter) return;
-  const from = notificationsConfig.smtp.from || notificationsConfig.smtp.user;
+  const cfg = notificationsConfig.smtp;
+  // el remitente debe coincidir con la cuenta autenticada en Gmail
+  const fromDefault = `NeuroDesk <${cfg.user}>`;
+  const from =
+    cfg.from && !cfg.from.includes("example.com") ? cfg.from : fromDefault;
   try {
     await transporter.sendMail({ from, to, subject, text, html: textToHtml(text) });
   } catch (err) {
