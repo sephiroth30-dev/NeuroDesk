@@ -58,10 +58,10 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 ### Tarjetas del panel como filtros + fixes móvil
 
 - **Stat cards clicables**: cada tarjeta del panel actúa como atajo de filtro
-  - *Tickets activos* → filtra tablero a abiertos/en proceso/en espera
-  - *SLA vencido* → filtra tablero a tickets con SLA incumplido
-  - *Cumplimiento SLA* → navega a la vista de estadísticas SLA
-  - *Resueltos hoy* → filtra tablero a resueltos en las últimas 24h
+  - _Tickets activos_ → filtra tablero a abiertos/en proceso/en espera
+  - _SLA vencido_ → filtra tablero a tickets con SLA incumplido
+  - _Cumplimiento SLA_ → navega a la vista de estadísticas SLA
+  - _Resueltos hoy_ → filtra tablero a resueltos en las últimas 24h
   - Click en tarjeta activa la desactiva (toggle)
   - Cambiar el selector de estado limpia el filtro de tarjeta
 - **Móvil topbar fix**: botón "+ Nuevo" alineado al extremo derecho; se eliminó `flex-wrap: wrap` que lo desplazaba al centro
@@ -116,13 +116,16 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 ### Fix definitivo: datos de producción fuera del directorio del proyecto
 
 #### Causa raíz identificada
+
 `data/neurodesk.json` vivía dentro del proyecto — cualquier `git clean -fd`, re-clone o script de deploy que limpie la carpeta lo destruía silenciosamente.
 
 #### Cambios
+
 - `ecosystem.config.js` (nuevo): configuración de PM2 con `ND_STORE_PATH=/var/lib/neurodesk/data.json` — los datos quedan en una ruta que git nunca toca
 - `CLAUDE.md` actualizado: instrucciones de migración única y flujo de deploy seguro documentados
 
 #### Migración requerida en el servidor (una sola vez)
+
 ```bash
 sudo mkdir -p /var/lib/neurodesk && sudo chown $USER:$USER /var/lib/neurodesk
 cp data/neurodesk.json /var/lib/neurodesk/data.json 2>/dev/null || true
@@ -136,6 +139,7 @@ pm2 start ecosystem.config.js   # o: pm2 restart neurodesk --update-env
 ### Gestión de usuarios, versión en login y seguridad
 
 #### Gestión de usuarios (Ajustes → Usuarios)
+
 - Nueva pestaña "Usuarios" en el panel de configuración
 - Lista todos los usuarios activos con avatar de inicial
 - **Crear usuario**: formulario con usuario + contraseña (validación mínimo 2/4 chars, solo alfanumérico)
@@ -145,10 +149,12 @@ pm2 start ecosystem.config.js   # o: pm2 restart neurodesk --update-env
 - Nuevos endpoints: `GET /api/users`, `POST /api/users`, `DELETE /api/users/:username`, `PUT /api/users/:username/password`
 
 #### Login
+
 - Versión de la app visible en la esquina inferior derecha del login (texto gris pequeño, no interactivo)
 - Se obtiene dinámicamente de `/api/version`
 
 #### Seguridad — Rate limiting en login
+
 - Máximo 10 intentos fallidos por IP en ventana de 15 minutos
 - Responde `429 Too Many Requests` al sobrepasar el límite
 - El contador se resetea automáticamente tras un login exitoso
@@ -161,19 +167,22 @@ pm2 start ecosystem.config.js   # o: pm2 restart neurodesk --update-env
 ### Layout — corrección overflow en 1024×768 y aprovechamiento de pantallas grandes
 
 #### Problema raíz corregido
+
 La fórmula de ancho del `.shell` usaba `calc(100% - 32px)` (≈ ancho viewport completo) ignorando los 232px del sidebar. En 1024px el total era **1240px → 216px fuera de pantalla**.
 
 #### Cambios
+
 - `.shell` y `.ticketDetailOverlay`: fórmula corregida a `calc(100vw - 232px - 32px)` (sidebar expandido) y `calc(100vw - 56px - 32px)` (sidebar colapsado)
 - Ancho máximo de contenido aumentado de **1300px → 1600px**: en monitores 1440p y 1920p el contenido aprovecha más espacio horizontal
 - Fórmulas de centrado actualizadas (1548 → 1848 con sidebar, 1372 → 1672 sin sidebar)
 
 #### Resultado por resolución
-| Resolución | Sidebar | Contenido antes | Contenido ahora |
-|---|---|---|---|
-| 1024×768 | Colapsado (auto) | ~992px → overflow | 936px ✅ |
-| 1440p | Colapsado | 1300px | 1352px ✅ |
-| 1920p | Expandido | 1300px | 1600px ✅ |
+
+| Resolución | Sidebar          | Contenido antes   | Contenido ahora |
+| ---------- | ---------------- | ----------------- | --------------- |
+| 1024×768   | Colapsado (auto) | ~992px → overflow | 936px ✅        |
+| 1440p      | Colapsado        | 1300px            | 1352px ✅       |
+| 1920p      | Expandido        | 1300px            | 1600px ✅       |
 
 ---
 
@@ -182,9 +191,11 @@ La fórmula de ancho del `.shell` usaba `calc(100% - 32px)` (≈ ancho viewport 
 ### Protección de datos y responsive ajustes
 
 #### Protección de datos de producción
+
 - `.gitignore` actualizado: ahora ignora `data/` completo (antes solo `.sqlite`). Esto garantiza que `neurodesk.json` (tickets, email config, configuración) **nunca sea sobreescrito ni eliminado por operaciones de git** en el servidor de producción.
 
 #### Configuración — Mobile (≤768px)
+
 - Tab bar de ajustes: reemplazado scroll horizontal por grilla 2×2. Todos los tabs son visibles sin deslizar: [Tiempos SLA] [Formulario] / [Portal público] [Correo entrante] / [Notificaciones] (ancho completo al ser impar)
 - Campos de formulario: ancho 100%, padding de toque cómodo (10px), font-size 0.938rem
 - Botones de acción dentro del form: apilados verticalmente, ancho completo
@@ -197,6 +208,7 @@ La fórmula de ancho del `.shell` usaba `calc(100% - 32px)` (≈ ancho viewport 
 ### Responsive móvil — Detalle de ticket
 
 #### Layout vertical en mobile (≤768px)
+
 - Detalle de ticket rediseñado para mobile: layout ahora es columna única en lugar de la vista dividida izquierda/derecha del escritorio
 - Orden de secciones en mobile: descripción del ticket → textarea de gestión → historial → información del ticket → botones de acción
 - Descripción y textarea ocupan el 100% del ancho disponible
@@ -212,12 +224,15 @@ La fórmula de ancho del `.shell` usaba `calc(100% - 32px)` (≈ ancho viewport 
 ### Correcciones y ajustes de UI
 
 #### Notificaciones
+
 - Corregido: cambio de estado vía drag-and-drop no enviaba notificación — ahora `updateTicketPosition` detecta cambio de estado y dispara `status_changed` / `resolved` según corresponda
 
 #### Header
+
 - Eliminado borde gradiente morado/rosa en la parte superior del topbar
 
 #### Responsive móvil
+
 - Tarjetas de métricas: grilla 2×2 mantenida en todos los tamaños de pantalla (antes colapsaba a 1 columna en <480px)
 - Botones del tablero (Tarjetas / Lista / Mostrar cerrados): ahora tienen el mismo tamaño, mismo espaciado y están alineados en una sola fila
 
@@ -228,17 +243,20 @@ La fórmula de ancho del `.shell` usaba `calc(100% - 32px)` (≈ ancho viewport 
 ### Rediseño visual completo — UI/UX overhaul + responsividad
 
 #### Paleta morado/rosa
+
 - Reemplazada paleta roja (`#c82032`) por morado/rosa degradado (`#7c3aed → #db2777`)
 - Nueva variable `--brand-gradient` usada en botones primarios, acento del topbar y tarjetas de métricas
 - Sidebar: ícono de marca ahora usa el degradado; ítem activo en morado
 - Todos los focus rings y sombras actualizados a morado
 
 #### Header compacto
+
 - Topbar reducido en altura (padding 8px vs 12px anterior)
 - Borde izquierdo rojo eliminado; reemplazado por franja superior degradada morado/rosa
 - H1 más compacto (`1.1rem` fijo)
 
 #### Métricas rediseñadas (4 cards planas)
+
 - Eliminados 3 donuts circulares; reemplazados por 4 stat cards rectangulares
 - Cards: Tickets activos · SLA vencido · Cumplimiento SLA · Resueltos hoy
 - Acento de 3px de color en la parte superior de cada card (morado/rojo/verde según tipo)
@@ -246,11 +264,13 @@ La fórmula de ancho del `.shell` usaba `calc(100% - 32px)` (≈ ancho viewport 
 - Grid responsivo: 4 columnas desktop → 2×2 tablet → 1 columna mobile pequeño
 
 #### Sidebar responsivo
+
 - Tablet (769–1024px): se contrae automáticamente al iniciar
 - Al hacer hover sobre el sidebar colapsado en tablet, se expande con overlay sin mover el contenido
 - Mobile (<768px): comportamiento drawer existente sin cambios
 
 #### Responsividad general
+
 - Todos los botones primarios usan `var(--brand-gradient)` (morado→rosa)
 - Toggle activo usa degradado
 - Stat cards responsivas en breakpoints 900px, 540px y 480px
@@ -271,6 +291,7 @@ La fórmula de ancho del `.shell` usaba `calc(100% - 32px)` (≈ ancho viewport 
 ### Notificaciones por correo, tickets cerrados y diseño responsive
 
 #### Feature 1 — Notificaciones por correo saliente (SMTP)
+
 - **Confirmación al crear ticket**: se envía correo automático al solicitante y a los admins cuando se crea un nuevo ticket
 - **Cambio de estado**: correo automático al usuario y admins cada vez que un ticket cambia de estado
 - **Ticket resuelto**: correo específico al marcar como "resuelto", con resumen de la resolución
@@ -279,12 +300,14 @@ La fórmula de ancho del `.shell` usaba `calc(100% - 32px)` (≈ ancho viewport 
 - Usa **nodemailer** (SMTP puro, sin dependencias nativas); errores se loguean y no crashean la app
 
 #### Feature 2 — Ocultar tickets cerrados por defecto
+
 - El tablero Kanban y la vista de lista ya **no muestran tickets cerrados** por defecto
 - Nuevo botón **"Mostrar cerrados"** en las herramientas del tablero para activar/desactivar su visibilidad
 - La columna "Cerrado" del Kanban también se oculta cuando no están visibles
 - El panel de administración sigue mostrando todos los tickets (incluso cerrados) para auditoría
 
 #### Feature 3 — Panel de configuración de notificaciones
+
 - Nueva pestaña **"Notificaciones"** en Ajustes con:
   - Configuración SMTP completa (host, puerto, SSL, usuario, contraseña, remitente)
   - Lista de correos de administradores (comma-separated)
@@ -295,6 +318,7 @@ La fórmula de ancho del `.shell` usaba `calc(100% - 32px)` (≈ ancho viewport 
   - Variables soportadas: `{{ticket_id}}`, `{{ticket_title}}`, `{{user_name}}`, `{{user_email}}`, `{{old_status}}`, `{{new_status}}`, `{{agent_name}}`, `{{resolution_notes}}`
 
 #### Feature 4 — Responsive móvil mejorado
+
 - **Targets táctiles**: todos los botones tienen mínimo 44×44 px en móvil
 - **Tamaño de fuente mínimo 14px** en pantallas < 768px (corregidos badges, meta info, columnas kanban)
 - **Kanban en móvil**: tarjetas al 80% del viewport con scroll horizontal natural
@@ -304,11 +328,13 @@ La fórmula de ancho del `.shell` usaba `calc(100% - 32px)` (≈ ancho viewport 
 - Nuevos estilos para el editor de plantillas y la vista previa
 
 #### Nuevos endpoints API
+
 - `GET /api/notifications/config` — configuración SMTP + plantillas
 - `PUT /api/notifications/config` — guardar configuración
 - `POST /api/notifications/test` — enviar correo de prueba
 
 #### Variables de entorno para SMTP (se configuran en la UI, no se requieren en env)
+
 - Se recomienda configurar vía la pestaña "Notificaciones" en Ajustes
 
 ---

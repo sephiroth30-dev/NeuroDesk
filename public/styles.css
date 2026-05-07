@@ -136,7 +136,9 @@ textarea::placeholder {
   font-weight: 600;
   text-align: left;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
   line-height: 1;
 }
 
@@ -147,7 +149,9 @@ textarea::placeholder {
   height: 28px;
   flex-shrink: 0;
   border-radius: 7px;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 
 .sidebarItem.active > span {
@@ -210,9 +214,15 @@ body.sidebarCollapsed .sidebarCurrentUser {
   font-size: 0.78rem;
 }
 
-.sidebarCollapse .iconExpand { display: none; }
-body.sidebarCollapsed .sidebarCollapse .iconCollapse { display: none; }
-body.sidebarCollapsed .sidebarCollapse .iconExpand { display: grid; }
+.sidebarCollapse .iconExpand {
+  display: none;
+}
+body.sidebarCollapsed .sidebarCollapse .iconCollapse {
+  display: none;
+}
+body.sidebarCollapsed .sidebarCollapse .iconExpand {
+  display: grid;
+}
 
 .sidebarCollapse:hover {
   background: var(--soft);
@@ -433,7 +443,9 @@ button[type="submit"]:active {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   overflow: hidden;
-  transition: box-shadow 0.18s, transform 0.18s;
+  transition:
+    box-shadow 0.18s,
+    transform 0.18s;
 }
 
 .statCard[data-stat-filter] {
@@ -1289,7 +1301,9 @@ tbody tr:last-child td {
   background: var(--soft);
   color: var(--graphite);
   flex-shrink: 0;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 
 .mobileMenuButton:hover {
@@ -1327,7 +1341,9 @@ tbody tr:last-child td {
 /* Tablet: sidebar auto-collapsed with hover expansion */
 @media (min-width: 769px) and (max-width: 1024px) {
   body.sidebarCollapsed .sidebar {
-    transition: width 0.18s ease, box-shadow 0.18s;
+    transition:
+      width 0.18s ease,
+      box-shadow 0.18s;
   }
   body.sidebarCollapsed .sidebar:hover {
     width: 232px;
@@ -2513,7 +2529,9 @@ label .fieldLabel {
   background: #fff;
   width: 100%;
   box-sizing: border-box;
-  transition: border-color 0.13s, box-shadow 0.13s;
+  transition:
+    border-color 0.13s,
+    box-shadow 0.13s;
 }
 
 .templateEditor textarea:focus {

@@ -9,6 +9,7 @@ Desplegado en **soporte.easystem.co** con datos reales. Cualquier cambio debe se
 ## Almacenamiento de datos — NUNCA tocar `data/`
 
 El servidor usa **`data/neurodesk.json`** como base de datos (no SQLite). Este archivo contiene:
+
 - Todos los tickets abiertos y cerrados
 - Configuración de correo entrante (SMTP/IMAP + App Password de Gmail)
 - Configuración de notificaciones
@@ -16,6 +17,7 @@ El servidor usa **`data/neurodesk.json`** como base de datos (no SQLite). Este a
 - Usuarios y sesiones
 
 **Reglas absolutas:**
+
 - **NO** borrar, sobreescribir ni reinicializar `data/neurodesk.json`
 - **NO** commitear archivos dentro de `data/` (está en `.gitignore` completo)
 - **NO** hacer `rm -rf data/` ni `git clean -fd` en el servidor de producción
@@ -39,11 +41,11 @@ Las siguientes claves en `store.config` contienen datos ingresados manualmente p
 
 ## Archivos protegidos — no modificar sin pedido explícito
 
-| Archivo/Carpeta | Razón |
-|---|---|
-| `data/neurodesk.json` | Base de datos de producción (tickets + config + usuarios) |
-| `data/` (toda la carpeta) | Ignorada en git — nunca subir ni borrar |
-| `.env` (si existe) | Variables de entorno con credenciales |
+| Archivo/Carpeta           | Razón                                                     |
+| ------------------------- | --------------------------------------------------------- |
+| `data/neurodesk.json`     | Base de datos de producción (tickets + config + usuarios) |
+| `data/` (toda la carpeta) | Ignorada en git — nunca subir ni borrar                   |
+| `.env` (si existe)        | Variables de entorno con credenciales                     |
 
 ---
 
@@ -60,13 +62,16 @@ Las siguientes claves en `store.config` contienen datos ingresados manualmente p
 ## Deploy seguro en soporte.easystem.co
 
 ### Causa raíz de pérdidas de datos
+
 `data/neurodesk.json` vive dentro del directorio del proyecto. Cualquier `git clean -fd`, re-clone o script de deploy que limpie la carpeta lo destruye.
 
 ### Solución permanente: ND_STORE_PATH fuera del proyecto
+
 El archivo `ecosystem.config.js` apunta los datos a `/var/lib/neurodesk/data.json`.
 Esa ruta nunca es tocada por git ni por deploys.
 
 ### Migración única (ejecutar en el servidor una sola vez)
+
 ```bash
 # 1. Crear el directorio de datos fuera del proyecto
 sudo mkdir -p /var/lib/neurodesk
@@ -85,6 +90,7 @@ pm2 logs neurodesk --lines 10
 ```
 
 ### Flujo de deploy después de la migración
+
 ```bash
 git pull origin main        # solo actualiza código
 npm install --omit=dev      # solo si package.json cambió

@@ -50,7 +50,6 @@ const contactFieldLabel = document.querySelector("#contactFieldLabel");
 const areaFieldLabel = document.querySelector("#areaFieldLabel");
 const currentUser = document.querySelector("#currentUser");
 const logoutButton = document.querySelector("#logoutButton");
-const sidebar = document.querySelector("#sidebar");
 const sidebarToggle = document.querySelector("#sidebarToggle");
 const sidebarOverviewButton = document.querySelector("#sidebarOverviewButton");
 const addCustomFieldButton = document.querySelector("#addCustomFieldButton");
@@ -137,7 +136,10 @@ function applyStatFilter(key) {
   });
   if (key === "resueltos_hoy" && !showClosedTickets) {
     showClosedTickets = true;
-    if (toggleClosedBtn) { toggleClosedBtn.textContent = "Ocultar cerrados"; toggleClosedBtn.classList.add("active"); }
+    if (toggleClosedBtn) {
+      toggleClosedBtn.textContent = "Ocultar cerrados";
+      toggleClosedBtn.classList.add("active");
+    }
   }
   renderTickets();
   document.querySelector("#ticketBoard")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -145,13 +147,15 @@ function applyStatFilter(key) {
 
 function clearStatFilter() {
   statFilter = null;
-  document.querySelectorAll("[data-stat-filter]").forEach((c) => c.classList.remove("statCard--active"));
+  document
+    .querySelectorAll("[data-stat-filter]")
+    .forEach((c) => c.classList.remove("statCard--active"));
 }
 let boardView = "cards";
 let cachedTickets = [];
 let appConfig = null;
-let selectedTickets = new Set();
-let adminSelected = new Set();
+const selectedTickets = new Set();
+const adminSelected = new Set();
 let refreshInFlight = null;
 let liveEvents = null;
 let activeTicketId = null;
@@ -403,7 +407,8 @@ function renderStats(stats) {
 
   if (slaDetailCompliance) slaDetailCompliance.textContent = `${compliance}%`;
   if (slaDetailDonut) slaDetailDonut.style.setProperty("--value", compliance);
-  if (slaDetailDonut) slaDetailDonut.style.setProperty("--donut-color", complianceColor(compliance));
+  if (slaDetailDonut)
+    slaDetailDonut.style.setProperty("--donut-color", complianceColor(compliance));
 
   renderBars(slaStatusBars, statuses, stats.byStatus || {});
   renderBars(slaUrgencyBars, urgencies, stats.byUrgency || {});
@@ -443,10 +448,15 @@ function getVisibleTickets() {
   }
   if (statFilter === "resueltos_hoy") {
     return cachedTickets.filter(
-      (t) => (t.status === "resuelto" || t.status === "cerrado") && t.resolvedAt && new Date(t.resolvedAt).toDateString() === today
+      (t) =>
+        (t.status === "resuelto" || t.status === "cerrado") &&
+        t.resolvedAt &&
+        new Date(t.resolvedAt).toDateString() === today
     );
   }
-  let tickets = showClosedTickets ? cachedTickets : cachedTickets.filter((t) => t.status !== "cerrado");
+  const tickets = showClosedTickets
+    ? cachedTickets
+    : cachedTickets.filter((t) => t.status !== "cerrado");
   if (currentFilter === "todos") return tickets;
   return tickets.filter((t) => t.status === currentFilter);
 }
@@ -467,7 +477,9 @@ function renderTickets() {
 }
 
 function renderKanban(tickets) {
-  const visibleStatuses = showClosedTickets ? statuses : statuses.filter((s) => s.key !== "cerrado");
+  const visibleStatuses = showClosedTickets
+    ? statuses
+    : statuses.filter((s) => s.key !== "cerrado");
   kanbanBoard.innerHTML = visibleStatuses
     .map((status) => {
       const cols = tickets.filter((t) => t.status === status.key);
@@ -793,10 +805,12 @@ function renderSlaReport() {
   if (slaDetailCompliance) slaDetailCompliance.textContent = `${summary.compliance}%`;
   if (metricRemaining) metricRemaining.textContent = `${summary.avgRemainingHours}h`;
   if (slaDetailDonut) slaDetailDonut.style.setProperty("--value", summary.compliance);
-  if (slaDetailDonut) slaDetailDonut.style.setProperty("--donut-color", complianceColor(summary.compliance));
+  if (slaDetailDonut)
+    slaDetailDonut.style.setProperty("--donut-color", complianceColor(summary.compliance));
   renderBars(slaStatusBars, statuses, summary.byStatus);
   renderBars(slaUrgencyBars, urgencies, summary.byUrgency);
-  if (slaReportMeta) slaReportMeta.textContent = `Generado ${formatDate.format(new Date())} · ${filtered.length} tickets`;
+  if (slaReportMeta)
+    slaReportMeta.textContent = `Generado ${formatDate.format(new Date())} · ${filtered.length} tickets`;
   renderSlaTicketTable(filtered);
 }
 
@@ -1438,15 +1452,15 @@ saveSettingsButton.addEventListener("click", async () => {
 const DEFAULT_TEMPLATES_CLIENT = {
   received: {
     subject: "Tu ticket #{{ticket_id}} fue recibido — NeuroDesk",
-    body: "Hola {{user_name}},\n\nHemos recibido tu ticket #{{ticket_id}}: \"{{ticket_title}}\".\n\nUn agente lo atenderá a la brevedad.\n\nGracias por comunicarte con nosotros.\n\nNeurofic · NeuroDesk",
+    body: 'Hola {{user_name}},\n\nHemos recibido tu ticket #{{ticket_id}}: "{{ticket_title}}".\n\nUn agente lo atenderá a la brevedad.\n\nGracias por comunicarte con nosotros.\n\nNeurofic · NeuroDesk',
   },
   status_changed: {
     subject: "Actualización del ticket #{{ticket_id}} — {{new_status}}",
-    body: "Hola {{user_name}},\n\nEl estado de tu ticket #{{ticket_id}} \"{{ticket_title}}\" ha cambiado:\n\nEstado anterior: {{old_status}}\nNuevo estado: {{new_status}}\n\nSi tienes preguntas, puedes responder a este correo.\n\nNeurofic · NeuroDesk",
+    body: 'Hola {{user_name}},\n\nEl estado de tu ticket #{{ticket_id}} "{{ticket_title}}" ha cambiado:\n\nEstado anterior: {{old_status}}\nNuevo estado: {{new_status}}\n\nSi tienes preguntas, puedes responder a este correo.\n\nNeurofic · NeuroDesk',
   },
   resolved: {
     subject: "Tu ticket #{{ticket_id}} fue resuelto — NeuroDesk",
-    body: "Hola {{user_name}},\n\nNos complace informarte que tu ticket #{{ticket_id}} \"{{ticket_title}}\" ha sido resuelto.\n\nResumen de la atención:\n{{resolution_notes}}\n\nGracias por tu confianza en Neurofic.\n\nNeurofic · NeuroDesk",
+    body: 'Hola {{user_name}},\n\nNos complace informarte que tu ticket #{{ticket_id}} "{{ticket_title}}" ha sido resuelto.\n\nResumen de la atención:\n{{resolution_notes}}\n\nGracias por tu confianza en Neurofic.\n\nNeurofic · NeuroDesk',
   },
 };
 
@@ -1552,9 +1566,14 @@ document.querySelectorAll(".saveTplBtn").forEach((btn) => {
       current.templates = current.templates || {};
       current.templates[type] = { subject, body };
       if (current.smtp?.pass === "••••••••") current.smtp.pass = "••••••••";
-      await requestJson("/api/notifications/config", { method: "PUT", body: JSON.stringify(current) });
+      await requestJson("/api/notifications/config", {
+        method: "PUT",
+        body: JSON.stringify(current),
+      });
       btn.textContent = "¡Guardado!";
-      setTimeout(() => { btn.textContent = "Guardar plantilla"; }, 2000);
+      setTimeout(() => {
+        btn.textContent = "Guardar plantilla";
+      }, 2000);
     } catch (err) {
       alert(err.message);
     }
@@ -1587,9 +1606,15 @@ document.querySelectorAll(".tplTestBtn").forEach((btn) => {
     btn.disabled = true;
     btn.textContent = "Enviando…";
     try {
-      await requestJson("/api/notifications/test", { method: "POST", body: JSON.stringify({ to, type }) });
+      await requestJson("/api/notifications/test", {
+        method: "POST",
+        body: JSON.stringify({ to, type }),
+      });
       btn.textContent = `¡Enviado a ${to}!`;
-      setTimeout(() => { btn.textContent = "Enviar prueba"; btn.disabled = false; }, 3000);
+      setTimeout(() => {
+        btn.textContent = "Enviar prueba";
+        btn.disabled = false;
+      }, 3000);
     } catch (err) {
       alert(err.message);
       btn.textContent = "Enviar prueba";
@@ -1599,8 +1624,12 @@ document.querySelectorAll(".tplTestBtn").forEach((btn) => {
 });
 
 ["received", "status_changed", "resolved"].forEach((type) => {
-  document.querySelector(`#tpl_${type}_subject`)?.addEventListener("input", () => updateTemplatePreview(type));
-  document.querySelector(`#tpl_${type}_body`)?.addEventListener("input", () => updateTemplatePreview(type));
+  document
+    .querySelector(`#tpl_${type}_subject`)
+    ?.addEventListener("input", () => updateTemplatePreview(type));
+  document
+    .querySelector(`#tpl_${type}_body`)
+    ?.addEventListener("input", () => updateTemplatePreview(type));
 });
 
 // Change password
@@ -1742,8 +1771,15 @@ document.querySelector(".statsGrid")?.addEventListener("click", (e) => {
   const card = e.target.closest("[data-stat-filter]");
   if (!card) return;
   const key = card.dataset.statFilter;
-  if (key === "cumplimiento_sla") { showView("sla"); return; }
-  if (statFilter === key) { clearStatFilter(); renderTickets(); return; }
+  if (key === "cumplimiento_sla") {
+    showView("sla");
+    return;
+  }
+  if (statFilter === key) {
+    clearStatFilter();
+    renderTickets();
+    return;
+  }
   applyStatFilter(key);
 });
 
@@ -1955,9 +1991,10 @@ function renderUsers(users) {
     usersList.innerHTML = '<p class="empty compact">No hay usuarios registrados.</p>';
     return;
   }
-  usersList.innerHTML = users.map((u) => {
-    const isSelf = u === currentUsername;
-    return `
+  usersList.innerHTML = users
+    .map((u) => {
+      const isSelf = u === currentUsername;
+      return `
       <div class="userCard" data-username="${escapeHtml(u)}">
         <div class="userCardAvatar">${escapeHtml(u.charAt(0).toUpperCase())}</div>
         <div class="userCardName">${escapeHtml(u)}${isSelf ? ' <span class="userCardSelf">tú</span>' : ""}</div>
@@ -1980,7 +2017,8 @@ function renderUsers(users) {
           <p class="message" style="grid-column:1/-1;margin:0"></p>
         </form>
       </div>`;
-  }).join("");
+    })
+    .join("");
 }
 
 async function loadUsers() {
@@ -2003,7 +2041,10 @@ usersList?.addEventListener("click", async (e) => {
     const passForm = card.querySelector(".userChangePassForm");
     passForm.hidden = true;
     form.hidden = !form.hidden;
-    if (!form.hidden) { form.querySelector("input").value = username; form.querySelector("input").focus(); }
+    if (!form.hidden) {
+      form.querySelector("input").value = username;
+      form.querySelector("input").focus();
+    }
     return;
   }
 
@@ -2040,7 +2081,10 @@ usersList?.addEventListener("submit", async (e) => {
     const msgEl = form.querySelector(".message");
     msgEl.textContent = "";
     const newName = input.value.trim().toLowerCase();
-    if (!newName) { msgEl.textContent = "El nombre no puede estar vacío."; return; }
+    if (!newName) {
+      msgEl.textContent = "El nombre no puede estar vacío.";
+      return;
+    }
     try {
       const res = await fetch(`/api/users/${encodeURIComponent(username)}`, {
         method: "PATCH",
@@ -2048,7 +2092,10 @@ usersList?.addEventListener("submit", async (e) => {
         body: JSON.stringify({ username: newName }),
       });
       const data = await res.json();
-      if (!res.ok) { msgEl.textContent = data.error || "Error al renombrar usuario."; return; }
+      if (!res.ok) {
+        msgEl.textContent = data.error || "Error al renombrar usuario.";
+        return;
+      }
       await loadUsers();
     } catch {
       msgEl.textContent = "Error de conexión.";
@@ -2073,7 +2120,10 @@ usersList?.addEventListener("submit", async (e) => {
         body: JSON.stringify({ password: passInput.value }),
       });
       const data = await res.json();
-      if (!res.ok) { msgEl.textContent = data.error || "Error al cambiar contraseña."; return; }
+      if (!res.ok) {
+        msgEl.textContent = data.error || "Error al cambiar contraseña.";
+        return;
+      }
       passInput.value = "";
       confirmInput.value = "";
       form.hidden = true;
@@ -2107,7 +2157,10 @@ newUserForm?.addEventListener("submit", async (e) => {
       body: JSON.stringify({ username, password }),
     });
     const data = await res.json();
-    if (!res.ok) { newUserMessage.textContent = data.error || "Error al crear usuario."; return; }
+    if (!res.ok) {
+      newUserMessage.textContent = data.error || "Error al crear usuario.";
+      return;
+    }
     newUsernameInput.value = "";
     newUserPasswordInput.value = "";
     newUserMessage.textContent = `Usuario "${data.username}" creado correctamente.`;

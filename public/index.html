@@ -95,7 +95,22 @@
       <div class="sidebarFooter">
         <span id="currentUser" class="sidebarCurrentUser"></span>
         <button id="logoutButton" class="sidebarItem" type="button" title="Cerrar sesión">
-          <span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
+          <span
+            ><svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" /></svg
+          ></span>
           <b>Salir</b>
         </button>
       </div>
@@ -106,12 +121,30 @@
         title="Contraer menú"
       >
         <span class="iconCollapse" aria-hidden="true"
-          ><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          ><svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.75"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <polyline points="11 17 6 12 11 7" />
             <polyline points="18 17 13 12 18 7" /></svg
         ></span>
         <span class="iconExpand" aria-hidden="true"
-          ><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          ><svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.75"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <polyline points="13 17 18 12 13 7" />
             <polyline points="6 17 11 12 6 7" /></svg
         ></span>
@@ -120,8 +153,27 @@
     <main class="shell">
       <!-- ── Topbar ── -->
       <section class="topbar" aria-label="Encabezado de NeuroDesk">
-        <button id="mobileMenuButton" class="mobileMenuButton" type="button" aria-label="Abrir menú" aria-expanded="false">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        <button
+          id="mobileMenuButton"
+          class="mobileMenuButton"
+          type="button"
+          aria-label="Abrir menú"
+          aria-expanded="false"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
         </button>
         <div>
           <p class="eyebrow">Neurofic</p>
@@ -136,26 +188,110 @@
       <!-- ── Overview ── -->
       <section id="overviewView" class="view active" aria-label="Vista inicial de soporte">
         <section class="statsGrid" aria-label="Métricas principales">
-          <article class="statCard" data-stat-filter="activos" role="button" tabindex="0" title="Ver tickets activos">
-            <svg class="statCardIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+          <article
+            class="statCard"
+            data-stat-filter="activos"
+            role="button"
+            tabindex="0"
+            title="Ver tickets activos"
+          >
+            <svg
+              class="statCardIcon"
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+              <rect x="9" y="3" width="6" height="4" rx="1" />
+              <path d="M9 12h6M9 16h4" />
+            </svg>
             <p class="statCardLabel">Tickets activos</p>
             <strong class="statCardValue" id="statActiveCount">0</strong>
             <p class="statCardSub">Abiertos o en progreso</p>
           </article>
-          <article class="statCard statCard--danger" data-stat-filter="sla_vencido" role="button" tabindex="0" title="Ver tickets con SLA vencido">
-            <svg class="statCardIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <article
+            class="statCard statCard--danger"
+            data-stat-filter="sla_vencido"
+            role="button"
+            tabindex="0"
+            title="Ver tickets con SLA vencido"
+          >
+            <svg
+              class="statCardIcon"
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+              />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
             <p class="statCardLabel">SLA vencido</p>
             <strong class="statCardValue" id="statBreachedCount">0</strong>
             <p class="statCardSub">Fuera del acuerdo de nivel</p>
           </article>
-          <article class="statCard" data-stat-filter="cumplimiento_sla" role="button" tabindex="0" title="Ver estadísticas SLA">
-            <svg class="statCardIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <article
+            class="statCard"
+            data-stat-filter="cumplimiento_sla"
+            role="button"
+            tabindex="0"
+            title="Ver estadísticas SLA"
+          >
+            <svg
+              class="statCardIcon"
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
             <p class="statCardLabel">Cumplimiento SLA</p>
             <strong class="statCardValue" id="statComplianceCount">100%</strong>
             <p class="statCardSub">Tickets dentro del objetivo</p>
           </article>
-          <article class="statCard statCard--ok" data-stat-filter="resueltos_hoy" role="button" tabindex="0" title="Ver resueltos hoy">
-            <svg class="statCardIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <article
+            class="statCard statCard--ok"
+            data-stat-filter="resueltos_hoy"
+            role="button"
+            tabindex="0"
+            title="Ver resueltos hoy"
+          >
+            <svg
+              class="statCardIcon"
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
             <p class="statCardLabel">Resueltos hoy</p>
             <strong class="statCardValue" id="statResolvedTodayCount">0</strong>
             <p class="statCardSub">Cerrados en las últimas 24h</p>
@@ -186,7 +322,12 @@
                 </button>
                 <button class="toggleButton" type="button" data-board-view="list">Lista</button>
               </div>
-              <button id="toggleClosedBtn" class="ghostButton" type="button" title="Mostrar u ocultar tickets cerrados">
+              <button
+                id="toggleClosedBtn"
+                class="ghostButton"
+                type="button"
+                title="Mostrar u ocultar tickets cerrados"
+              >
                 Cerrados
               </button>
             </div>
@@ -742,39 +883,81 @@
         <div id="notificationsTab" class="tabPanel panel" role="tabpanel" hidden>
           <div class="panelHeader" style="margin-bottom: 20px">
             <h2>Notificaciones por correo saliente</h2>
-            <p>Configura el servidor SMTP para enviar notificaciones automáticas a usuarios y administradores.</p>
+            <p>
+              Configura el servidor SMTP para enviar notificaciones automáticas a usuarios y
+              administradores.
+            </p>
           </div>
 
           <!-- SMTP -->
           <form id="notificationsConfigForm" class="settingsForm">
             <div style="margin-bottom: 18px">
-              <strong style="font-size: 0.84rem; color: var(--graphite)">Servidor SMTP (correo saliente)</strong>
+              <strong style="font-size: 0.84rem; color: var(--graphite)"
+                >Servidor SMTP (correo saliente)</strong
+              >
             </div>
             <label class="toggleRow">
               <span>Activar envío de notificaciones</span>
               <input id="smtpEnabled" type="checkbox" />
             </label>
             <div class="formGrid">
-              <label>Servidor SMTP<input id="smtpHost" type="text" placeholder="smtp.gmail.com" /></label>
-              <label>Puerto<input id="smtpPort" type="number" value="587" min="1" max="65535" /></label>
-              <label class="toggleRow"><span>Usar SSL/TLS</span><input id="smtpSecure" type="checkbox" /></label>
-              <label>Usuario / correo<input id="smtpUser" type="text" placeholder="soporte@empresa.com" autocomplete="off" /></label>
-              <label>Contraseña
+              <label
+                >Servidor SMTP<input id="smtpHost" type="text" placeholder="smtp.gmail.com"
+              /></label>
+              <label
+                >Puerto<input id="smtpPort" type="number" value="587" min="1" max="65535"
+              /></label>
+              <label class="toggleRow"
+                ><span>Usar SSL/TLS</span><input id="smtpSecure" type="checkbox"
+              /></label>
+              <label
+                >Usuario / correo<input
+                  id="smtpUser"
+                  type="text"
+                  placeholder="soporte@empresa.com"
+                  autocomplete="off"
+              /></label>
+              <label
+                >Contraseña
                 <div class="passwordWrapper">
-                  <input id="smtpPass" type="password" placeholder="Contraseña o App Password" autocomplete="new-password" />
-                  <button type="button" class="eyeBtn" id="toggleSmtpPass" title="Mostrar/ocultar contraseña"></button>
+                  <input
+                    id="smtpPass"
+                    type="password"
+                    placeholder="Contraseña o App Password"
+                    autocomplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    class="eyeBtn"
+                    id="toggleSmtpPass"
+                    title="Mostrar/ocultar contraseña"
+                  ></button>
                 </div>
               </label>
-              <label>Remitente (From)<input id="smtpFrom" type="text" placeholder='NeuroDesk &lt;no-reply@empresa.com&gt;' /></label>
+              <label
+                >Remitente (From)<input
+                  id="smtpFrom"
+                  type="text"
+                  placeholder="NeuroDesk &lt;no-reply@empresa.com&gt;"
+              /></label>
             </div>
 
             <!-- Admin emails -->
             <div style="margin-top: 22px; margin-bottom: 10px">
-              <strong style="font-size: 0.84rem; color: var(--graphite)">Correos de administradores</strong>
-              <p style="font-size: 0.78rem; color: var(--muted); margin-top: 4px">Recibirán copia de todas las notificaciones. Separa múltiples correos con comas.</p>
+              <strong style="font-size: 0.84rem; color: var(--graphite)"
+                >Correos de administradores</strong
+              >
+              <p style="font-size: 0.78rem; color: var(--muted); margin-top: 4px">
+                Recibirán copia de todas las notificaciones. Separa múltiples correos con comas.
+              </p>
             </div>
-            <label>Correos admin
-              <input id="adminEmailsList" type="text" placeholder="admin@empresa.com, soporte@empresa.com" />
+            <label
+              >Correos admin
+              <input
+                id="adminEmailsList"
+                type="text"
+                placeholder="admin@empresa.com, soporte@empresa.com"
+              />
             </label>
 
             <div class="settingsActions" style="margin-top: 20px">
@@ -786,53 +969,133 @@
           <!-- Templates -->
           <div style="margin-top: 28px; border-top: 1px solid var(--line); padding-top: 22px">
             <strong style="font-size: 0.84rem; color: var(--graphite)">Plantillas de correo</strong>
-            <p style="font-size: 0.78rem; color: var(--muted); margin-top: 4px; margin-bottom: 16px">
-              Variables disponibles: <code>{{ticket_id}}</code> <code>{{ticket_title}}</code> <code>{{user_name}}</code> <code>{{user_email}}</code> <code>{{old_status}}</code> <code>{{new_status}}</code> <code>{{agent_name}}</code> <code>{{resolution_notes}}</code>
+            <p
+              style="font-size: 0.78rem; color: var(--muted); margin-top: 4px; margin-bottom: 16px"
+            >
+              Variables disponibles: <code>{{ticket_id}}</code> <code>{{ticket_title}}</code>
+              <code>{{user_name}}</code> <code>{{user_email}}</code> <code>{{old_status}}</code>
+              <code>{{new_status}}</code> <code>{{agent_name}}</code>
+              <code>{{resolution_notes}}</code>
             </p>
 
             <!-- Template: received -->
             <div class="templateEditor" id="tplEditor_received">
               <div class="templateEditorHeader">
                 <span class="templateEditorTitle">Ticket recibido</span>
-                <div style="display:flex;gap:8px">
-                  <button type="button" class="ghostButton presetBtn" data-restore-tpl="received" style="font-size:0.78rem;min-height:30px;padding:4px 10px">Restaurar por defecto</button>
-                  <button type="button" class="secondaryAction tplTestBtn" data-tpl-type="received" style="font-size:0.78rem;min-height:30px;padding:4px 10px">Enviar prueba</button>
+                <div style="display: flex; gap: 8px">
+                  <button
+                    type="button"
+                    class="ghostButton presetBtn"
+                    data-restore-tpl="received"
+                    style="font-size: 0.78rem; min-height: 30px; padding: 4px 10px"
+                  >
+                    Restaurar por defecto
+                  </button>
+                  <button
+                    type="button"
+                    class="secondaryAction tplTestBtn"
+                    data-tpl-type="received"
+                    style="font-size: 0.78rem; min-height: 30px; padding: 4px 10px"
+                  >
+                    Enviar prueba
+                  </button>
                 </div>
               </div>
-              <label style="margin-top:10px">Asunto<input type="text" id="tpl_received_subject" /></label>
-              <label style="margin-top:8px">Cuerpo<textarea id="tpl_received_body" rows="5"></textarea></label>
+              <label style="margin-top: 10px"
+                >Asunto<input type="text" id="tpl_received_subject"
+              /></label>
+              <label style="margin-top: 8px"
+                >Cuerpo<textarea id="tpl_received_body" rows="5"></textarea>
+              </label>
               <div class="templatePreview" id="tpl_received_preview"></div>
-              <button type="button" class="primaryAction saveTplBtn" data-tpl-type="received" style="margin-top:10px;font-size:0.8rem">Guardar plantilla</button>
+              <button
+                type="button"
+                class="primaryAction saveTplBtn"
+                data-tpl-type="received"
+                style="margin-top: 10px; font-size: 0.8rem"
+              >
+                Guardar plantilla
+              </button>
             </div>
 
             <!-- Template: status_changed -->
             <div class="templateEditor" id="tplEditor_status_changed">
               <div class="templateEditorHeader">
                 <span class="templateEditorTitle">Cambio de estado</span>
-                <div style="display:flex;gap:8px">
-                  <button type="button" class="ghostButton presetBtn" data-restore-tpl="status_changed" style="font-size:0.78rem;min-height:30px;padding:4px 10px">Restaurar por defecto</button>
-                  <button type="button" class="secondaryAction tplTestBtn" data-tpl-type="status_changed" style="font-size:0.78rem;min-height:30px;padding:4px 10px">Enviar prueba</button>
+                <div style="display: flex; gap: 8px">
+                  <button
+                    type="button"
+                    class="ghostButton presetBtn"
+                    data-restore-tpl="status_changed"
+                    style="font-size: 0.78rem; min-height: 30px; padding: 4px 10px"
+                  >
+                    Restaurar por defecto
+                  </button>
+                  <button
+                    type="button"
+                    class="secondaryAction tplTestBtn"
+                    data-tpl-type="status_changed"
+                    style="font-size: 0.78rem; min-height: 30px; padding: 4px 10px"
+                  >
+                    Enviar prueba
+                  </button>
                 </div>
               </div>
-              <label style="margin-top:10px">Asunto<input type="text" id="tpl_status_changed_subject" /></label>
-              <label style="margin-top:8px">Cuerpo<textarea id="tpl_status_changed_body" rows="5"></textarea></label>
+              <label style="margin-top: 10px"
+                >Asunto<input type="text" id="tpl_status_changed_subject"
+              /></label>
+              <label style="margin-top: 8px"
+                >Cuerpo<textarea id="tpl_status_changed_body" rows="5"></textarea>
+              </label>
               <div class="templatePreview" id="tpl_status_changed_preview"></div>
-              <button type="button" class="primaryAction saveTplBtn" data-tpl-type="status_changed" style="margin-top:10px;font-size:0.8rem">Guardar plantilla</button>
+              <button
+                type="button"
+                class="primaryAction saveTplBtn"
+                data-tpl-type="status_changed"
+                style="margin-top: 10px; font-size: 0.8rem"
+              >
+                Guardar plantilla
+              </button>
             </div>
 
             <!-- Template: resolved -->
             <div class="templateEditor" id="tplEditor_resolved">
               <div class="templateEditorHeader">
                 <span class="templateEditorTitle">Ticket resuelto</span>
-                <div style="display:flex;gap:8px">
-                  <button type="button" class="ghostButton presetBtn" data-restore-tpl="resolved" style="font-size:0.78rem;min-height:30px;padding:4px 10px">Restaurar por defecto</button>
-                  <button type="button" class="secondaryAction tplTestBtn" data-tpl-type="resolved" style="font-size:0.78rem;min-height:30px;padding:4px 10px">Enviar prueba</button>
+                <div style="display: flex; gap: 8px">
+                  <button
+                    type="button"
+                    class="ghostButton presetBtn"
+                    data-restore-tpl="resolved"
+                    style="font-size: 0.78rem; min-height: 30px; padding: 4px 10px"
+                  >
+                    Restaurar por defecto
+                  </button>
+                  <button
+                    type="button"
+                    class="secondaryAction tplTestBtn"
+                    data-tpl-type="resolved"
+                    style="font-size: 0.78rem; min-height: 30px; padding: 4px 10px"
+                  >
+                    Enviar prueba
+                  </button>
                 </div>
               </div>
-              <label style="margin-top:10px">Asunto<input type="text" id="tpl_resolved_subject" /></label>
-              <label style="margin-top:8px">Cuerpo<textarea id="tpl_resolved_body" rows="5"></textarea></label>
+              <label style="margin-top: 10px"
+                >Asunto<input type="text" id="tpl_resolved_subject"
+              /></label>
+              <label style="margin-top: 8px"
+                >Cuerpo<textarea id="tpl_resolved_body" rows="5"></textarea>
+              </label>
               <div class="templatePreview" id="tpl_resolved_preview"></div>
-              <button type="button" class="primaryAction saveTplBtn" data-tpl-type="resolved" style="margin-top:10px;font-size:0.8rem">Guardar plantilla</button>
+              <button
+                type="button"
+                class="primaryAction saveTplBtn"
+                data-tpl-type="resolved"
+                style="margin-top: 10px; font-size: 0.8rem"
+              >
+                Guardar plantilla
+              </button>
             </div>
           </div>
         </div>
@@ -852,20 +1115,45 @@
               <div class="formGrid">
                 <label>
                   Usuario
-                  <input id="newUsername" type="text" placeholder="ej. soporte2" autocomplete="off" />
+                  <input
+                    id="newUsername"
+                    type="text"
+                    placeholder="ej. soporte2"
+                    autocomplete="off"
+                  />
                 </label>
                 <label>
                   Contraseña
                   <div class="passwordWrapper">
-                    <input id="newUserPassword" type="password" placeholder="Mínimo 4 caracteres" autocomplete="new-password" />
-                    <button type="button" class="eyeBtn" id="toggleNewUserPass" title="Mostrar/ocultar"></button>
+                    <input
+                      id="newUserPassword"
+                      type="password"
+                      placeholder="Mínimo 4 caracteres"
+                      autocomplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      class="eyeBtn"
+                      id="toggleNewUserPass"
+                      title="Mostrar/ocultar"
+                    ></button>
                   </div>
                 </label>
                 <label>
                   Confirmar contraseña
                   <div class="passwordWrapper">
-                    <input id="newUserPasswordConfirm" type="password" placeholder="Repetir contraseña" autocomplete="new-password" />
-                    <button type="button" class="eyeBtn" id="toggleNewUserPassConfirm" title="Mostrar/ocultar"></button>
+                    <input
+                      id="newUserPasswordConfirm"
+                      type="password"
+                      placeholder="Repetir contraseña"
+                      autocomplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      class="eyeBtn"
+                      id="toggleNewUserPassConfirm"
+                      title="Mostrar/ocultar"
+                    ></button>
                   </div>
                 </label>
               </div>
@@ -877,7 +1165,9 @@
           </div>
         </div>
         <div class="settingsFooter panel">
-          <button id="saveSettingsButton" class="primaryAction" type="button">Guardar cambios</button>
+          <button id="saveSettingsButton" class="primaryAction" type="button">
+            Guardar cambios
+          </button>
         </div>
       </section>
 
@@ -928,7 +1218,6 @@
 
         <div id="adminSummary" class="adminSummaryBar"></div>
         <div id="adminTicketTable"></div>
-
       </section>
     </main>
 
@@ -1142,7 +1431,14 @@
       <div class="modalPanel panel">
         <div class="modalHeader">
           <h2 id="closureReasonTitle">Cerrar ticket</h2>
-          <button id="cancelClosureX" class="ghostButton iconButton" type="button" aria-label="Cancelar">✕</button>
+          <button
+            id="cancelClosureX"
+            class="ghostButton iconButton"
+            type="button"
+            aria-label="Cancelar"
+          >
+            ✕
+          </button>
         </div>
         <label>
           <span class="fieldLabel" id="closureReasonLabel">Motivo de cierre</span>
@@ -1152,7 +1448,7 @@
             placeholder="Describe la gestión realizada..."
           ></textarea>
         </label>
-        <p id="closureReasonError" class="message" style="color:var(--danger)" role="alert"></p>
+        <p id="closureReasonError" class="message" style="color: var(--danger)" role="alert"></p>
         <div class="formActions">
           <button id="confirmClosureBtn" class="primaryAction" type="button">Cerrar ticket</button>
           <button id="cancelClosureBtn" class="ghostButton" type="button">Cancelar</button>
@@ -1177,9 +1473,10 @@
           btn && btn.setAttribute("aria-expanded", "false");
         }
 
-        btn && btn.addEventListener("click", function () {
-          document.body.classList.contains("sidebarMobileOpen") ? closeSidebar() : openSidebar();
-        });
+        btn &&
+          btn.addEventListener("click", function () {
+            document.body.classList.contains("sidebarMobileOpen") ? closeSidebar() : openSidebar();
+          });
         overlay && overlay.addEventListener("click", closeSidebar);
         navItems.forEach(function (item) {
           item.addEventListener("click", function () {
