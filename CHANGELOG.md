@@ -19,6 +19,27 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [11.4] - 2026-05-07
+
+### Layout — corrección overflow en 1024×768 y aprovechamiento de pantallas grandes
+
+#### Problema raíz corregido
+La fórmula de ancho del `.shell` usaba `calc(100% - 32px)` (≈ ancho viewport completo) ignorando los 232px del sidebar. En 1024px el total era **1240px → 216px fuera de pantalla**.
+
+#### Cambios
+- `.shell` y `.ticketDetailOverlay`: fórmula corregida a `calc(100vw - 232px - 32px)` (sidebar expandido) y `calc(100vw - 56px - 32px)` (sidebar colapsado)
+- Ancho máximo de contenido aumentado de **1300px → 1600px**: en monitores 1440p y 1920p el contenido aprovecha más espacio horizontal
+- Fórmulas de centrado actualizadas (1548 → 1848 con sidebar, 1372 → 1672 sin sidebar)
+
+#### Resultado por resolución
+| Resolución | Sidebar | Contenido antes | Contenido ahora |
+|---|---|---|---|
+| 1024×768 | Colapsado (auto) | ~992px → overflow | 936px ✅ |
+| 1440p | Colapsado | 1300px | 1352px ✅ |
+| 1920p | Expandido | 1300px | 1600px ✅ |
+
+---
+
 ## [11.3] - 2026-05-07
 
 ### Protección de datos y responsive ajustes
