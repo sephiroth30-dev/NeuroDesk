@@ -19,6 +19,18 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [11.12] - 2026-05-07
+
+### Sidebar: icono activo sombreado + nuevo icono de colapsar
+
+- **Icono activo**: cuando un ítem del sidebar está activo, su `<span>` de icono recibe fondo de color brand (`--brand`) con texto blanco y bordes redondeados — resaltado visual claro sin afectar al texto de la etiqueta
+- **Nuevo botón colapsar**: reemplazado el ícono de flecha izquierda + texto "Contraer" por chevrones dobles `«`/`»` sin texto; el ícono cambia según el estado (expandido ↔ colapsado)
+- **Título dinámico**: el `title` del botón de colapsar actualiza entre "Contraer menú" y "Expandir menú" según el estado
+- **Tooltip logout**: añadido `title="Cerrar sesión"` al botón de Salir en el sidebar footer
+- Versión CSS cache-busting actualizada a `?v=11.12`
+
+---
+
 ## [11.11] - 2026-05-07
 
 ### Fix: botón "+ Nuevo" pegado al extremo derecho del topbar

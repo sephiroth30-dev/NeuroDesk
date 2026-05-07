@@ -1170,7 +1170,8 @@ customFieldsList?.addEventListener("click", (e) => {
 });
 
 sidebarToggle?.addEventListener("click", () => {
-  document.body.classList.toggle("sidebarCollapsed");
+  const collapsed = document.body.classList.toggle("sidebarCollapsed");
+  sidebarToggle.title = collapsed ? "Expandir menú" : "Contraer menú";
 });
 
 // Auto-collapse sidebar on tablet (769–1024px)

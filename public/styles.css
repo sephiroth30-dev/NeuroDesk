@@ -143,9 +143,16 @@ textarea::placeholder {
 .sidebarItem span {
   display: grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
+  border-radius: 7px;
+  transition: background 0.12s, color 0.12s;
+}
+
+.sidebarItem.active > span {
+  background: var(--brand);
+  color: #fff;
 }
 
 .sidebarItem b {
@@ -203,6 +210,10 @@ body.sidebarCollapsed .sidebarCurrentUser {
   font-size: 0.78rem;
 }
 
+.sidebarCollapse .iconExpand { display: none; }
+body.sidebarCollapsed .sidebarCollapse .iconCollapse { display: none; }
+body.sidebarCollapsed .sidebarCollapse .iconExpand { display: grid; }
+
 .sidebarCollapse:hover {
   background: var(--soft);
   color: var(--graphite);
@@ -226,6 +237,10 @@ body.sidebarCollapsed .sidebarCollapse {
   margin-inline: 0;
   width: 100%;
   padding-inline: 8px;
+}
+
+.sidebarCollapse > span {
+  background: none !important;
 }
 
 button,
