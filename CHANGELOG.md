@@ -19,6 +19,18 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [12.0] - 2026-05-07
+
+### Restablecimiento de contraseña por correo
+
+- **Enlace en login**: el formulario de acceso muestra "¿Olvidaste tu contraseña? → Restablecerla" que lleva a `/reset-password`
+- **Página de reset**: `/reset-password` tiene dos estados — sin token muestra el formulario para ingresar el usuario; con `?token=` muestra el formulario para elegir nueva contraseña
+- **Envío de correo**: al solicitar el reset, el servidor genera un token seguro (32 bytes, 1 hora de validez) y envía un enlace al email del admin configurado en Ajustes de notificaciones
+- **Seguridad**: el endpoint siempre responde con `{ ok: true }` para no revelar si el usuario existe; los tokens se almacenan en memoria y se eliminan tras uso o expiración
+- Versiones CSS/JS cache-busting actualizadas a `?v=12.0`
+
+---
+
 ## [11.13] - 2026-05-07
 
 ### Motivo de cierre/resolución obligatorio con modal dedicado

@@ -363,6 +363,9 @@ const db = {
 const sessions = new Map();
 const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
+const resetTokens = new Map(); // token -> { username, expiresAt }
+const RESET_TOKEN_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
+
 // ── Login rate limiting ───────────────────────────────────────────────────────
 const loginAttempts = new Map();
 const LOGIN_MAX = 10;
@@ -1570,6 +1573,58 @@ async function handleAuth(req, res) {
     return;
   }
 
+  if (req.method === "POST" && req.url === "/api/auth/forgot-password") {
+    try {
+      const body = await readBody(req);
+      const username = String(body.username || "").trim().toLowerCase();
+      const user = getUserStmt.get(username);
+      // Always return ok to avoid leaking user existence
+      if (user) {
+        const token = crypto.randomBytes(32).toString("hex");
+        resetTokens.set(token, { username, expiresAt: Date.now() + RESET_TOKEN_MAX_AGE_MS });
+        const host = req.headers.host || "localhost";
+        const proto = req.headers["x-forwarded-proto"] || "http";
+        const resetUrl = `${proto}://${host}/reset-password?token=${token}`;
+        const adminEmail = (notificationsConfig.adminEmails || "").split(",")[0].trim();
+        if (adminEmail) {
+          await sendEmail(
+            adminEmail,
+            "NeuroDesk — Restablecer contraseña",
+            `Hola ${username},\n\nRecibimos una solicitud para restablecer tu contraseña en NeuroDesk.\n\nUsa este enlace (válido por 1 hora):\n${resetUrl}\n\nSi no solicitaste esto, ignora este correo.\n\n— NeuroDesk`
+          );
+        }
+      }
+      sendJson(res, 200, { ok: true });
+    } catch {
+      sendJson(res, 400, { error: "No se pudo procesar la solicitud." });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/auth/reset-password") {
+    try {
+      const body = await readBody(req);
+      const token = String(body.token || "").trim();
+      const newPass = String(body.password || "").trim();
+      const entry = resetTokens.get(token);
+      if (!entry || Date.now() > entry.expiresAt) {
+        sendJson(res, 400, { error: "El enlace de restablecimiento es inválido o ya expiró." });
+        return;
+      }
+      if (newPass.length < 4) {
+        sendJson(res, 400, { error: "Mínimo 4 caracteres." });
+        return;
+      }
+      const newSalt = crypto.randomBytes(16).toString("hex");
+      updatePasswordStmt.run(hashPassword(newPass, newSalt), newSalt, entry.username);
+      resetTokens.delete(token);
+      sendJson(res, 200, { ok: true });
+    } catch {
+      sendJson(res, 400, { error: "No se pudo restablecer la contraseña." });
+    }
+    return;
+  }
+
   sendJson(res, 404, { error: "Ruta no encontrada." });
 }
 
@@ -1976,6 +2031,12 @@ const server = http.createServer(async (req, res) => {
   // Portal — always public
   if (req.url === "/portal") {
     serveFile(res, "portal.html");
+    return;
+  }
+
+  // Reset password page — always public
+  if (req.url === "/reset-password" || req.url.startsWith("/reset-password?")) {
+    serveFile(res, "reset-password.html");
     return;
   }
 
