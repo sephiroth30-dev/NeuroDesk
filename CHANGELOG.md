@@ -19,6 +19,17 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [13.9] - 2026-05-14
+
+### Espaciado interior tarjetas Indicadores
+
+- Incrementado padding de `.slaMetricItem` y `.slaChartItem` de `24px 28px` a `32px 36px` para más aire visual
+- Aumentados márgenes entre label, valor y descripción en las métricas (`slaMetricLabel` → `0 0 10px`, `slaMetricValue` → `0 0 10px`)
+- Incrementado margen inferior de `.slaChartSub` de `14px` a `20px` para separar el subtítulo de las barras
+- Aumentado `gap` en `.statusBars` de `10px` a `12px`
+
+---
+
 ## [13.8] - 2026-05-14
 
 ### Hotfix: Indicadores aparecía en el Panel

@@ -828,7 +828,7 @@ button[type="submit"]:active {
 }
 
 .slaMetricItem {
-  padding: 24px 28px;
+  padding: 32px 36px;
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
@@ -851,7 +851,7 @@ button[type="submit"]:active {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  margin: 0 0 6px;
+  margin: 0 0 10px;
 }
 
 .slaMetricValue {
@@ -861,7 +861,7 @@ button[type="submit"]:active {
   letter-spacing: -0.03em;
   color: var(--graphite);
   line-height: 1.1;
-  margin: 2px 0 4px;
+  margin: 0 0 10px;
 }
 
 .slaMetricValueAccent {
@@ -872,7 +872,7 @@ button[type="submit"]:active {
   font-size: 0.74rem;
   color: var(--muted);
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 /* Donut tamaño medio para la métrica de cumplimiento */
@@ -899,7 +899,7 @@ button[type="submit"]:active {
 }
 
 .slaChartItem {
-  padding: 24px 28px;
+  padding: 32px 36px;
   border-right: 1px solid var(--line);
 }
 
@@ -911,13 +911,13 @@ button[type="submit"]:active {
   font-size: 0.9rem;
   font-weight: 700;
   color: var(--graphite);
-  margin: 0 0 2px;
+  margin: 0 0 4px;
 }
 
 .slaChartSub {
   font-size: 0.74rem;
   color: var(--muted);
-  margin: 0 0 14px;
+  margin: 0 0 20px;
 }
 
 .metricCard,
@@ -1026,8 +1026,8 @@ button[type="submit"]:active {
 /* ── Status Bars ── */
 .statusBars {
   display: grid;
-  gap: 10px;
-  margin-top: 12px;
+  gap: 12px;
+  margin-top: 0;
 }
 
 .statusBar {
