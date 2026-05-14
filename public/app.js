@@ -1560,6 +1560,7 @@ async function loadNotificationsSettings() {
     document.querySelector("#smtpPass").value = cfg.smtp?.pass ? "••••••••" : "";
     document.querySelector("#smtpFrom").value = cfg.smtp?.from || "";
     document.querySelector("#adminEmailsList").value = cfg.adminEmails || "";
+    document.querySelector("#appUrl").value = cfg.app_url || "";
     const templates = cfg.templates || {};
     ["received", "status_changed", "resolved"].forEach((type) => {
       const tpl = templates[type] || DEFAULT_TEMPLATES_CLIENT[type];
@@ -1587,6 +1588,7 @@ document.querySelector("#notificationsConfigForm")?.addEventListener("submit", a
       from: document.querySelector("#smtpFrom").value.trim(),
     },
     adminEmails: document.querySelector("#adminEmailsList").value.trim(),
+    app_url: document.querySelector("#appUrl").value.trim(),
     templates: {
       received: {
         subject: document.querySelector("#tpl_received_subject")?.value || "",
@@ -2252,6 +2254,12 @@ async function init() {
     connectLiveUpdates();
     setInterval(() => refresh().catch(() => {}), 15000);
     setInterval(() => loadEmailStatus().catch(() => {}), 30000);
+    const deepTicket = new URLSearchParams(location.search).get("ticket");
+    if (deepTicket) {
+      const t = cachedTickets.find((x) => x.id === deepTicket);
+      if (t) openTicketDetail(t);
+      history.replaceState(null, "", "/");
+    }
   } catch (error) {
     kanbanBoard.innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
   }

@@ -465,6 +465,7 @@ const DEFAULT_NOTIFICATIONS_CONFIG = {
     from: "NeuroDesk <no-reply@example.com>",
   },
   adminEmails: "",
+  app_url: "",
   templates: {
     received: {
       subject: "Tu ticket #{{ticket_id}} fue recibido — NeuroDesk",
@@ -476,7 +477,7 @@ const DEFAULT_NOTIFICATIONS_CONFIG = {
     },
     resolved: {
       subject: "Tu ticket #{{ticket_id}} fue resuelto — NeuroDesk",
-      body: 'Hola {{user_name}},\n\nNos complace informarte que tu ticket #{{ticket_id}} "{{ticket_title}}" ha sido resuelto.\n\nResumen de la atención:\n{{resolution_notes}}\n\nGracias por tu confianza en Neurofic.\n\nNeurofic · NeuroDesk',
+      body: 'Hola {{user_name}},\n\nNos complace informarte que tu ticket #{{ticket_id}} "{{ticket_title}}" ha sido resuelto.\n\nResumen de la atención:\n{{resolution_notes}}\n\nSi surge alguna novedad, puedes continuar la gestión desde:\n{{ticket_url}}\n\nGracias por tu confianza en Neurofic.\n\nNeurofic · NeuroDesk',
     },
   },
 };
@@ -1131,6 +1132,7 @@ function loadNotificationsConfig() {
         saved.smtp || {}
       ),
       adminEmails: typeof saved.adminEmails === "string" ? saved.adminEmails : "",
+      app_url: typeof saved.app_url === "string" ? saved.app_url : "",
       templates: {
         received: Object.assign(
           {},
@@ -1168,6 +1170,7 @@ function saveNotificationsConfig(incoming) {
       from: String(smtp.from || "").trim(),
     },
     adminEmails: String(incoming.adminEmails || "").trim(),
+    app_url: String(incoming.app_url || "").trim().replace(/\/$/, ""),
     templates: {
       received: sanitizeTemplate(
         incoming.templates?.received,
@@ -1212,8 +1215,14 @@ function escapeHtmlServer(str) {
 }
 
 function textToHtml(text) {
+  const escaped = escapeHtmlServer(text).replace(/\n/g, "<br>");
+  // Convert bare URLs into a styled button
+  const withLinks = escaped.replace(
+    /(https?:\/\/[^\s<"]+)/g,
+    '<a href="$1" style="display:inline-block;margin:12px 0 4px;padding:10px 20px;background:#0A6BFF;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">Ver ticket →</a>'
+  );
   return `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b;line-height:1.6">
-${escapeHtmlServer(text).replace(/\n/g, "<br>")}
+${withLinks}
 <hr style="margin-top:28px;border:0;border-top:1px solid #e2e8f0">
 <p style="color:#94a3b8;font-size:12px;margin-top:10px">NeuroDesk · Neurofic</p>
 </div>`;
@@ -1272,6 +1281,7 @@ async function sendTicketNotification(type, ticket, opts = {}) {
   const tpl = notificationsConfig.templates?.[type] || DEFAULT_NOTIFICATIONS_CONFIG.templates[type];
   if (!tpl) return;
 
+  const baseUrl = (notificationsConfig.app_url || "").replace(/\/$/, "");
   const vars = {
     ticket_id: ticket.id,
     ticket_title: ticket.subject || ticket.description || "(sin asunto)",
@@ -1281,6 +1291,7 @@ async function sendTicketNotification(type, ticket, opts = {}) {
     new_status: STATUS_LABELS[ticket.status] || ticket.status,
     agent_name: opts.agentName || "Un agente",
     resolution_notes: ticket.resolution || opts.resolutionNote || "(sin resumen)",
+    ticket_url: baseUrl ? `${baseUrl}/?ticket=${encodeURIComponent(ticket.id)}` : "",
   };
 
   const subject = renderTemplate(tpl.subject, vars);
@@ -1949,6 +1960,7 @@ async function handleApi(req, res) {
         notificationsConfig.templates?.[type] ||
         DEFAULT_NOTIFICATIONS_CONFIG.templates[type] ||
         DEFAULT_NOTIFICATIONS_CONFIG.templates.received;
+      const baseUrl = (notificationsConfig.app_url || "").replace(/\/$/, "");
       const sampleVars = {
         ticket_id: "ND-1001",
         ticket_title: "Error de ejemplo en aplicación",
@@ -1958,6 +1970,7 @@ async function handleApi(req, res) {
         new_status: "En proceso",
         agent_name: "Agente de Soporte",
         resolution_notes: "Se reinició el servicio y se verificó el funcionamiento correcto.",
+        ticket_url: baseUrl ? `${baseUrl}/?ticket=ND-1001` : "",
       };
       const subject = renderTemplate(tpl.subject, sampleVars);
       const bodyText = renderTemplate(tpl.body, sampleVars);

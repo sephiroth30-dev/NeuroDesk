@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/tokens.css?v=14.0" />
-    <link rel="stylesheet" href="/styles.css?v=14.0" />
+    <link rel="stylesheet" href="/tokens.css?v=14.1" />
+    <link rel="stylesheet" href="/styles.css?v=14.1" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -940,6 +940,22 @@
               /></label>
             </div>
 
+            <!-- App URL -->
+            <div style="margin-top: 22px; margin-bottom: 10px">
+              <strong style="font-size: 0.84rem; color: var(--graphite)">URL de la aplicación</strong>
+              <p style="font-size: 0.78rem; color: var(--muted); margin-top: 4px">
+                Se usa para generar el botón "Ver ticket" en los correos de resolución. Ej: <code>https://soporte.easystem.co</code>
+              </p>
+            </div>
+            <label
+              >URL base
+              <input
+                id="appUrl"
+                type="url"
+                placeholder="https://soporte.easystem.co"
+              />
+            </label>
+
             <!-- Admin emails -->
             <div style="margin-top: 22px; margin-bottom: 10px">
               <strong style="font-size: 0.84rem; color: var(--graphite)"
@@ -973,7 +989,7 @@
               Variables disponibles: <code>{{ticket_id}}</code> <code>{{ticket_title}}</code>
               <code>{{user_name}}</code> <code>{{user_email}}</code> <code>{{old_status}}</code>
               <code>{{new_status}}</code> <code>{{agent_name}}</code>
-              <code>{{resolution_notes}}</code>
+              <code>{{resolution_notes}}</code> <code>{{ticket_url}}</code>
             </p>
 
             <!-- Template: received -->
@@ -1454,7 +1470,7 @@
       </div>
     </div>
 
-    <script src="/app.js?v=14.0" defer></script>
+    <script src="/app.js?v=14.1" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {

@@ -19,6 +19,18 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [14.1] - 2026-05-14
+
+### feat: botón "Ver ticket" en correos de resolución + deep link
+
+- **Campo "URL base"** en Configuración → Notificaciones: se guarda la URL pública de la app (ej. `https://soporte.easystem.co`)
+- **`{{ticket_url}}`**: nueva variable disponible en todas las plantillas de correo. Se expande a `{app_url}/?ticket={id}`
+- **Correo de resolución** actualizado por defecto para incluir el enlace de acceso directo al ticket
+- **Botón en HTML del correo**: cualquier URL en el cuerpo se renderiza como botón azul "Ver ticket →" en el HTML del email
+- **Deep link al abrir la app**: si llegas a la app con `?ticket=ND-XXXX` en la URL, el ticket se abre automáticamente. Tras abrir, la URL se limpia con `history.replaceState`
+
+---
+
 ## [14.0] - 2026-05-14
 
 ### Fix: caché de navegador rompía actualizaciones de CSS/JS
