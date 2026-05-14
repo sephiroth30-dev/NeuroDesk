@@ -636,7 +636,14 @@ function sendStatic(req, res) {
       return;
     }
     const ext = path.extname(filePath);
-    res.writeHead(200, { "Content-Type": contentTypes[ext] || "application/octet-stream" });
+    const isHtml = ext === ".html";
+    const cacheHeader = isHtml
+      ? "no-cache, no-store, must-revalidate"
+      : "public, max-age=31536000, immutable";
+    res.writeHead(200, {
+      "Content-Type": contentTypes[ext] || "application/octet-stream",
+      "Cache-Control": cacheHeader,
+    });
     res.end(data);
   });
 }

@@ -19,6 +19,16 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [14.0] - 2026-05-14
+
+### Fix: caché de navegador rompía actualizaciones de CSS/JS
+
+- `sendStatic`: HTML se sirve con `Cache-Control: no-cache, no-store, must-revalidate` — el navegador siempre pide el HTML fresco al servidor
+- CSS y JS (con cache buster `?v=X.Y`) se sirven con `Cache-Control: public, max-age=31536000, immutable` — cacheados indefinidamente hasta que cambie la versión
+- Esto elimina el problema donde el navegador cargaba `styles.css?v=13.8` antiguo incluso después de un deploy
+
+---
+
 ## [13.9] - 2026-05-14
 
 ### Espaciado interior tarjetas Indicadores
