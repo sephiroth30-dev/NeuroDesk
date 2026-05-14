@@ -212,6 +212,25 @@ function getLabel(items, key) {
 
 // ── Views ─────────────────────────────────────────────────────────────────────
 
+const VIEW_TITLES = {
+  overview: "Resumen",
+  create: "Nuevo ticket",
+  sla: "Estadísticas SLA",
+  settings: "Configuración",
+  admin: "Tickets",
+};
+
+function updateTopbarDate() {
+  const el = document.getElementById("topbarDate");
+  if (!el) return;
+  const now = new Date();
+  const day = now.toLocaleDateString("es-ES", { weekday: "long" }).toUpperCase();
+  const date = now
+    .toLocaleDateString("es-ES", { day: "numeric", month: "long" })
+    .toUpperCase();
+  el.textContent = `${day} · ${date}`;
+}
+
 function showView(name) {
   ticketDetailModal.hidden = true;
   overviewView.classList.toggle("active", name === "overview");
@@ -219,6 +238,9 @@ function showView(name) {
   slaView.classList.toggle("active", name === "sla");
   settingsView.classList.toggle("active", name === "settings");
   adminView.classList.toggle("active", name === "admin");
+
+  const topbarTitle = document.getElementById("topbarTitle");
+  if (topbarTitle) topbarTitle.textContent = VIEW_TITLES[name] || "NeuroDesk";
 
   if (name !== "overview") {
     selectedTickets.clear();
@@ -233,6 +255,8 @@ function showView(name) {
   if (name === "sla") slaButton?.classList.add("active");
   if (name === "settings") settingsButton?.classList.add("active");
 }
+
+updateTopbarDate();
 
 function showDetailView() {
   overviewView.classList.remove("active");
@@ -415,7 +439,7 @@ function renderStats(stats) {
 }
 
 function renderVersion(info) {
-  appVersion.textContent = `v${info.version}`;
+  if (appVersion) appVersion.textContent = `v${info.version}`;
 }
 
 function renderBars(container, items, values) {

@@ -19,6 +19,62 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [13.0] - 2026-05-13
+
+### Rediseño visual completo — Tema Indigo iOS (SERENE)
+
+Rediseño puramente estético. No se modificó lógica de negocio, rutas, endpoints ni estructura de datos.
+
+**Sistema de design tokens (`public/tokens.css`)**
+- Nuevo archivo de tokens CSS: paleta Indigo iOS, tipografía SF Pro/Inter, escala de espaciado, radios, sombras y dimensiones del sidebar
+- Todas las variables quedan centralizadas y documentadas para futuros cambios de tema
+
+**Paleta de color**
+- Fondo de app: `#F5F5F2` (warm off-white, antes `#f0f2f7` frío)
+- Acento principal: `#0A6BFF` (Indigo iOS, antes `#7c3aed` morado — sin gradientes)
+- Texto primario: `#1C1C1E` (casi negro, estilo iOS)
+- Texto secundario: `#6E6E73`
+- Líneas/bordes: `rgba(60, 60, 67, 0.10)` (hairlines suaves)
+- Estados: open `#0A84FF`, process `#FF9F0A`, wait `#AF52DE`, done `#30D158`, danger `#FF3B30`
+
+**Sidebar**
+- Ancho expandido: 220 px (antes 232 px) — alineado con token `--nd-sidebar-w-expanded`
+- Ancho colapsado: 64 px (antes 56 px) — alineado con token `--nd-sidebar-w-collapsed`
+- Logo: cuadrado negro con icono SVG (4 cuadrados), sin gradiente morado
+- Ítem activo: fondo azul suave + texto azul (sin cambio de comportamiento)
+
+**Topbar**
+- Eliminado estilo de "tarjeta" (borde + sombra) — el topbar es ahora plano y transparente
+- Muestra día y fecha en español (ej. `LUNES · 13 MAYO`) en lugar del texto fijo "Neurofic"
+- Título dinámico por vista: Resumen / Tickets / Estadísticas SLA / Configuración / Nuevo ticket
+- Botón "**+ Nuevo ticket**" (texto completo, antes "+ Nuevo")
+
+**Tarjetas de métricas (stat cards)**
+- Eliminadas las barras de color superiores (`::before` gradient)
+- Eliminados los íconos decorativos flotantes — números más prominentes y limpios
+
+**Botones**
+- `primaryAction` y `button[type=submit]`: color sólido `#0A6BFF` sin gradiente
+- Hover: `#0857D6`
+- Focus rings: azul (antes morado)
+
+**Badges de urgencia**
+- Baja: gris suave · Media: azul suave · Alta: amarillo/naranja suave · Crítica: rojo suave
+- Colores alineados con tokens iOS
+
+**Login (`login.html`) — rediseño completo**
+- Fondo: `#F5F5F2`
+- Card: blanca, `border-radius: 16px`, borde hairline, sombra mínima
+- Logo: cuadrado negro con icono SVG
+- Versión de app en esquina superior derecha de la card
+- Etiquetas en uppercase + input limpio
+- Botón "Continuar" azul sólido, sin gradiente
+- Footer con "Restablecer contraseña" (izquierda) y "Portal de clientes ↗" (derecha)
+
+**Cache-busting**: versiones actualizadas a `?v=13.0`
+
+---
+
 ## [12.0] - 2026-05-07
 
 ### Restablecimiento de contraseña por correo

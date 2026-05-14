@@ -1,0 +1,89 @@
+/* =========================================================
+   NeuroDesk · Design Tokens
+   Tema: Indigo iOS · v1.0
+   ========================================================= */
+
+:root {
+  /* — Color · superficies — */
+  --nd-bg:            #F5F5F2;
+  --nd-surface:       #FFFFFF;
+  --nd-surface-alt:   #FAFAF9;
+
+  /* — Color · texto — */
+  --nd-text:          #1C1C1E;
+  --nd-text-muted:    #6E6E73;
+  --nd-text-faint:    #A1A1A6;
+
+  /* — Color · líneas (hairlines) — */
+  --nd-hairline:       rgba(60, 60, 67, 0.10);
+  --nd-hairline-soft:  rgba(60, 60, 67, 0.06);
+
+  /* — Acento · Indigo iOS — */
+  --nd-accent:        #0A6BFF;
+  --nd-accent-ink:    #FFFFFF;
+  --nd-accent-soft:   rgba(10, 107, 255, 0.10);
+  --nd-accent-hover:  #0857D6;
+
+  /* — Estados (semáforo SLA, kanban) — */
+  --nd-state-open:    #0A84FF;
+  --nd-state-process: #FF9F0A;
+  --nd-state-wait:    #AF52DE;
+  --nd-state-done:    #30D158;
+  --nd-state-closed:  var(--nd-text-faint);
+  --nd-state-red:     #FF3B30;
+
+  /* — Urgencia · chips suaves — */
+  --nd-urg-low-bg:    var(--nd-hairline-soft);
+  --nd-urg-low-fg:    var(--nd-text-muted);
+  --nd-urg-mid-bg:    rgba(10, 132, 255, 0.10);
+  --nd-urg-mid-fg:    #0A6BFF;
+  --nd-urg-high-bg:   rgba(255, 159, 10, 0.12);
+  --nd-urg-high-fg:   #B66800;
+  --nd-urg-crit-bg:   rgba(255, 59, 48, 0.10);
+  --nd-urg-crit-fg:   #C42B22;
+
+  /* — Tipografía — */
+  --nd-font:  -apple-system, BlinkMacSystemFont, "SF Pro Display",
+              "SF Pro Text", "Inter", system-ui, sans-serif;
+  --nd-mono:  ui-monospace, "SF Mono", "Menlo", monospace;
+
+  --nd-text-xs:   11px;
+  --nd-text-sm:   12px;
+  --nd-text-base: 13px;
+  --nd-text-md:   14px;
+  --nd-text-lg:   17px;
+  --nd-text-xl:   22px;
+  --nd-text-2xl:  28px;
+  --nd-text-3xl:  34px;
+
+  --nd-tracking-tight: -0.5px;
+  --nd-tracking-tighter: -0.8px;
+
+  /* — Radii — */
+  --nd-r-sm:  6px;
+  --nd-r-md:  8px;
+  --nd-r-lg:  10px;
+  --nd-r-xl:  12px;
+  --nd-r-2xl: 14px;
+  --nd-r-3xl: 16px;
+  --nd-r-pill: 999px;
+
+  /* — Espaciado (base 4) — */
+  --nd-space-1: 4px;
+  --nd-space-2: 8px;
+  --nd-space-3: 12px;
+  --nd-space-4: 14px;
+  --nd-space-5: 18px;
+  --nd-space-6: 22px;
+  --nd-space-7: 28px;
+  --nd-space-8: 36px;
+
+  /* — Sombras — */
+  --nd-shadow-tab:  0 1px 2px rgba(0,0,0,0.06);
+  --nd-shadow-card: 0 1px 3px rgba(0,0,0,0.05);
+
+  /* — Sidebar — */
+  --nd-sidebar-w-expanded: 220px;
+  --nd-sidebar-w-collapsed: 64px;
+  --nd-sidebar-transition: 200ms ease;
+}

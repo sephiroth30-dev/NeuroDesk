@@ -4,12 +4,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/styles.css?v=12.0" />
+    <link rel="stylesheet" href="/tokens.css?v=13.0" />
+    <link rel="stylesheet" href="/styles.css?v=13.0" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
       <div class="sidebarBrand">
-        <span class="brandIcon">ND</span>
+        <div class="brandIcon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+            <rect x="14" y="3" width="7" height="7" rx="1.5" />
+            <rect x="3" y="14" width="7" height="7" rx="1.5" />
+            <rect x="14" y="14" width="7" height="7" rx="1.5" />
+          </svg>
+        </div>
         <strong>NeuroDesk</strong>
       </div>
       <nav class="sidebarNav" aria-label="Menú principal">
@@ -176,12 +184,11 @@
           </svg>
         </button>
         <div>
-          <p class="eyebrow">Neurofic</p>
-          <h1>NeuroDesk</h1>
-          <p id="appVersion" class="version">–</p>
+          <p class="eyebrow" id="topbarDate"></p>
+          <h1 id="topbarTitle">Resumen</h1>
         </div>
         <div class="topBarRight">
-          <button id="createTicketButton" class="primaryAction" type="button">+ Nuevo</button>
+          <button id="createTicketButton" class="primaryAction" type="button">+ Nuevo ticket</button>
         </div>
       </section>
 
@@ -1456,7 +1463,7 @@
       </div>
     </div>
 
-    <script src="/app.js?v=12.0" defer></script>
+    <script src="/app.js?v=13.0" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {
