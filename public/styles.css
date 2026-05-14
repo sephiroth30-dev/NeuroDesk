@@ -1482,6 +1482,21 @@ tbody tr:last-child td {
   margin-top: 10px;
 }
 
+/* Jerarquía correcta: título grande, meta pequeño */
+.reportTable .panelHeader h2 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--graphite);
+  text-transform: none;
+  letter-spacing: 0;
+  margin-bottom: 2px;
+}
+
+.reportTable .panelHeader p {
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
 /* ── Empty States ── */
 .empty {
   padding: 48px 12px;
