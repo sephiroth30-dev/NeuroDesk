@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/tokens.css?v=14.2" />
-    <link rel="stylesheet" href="/styles.css?v=14.2" />
+    <link rel="stylesheet" href="/tokens.css?v=14.3" />
+    <link rel="stylesheet" href="/styles.css?v=14.3" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -989,7 +989,7 @@
               Variables disponibles: <code>{{ticket_id}}</code> <code>{{ticket_title}}</code>
               <code>{{user_name}}</code> <code>{{user_email}}</code> <code>{{old_status}}</code>
               <code>{{new_status}}</code> <code>{{agent_name}}</code>
-              <code>{{resolution_notes}}</code> <code>{{ticket_url}}</code>
+              <code>{{resolution_notes}}</code> <code>{{ticket_url}}</code> <code>{{portal_url}}</code>
             </p>
 
             <!-- Template: received -->
@@ -1400,6 +1400,9 @@
             <button id="closeTicketDetailStatus" class="secondaryAction" type="button">
               Cerrar ticket
             </button>
+            <button id="silentCloseBtn" class="ghostButton" type="button" title="Cierra el ticket sin enviar correo al usuario">
+              Cerrar sin notificar
+            </button>
           </aside>
         </div>
       </div>
@@ -1471,7 +1474,7 @@
       </div>
     </div>
 
-    <script src="/app.js?v=14.2" defer></script>
+    <script src="/app.js?v=14.3" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {

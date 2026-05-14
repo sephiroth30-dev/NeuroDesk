@@ -472,15 +472,15 @@ const DEFAULT_NOTIFICATIONS_CONFIG = {
   templates: {
     received: {
       subject: "Tu ticket #{{ticket_id}} fue recibido — NeuroDesk",
-      body: 'Hola {{user_name}},\n\nHemos recibido tu ticket #{{ticket_id}}: "{{ticket_title}}".\n\nUn agente lo atenderá a la brevedad.\n\nGracias por comunicarte con nosotros.\n\nNeurofic · NeuroDesk',
+      body: 'Hola {{user_name}},\n\nHemos recibido tu ticket #{{ticket_id}}: "{{ticket_title}}".\n\nUn agente lo atenderá a la brevedad.\n\nPuedes hacer seguimiento desde:\n{{ticket_url}}\n\nGracias por comunicarte con nosotros.\n\nNeurofic · NeuroDesk',
     },
     status_changed: {
       subject: "Actualización del ticket #{{ticket_id}} — {{new_status}}",
-      body: 'Hola {{user_name}},\n\nEl estado de tu ticket #{{ticket_id}} "{{ticket_title}}" ha cambiado:\n\nEstado anterior: {{old_status}}\nNuevo estado: {{new_status}}\n\nSi tienes preguntas, puedes responder a este correo.\n\nNeurofic · NeuroDesk',
+      body: 'Hola {{user_name}},\n\nEl estado de tu ticket #{{ticket_id}} "{{ticket_title}}" ha cambiado:\n\nEstado anterior: {{old_status}}\nNuevo estado: {{new_status}}\n\nVer el ticket y su historial:\n{{ticket_url}}\n\nNeurofic · NeuroDesk',
     },
     resolved: {
       subject: "Tu ticket #{{ticket_id}} fue resuelto — NeuroDesk",
-      body: 'Hola {{user_name}},\n\nNos complace informarte que tu ticket #{{ticket_id}} "{{ticket_title}}" ha sido resuelto.\n\nResumen de la atención:\n{{resolution_notes}}\n\nSi surge alguna novedad, puedes continuar la gestión desde:\n{{ticket_url}}\n\nGracias por tu confianza en Neurofic.\n\nNeurofic · NeuroDesk',
+      body: 'Hola {{user_name}},\n\nNos complace informarte que tu ticket #{{ticket_id}} "{{ticket_title}}" ha sido resuelto.\n\nResumen de la atención:\n{{resolution_notes}}\n\nSi surge alguna novedad puedes continuar la gestión desde:\n{{ticket_url}}\n\nGracias por tu confianza en Neurofic.\n\nNeurofic · NeuroDesk',
     },
   },
 };
@@ -985,7 +985,8 @@ function updateTicketFull(id, data) {
   if (resolutionNote) addTicketHistory(id, resolutionNote, status);
   notifyClients("ticketsChanged", { action: "updated", id });
   const ticket = getTickets().find((t) => t.id === id);
-  if (ticket && oldStatus !== status) {
+  const silent = data.silent === true || data.silent === "true";
+  if (ticket && oldStatus !== status && !silent) {
     const notifType = status === "resuelto" ? "resolved" : "status_changed";
     sendTicketNotification(notifType, ticket, { oldStatus, resolutionNote }).catch((err) =>
       console.error("[NeuroDesk] Notification error (full update):", err.message)
@@ -1138,25 +1139,27 @@ function loadNotificationsConfig() {
       adminEmails: typeof saved.adminEmails === "string" ? saved.adminEmails : "",
       app_url: typeof saved.app_url === "string" ? saved.app_url : "",
       templates: {
-        received: Object.assign(
-          {},
-          DEFAULT_NOTIFICATIONS_CONFIG.templates.received,
-          (saved.templates || {}).received || {}
+        received: migrateTemplate(
+          Object.assign({}, DEFAULT_NOTIFICATIONS_CONFIG.templates.received, (saved.templates || {}).received || {})
         ),
-        status_changed: Object.assign(
-          {},
-          DEFAULT_NOTIFICATIONS_CONFIG.templates.status_changed,
-          (saved.templates || {}).status_changed || {}
+        status_changed: migrateTemplate(
+          Object.assign({}, DEFAULT_NOTIFICATIONS_CONFIG.templates.status_changed, (saved.templates || {}).status_changed || {})
         ),
-        resolved: Object.assign(
-          {},
-          DEFAULT_NOTIFICATIONS_CONFIG.templates.resolved,
-          (saved.templates || {}).resolved || {}
+        resolved: migrateTemplate(
+          Object.assign({}, DEFAULT_NOTIFICATIONS_CONFIG.templates.resolved, (saved.templates || {}).resolved || {})
         ),
       },
     };
     smtpTransporter = null;
   } catch (_) {}
+}
+
+// Appends {{ticket_url}} to any saved template body that is missing it
+function migrateTemplate(tpl) {
+  if (!tpl.body.includes("{{ticket_url}}")) {
+    tpl.body = tpl.body.trimEnd() + "\n\n{{ticket_url}}";
+  }
+  return tpl;
 }
 
 function saveNotificationsConfig(incoming) {
@@ -1296,6 +1299,7 @@ async function sendTicketNotification(type, ticket, opts = {}) {
     agent_name: opts.agentName || "Un agente",
     resolution_notes: ticket.resolution || opts.resolutionNote || "(sin resumen)",
     ticket_url: baseUrl ? `${baseUrl}/?ticket=${encodeURIComponent(ticket.id)}` : "",
+    portal_url: baseUrl && ticket.contact ? `${baseUrl}/portal?email=${encodeURIComponent(ticket.contact)}` : (baseUrl ? `${baseUrl}/portal` : ""),
   };
 
   const subject = renderTemplate(tpl.subject, vars);
@@ -2016,6 +2020,7 @@ async function handleApi(req, res) {
         agent_name: "Agente de Soporte",
         resolution_notes: "Se reinició el servicio y se verificó el funcionamiento correcto.",
         ticket_url: baseUrl ? `${baseUrl}/?ticket=ND-1001` : "",
+        portal_url: baseUrl ? `${baseUrl}/portal?email=${encodeURIComponent(to)}` : "",
       };
       const subject = renderTemplate(tpl.subject, sampleVars);
       const bodyText = renderTemplate(tpl.body, sampleVars);
@@ -2147,7 +2152,8 @@ async function handleApi(req, res) {
 
 const isPublicApi = (method, url) =>
   (method === "GET" &&
-    (url === "/api/health" || url === "/api/version" || url === "/api/config")) ||
+    (url === "/api/health" || url === "/api/version" || url === "/api/config" ||
+     url.startsWith("/api/portal/tickets"))) ||
   (method === "POST" && (url === "/api/tickets" || url === "/api/email/inbound"));
 // All /api/notifications/* routes require authentication (handled by default guard)
 
@@ -2155,6 +2161,27 @@ const server = http.createServer(async (req, res) => {
   // Portal — always public
   if (req.url === "/portal") {
     serveFile(res, "portal.html");
+    return;
+  }
+
+  // Portal ticket lookup — public, read-only, limited fields
+  if (req.method === "GET" && req.url.startsWith("/api/portal/tickets")) {
+    const email = new URL(req.url, "http://localhost").searchParams.get("email") || "";
+    if (!email || !email.includes("@")) {
+      sendJson(res, 400, { error: "Email requerido." });
+      return;
+    }
+    const emailLower = email.toLowerCase().trim();
+    const tickets = getTickets()
+      .filter((t) => (t.contact || "").toLowerCase() === emailLower)
+      .map((t) => ({
+        id: t.id,
+        subject: t.subject,
+        status: t.status,
+        urgency: t.urgency,
+        createdAt: t.createdAt,
+      }));
+    sendJson(res, 200, tickets);
     return;
   }
 

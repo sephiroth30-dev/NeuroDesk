@@ -606,6 +606,24 @@
             </form>
           </div>
 
+          <!-- Ticket lookup -->
+          <div class="portalCard" id="lookupSection">
+            <h2 class="portalCardTitle">Consultar mis tickets</h2>
+            <p style="font-size:0.84rem;color:var(--muted);margin-bottom:16px">
+              Ingresa tu correo para ver el estado de tus solicitudes anteriores.
+            </p>
+            <div style="display:flex;gap:8px">
+              <input
+                id="lookupEmail"
+                type="email"
+                placeholder="tu@correo.com"
+                style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:0.88rem;outline:none"
+              />
+              <button id="lookupBtn" type="button" style="padding:9px 16px;background:var(--brand);color:#fff;border:none;border-radius:8px;font-size:0.88rem;cursor:pointer;font-weight:600">Buscar</button>
+            </div>
+            <div id="lookupResult" style="margin-top:16px"></div>
+          </div>
+
           <div class="portalCard" id="successSection" hidden>
             <div class="successCard">
               <div class="successRing">✓</div>
@@ -713,6 +731,55 @@
           successSection.hidden = true;
           formSection.hidden = false;
         });
+
+        // Ticket lookup by email
+        const STATUS_LABELS = { abierto:"Abierto", en_proceso:"En proceso", en_espera:"En espera", resuelto:"Resuelto", cerrado:"Cerrado" };
+        const STATUS_COLORS = { abierto:"#3b82f6", en_proceso:"#f59e0b", en_espera:"#8b5cf6", resuelto:"#22c55e", cerrado:"#94a3b8" };
+
+        async function doLookup() {
+          const email = document.querySelector("#lookupEmail").value.trim();
+          const result = document.querySelector("#lookupResult");
+          if (!email || !email.includes("@")) {
+            result.innerHTML = '<p style="color:#ef4444;font-size:0.84rem">Ingresa un correo válido.</p>';
+            return;
+          }
+          result.innerHTML = '<p style="color:var(--muted);font-size:0.84rem">Buscando…</p>';
+          try {
+            const tickets = await fetch(`/api/portal/tickets?email=${encodeURIComponent(email)}`).then(r => r.json());
+            if (!Array.isArray(tickets) || tickets.length === 0) {
+              result.innerHTML = '<p style="color:var(--muted);font-size:0.84rem">No se encontraron tickets para ese correo.</p>';
+              return;
+            }
+            result.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.82rem">
+              <thead><tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--line)">
+                <th style="padding:6px 8px">ID</th>
+                <th style="padding:6px 8px">Asunto</th>
+                <th style="padding:6px 8px">Estado</th>
+                <th style="padding:6px 8px">Fecha</th>
+              </tr></thead>
+              <tbody>${tickets.map(t => `<tr style="border-bottom:1px solid var(--line)">
+                <td style="padding:7px 8px;font-weight:700;color:var(--brand)">${t.id}</td>
+                <td style="padding:7px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.subject || "(sin asunto)"}</td>
+                <td style="padding:7px 8px"><span style="display:inline-block;padding:2px 8px;border-radius:999px;font-weight:700;font-size:0.75rem;background:${STATUS_COLORS[t.status]}22;color:${STATUS_COLORS[t.status]}">${STATUS_LABELS[t.status] || t.status}</span></td>
+                <td style="padding:7px 8px;color:var(--muted)">${new Date(t.createdAt).toLocaleDateString("es")}</td>
+              </tr>`).join("")}</tbody>
+            </table>`;
+          } catch {
+            result.innerHTML = '<p style="color:#ef4444;font-size:0.84rem">Error al buscar tickets.</p>';
+          }
+        }
+
+        document.querySelector("#lookupBtn").addEventListener("click", doLookup);
+        document.querySelector("#lookupEmail").addEventListener("keydown", (e) => {
+          if (e.key === "Enter") doLookup();
+        });
+
+        // Auto-fill email from URL param ?email=
+        const urlEmail = new URLSearchParams(location.search).get("email");
+        if (urlEmail) {
+          document.querySelector("#lookupEmail").value = urlEmail;
+          doLookup();
+        }
       })();
     </script>
   </body>

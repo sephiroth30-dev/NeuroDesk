@@ -160,6 +160,7 @@ let refreshInFlight = null;
 let liveEvents = null;
 let activeTicketId = null;
 let pendingClosureStatus = null;
+let pendingClosureSilent = false;
 let showClosedTickets = false;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -1060,8 +1061,9 @@ function collectDetailPayload(statusOverride) {
   };
 }
 
-async function saveDetail(statusOverride) {
+async function saveDetail(statusOverride, silent = false) {
   const payload = collectDetailPayload(statusOverride);
+  if (payload && silent) payload.silent = true;
   if (!payload) return;
   if (
     (payload.status === "resuelto" || payload.status === "cerrado") &&
@@ -1110,12 +1112,17 @@ document.addEventListener("click", (e) => {
   if (ticket) openTicketDetail(ticket);
 });
 
-function showClosureModal(statusOverride) {
+function showClosureModal(statusOverride, silent = false) {
   pendingClosureStatus = statusOverride;
+  pendingClosureSilent = silent;
   const isResolve = statusOverride === "resuelto";
-  closureReasonTitle.textContent = isResolve ? "Marcar como resuelto" : "Cerrar ticket";
+  closureReasonTitle.textContent = silent
+    ? "Cerrar sin notificar"
+    : isResolve ? "Marcar como resuelto" : "Cerrar ticket";
   closureReasonLabel.textContent = isResolve ? "Motivo de resolución" : "Motivo de cierre";
-  confirmClosureBtn.textContent = isResolve ? "Marcar resuelto" : "Cerrar ticket";
+  confirmClosureBtn.textContent = silent
+    ? "Cerrar sin notificar"
+    : isResolve ? "Marcar resuelto" : "Cerrar ticket";
   closureReasonText.value = detailResolution.value.trim();
   closureReasonError.textContent = "";
   closureReasonModal.hidden = false;
@@ -1127,6 +1134,7 @@ function hideClosureModal() {
   closureReasonText.value = "";
   closureReasonError.textContent = "";
   pendingClosureStatus = null;
+  pendingClosureSilent = false;
 }
 
 cancelClosureX.addEventListener("click", hideClosureModal);
@@ -1139,10 +1147,11 @@ confirmClosureBtn.addEventListener("click", async () => {
     return;
   }
   const status = pendingClosureStatus;
+  const silent = pendingClosureSilent;
   hideClosureModal();
   detailResolution.value = reason;
   try {
-    await saveDetail(status);
+    await saveDetail(status, silent);
   } catch (err) {
     detailMessage.textContent = err.message;
   }
@@ -1156,6 +1165,7 @@ saveTicketDetail.addEventListener("click", () =>
 );
 resolveTicketDetail.addEventListener("click", () => showClosureModal("resuelto"));
 closeTicketDetailStatus.addEventListener("click", () => showClosureModal("cerrado"));
+document.querySelector("#silentCloseBtn")?.addEventListener("click", () => showClosureModal("cerrado", true));
 detailDeleteButton.addEventListener("click", async () => {
   if (!activeTicketId) return;
   await deleteTicket(activeTicketId);

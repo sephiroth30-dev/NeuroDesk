@@ -19,6 +19,28 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [14.3] - 2026-05-14
+
+### feat: ticket_url en todos los templates + portal de consulta + cerrar sin notificar
+
+**Templates de correo:**
+- `{{ticket_url}}` añadido a los 3 templates por defecto (received, status_changed, resolved)
+- Nueva variable `{{portal_url}}` — enlace al portal filtrado por el correo del cliente
+- Migración automática: las plantillas guardadas en BD que no tenían `{{ticket_url}}` la reciben automáticamente al cargar el servidor sin perder el texto personalizado
+
+**Portal de consulta de tickets:**
+- Nueva sección "Consultar mis tickets" en `/portal` con campo de búsqueda por correo
+- Nuevo endpoint público `GET /api/portal/tickets?email=xxx` — retorna id, asunto, estado y fecha
+- El portal soporta `?email=xxx` en la URL para prellenar y buscar automáticamente (útil con `{{portal_url}}` en correos)
+
+**Cerrar sin notificar:**
+- Nuevo botón "Cerrar sin notificar" en el detalle del ticket
+- Muestra el modal de motivo igual que el cierre normal
+- Pasa `silent: true` en el payload → el servidor omite el envío de correo
+- El cierre queda registrado en historial igual que un cierre normal
+
+---
+
 ## [14.2] - 2026-05-14
 
 ### fix: correos duplicados + imágenes adjuntas visibles en tickets
