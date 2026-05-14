@@ -19,6 +19,28 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [13.3] - 2026-05-14
+
+### Fix: sondeo IMAP en segundo plano — causas raíz resueltas
+
+**Problema 1 — `connectedAt` estático (causa principal)**
+- `emailConfig.connectedAt` nunca se actualizaba: cada poll buscaba emails desde la fecha de configuración inicial (semanas/meses atrás), enviando miles de UIDs a Gmail cada 5 min → Gmail bloqueaba/cortaba la conexión silenciosamente
+- **Fix**: tras cada poll exitoso, `connectedAt` avanza a `ahora - 2h`. El próximo poll solo escanea 2 horas de emails. Si el servidor estuvo caído N horas, el gap se cubre automáticamente al reiniciar.
+
+**Problema 2 — Sin timeout en ImapFlow (causa del bloqueo total)**
+- Si la conexión IMAP se colgaba (sin respuesta), `emailPollStatus.polling` quedaba en `true` indefinidamente → todos los polls siguientes eran bloqueados por el guard `if (polling) return`
+- **Fix**: `connectionTimeout: 30s`, `socketTimeout: 90s` en ImapFlow + timeout absoluto de 3 min que libera el flag `polling` aunque la promesa no resuelva
+
+**Problema 3 — Errores invisibles**
+- `.catch(() => {})` silenciaba todo error; PM2 no mostraba nada
+- **Fix** (ya en v13.2): `console.error()` en el catch con mensaje exacto; `console.log()` al iniciar el poller y al crear tickets
+
+**UI — Estado del sondeo mejorado**
+- Nueva fila "Fallos consecutivos" en el panel Configuración > Correo entrante
+- Se colorea en naranja (1-2 fallos) o rojo en negrita (3+), con texto de error en rojo
+
+---
+
 ## [13.2] - 2026-05-14
 
 ### Diagnóstico: sondeo IMAP en segundo plano

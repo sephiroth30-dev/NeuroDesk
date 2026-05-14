@@ -491,10 +491,15 @@ const emailPollStatus = {
   ticketsCreated: 0,
   polling: false,
   lastMessagesChecked: 0,
+  consecutiveErrors: 0,
 };
 let emailPollerTimer = null;
 const eventClients = new Set();
 const EMAIL_FALLBACK_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+const POLL_LOOKBACK_OVERLAP_MS = 2 * 60 * 60 * 1000; // ventana deslizante — 2h overlap
+const IMAP_CONN_TIMEOUT_MS = 30 * 1000; // 30s para establecer conexión TCP/TLS
+const IMAP_SOCKET_TIMEOUT_MS = 90 * 1000; // 90s sin actividad en socket
+const POLL_ABSOLUTE_TIMEOUT_MS = 3 * 60 * 1000; // 2 min — mata el poll si se cuelga
 
 const DEFAULT_CONFIG = {
   sla: { baja: 24, media: 8, alta: 4, critica: 1 },
@@ -1333,91 +1338,134 @@ async function pollEmails(options = {}) {
   let created = 0;
   emailPollStatus.lastMessagesChecked = 0;
 
+  // Timeout absoluto: si el poll se cuelga, libera el flag después de 3 min
+  let absoluteTimeoutHandle = null;
+  const absoluteTimeoutPromise = new Promise((_, reject) => {
+    absoluteTimeoutHandle = setTimeout(() => {
+      reject(new Error(`Sondeo IMAP superó el tiempo límite de ${POLL_ABSOLUTE_TIMEOUT_MS / 1000}s`));
+    }, POLL_ABSOLUTE_TIMEOUT_MS);
+  });
+
   const client = new ImapFlow({
     host: emailConfig.host,
     port: emailConfig.port,
     secure: emailConfig.secure,
     auth: { user: emailConfig.username, pass: (emailConfig.password || "").replace(/\s/g, "") },
     logger: false,
+    connectionTimeout: IMAP_CONN_TIMEOUT_MS,
+    greetingTimeout: IMAP_CONN_TIMEOUT_MS,
+    socketTimeout: IMAP_SOCKET_TIMEOUT_MS,
   });
 
-  try {
-    await client.connect();
-    const lock = await client.getMailboxLock(emailConfig.folder);
+  async function doPoll() {
     try {
-      const connectedAt = emailConfig.connectedAt ? new Date(emailConfig.connectedAt) : null;
-      const recentSince =
-        connectedAt && !Number.isNaN(connectedAt.getTime())
-          ? connectedAt
-          : new Date(Date.now() - EMAIL_FALLBACK_LOOKBACK_MS);
-      const unreadUids = await client.search({ seen: false });
-      const recentUids = await client.search({ since: recentSince });
-      const uids = [...new Set([...unreadUids, ...recentUids])];
-      emailPollStatus.lastMessagesChecked = uids.length;
-      for (const uid of uids) {
-        const message = await client.fetchOne(uid, { source: true, uid: true });
-        if (!message) continue;
-        const parsed = await simpleParser(message.source);
-        if (parsed.date && parsed.date < recentSince && !unreadUids.includes(uid)) continue;
-        const messageId = parsed.messageId || `uid-${uid}-${Date.now()}`;
-        if (isEmailProcessedStmt.get(messageId)) continue;
-        const fromAddress = parsed.from?.value?.[0];
-        const fromEmail = fromAddress?.address || "";
-        const fromName = fromAddress?.name || fromEmail;
-        if (shouldIgnoreEmail(fromEmail)) {
-          markEmailProcessedStmt.run(messageId, new Date().toISOString());
-          try {
-            await client.messageFlagsAdd(uid, ["\\Seen"]);
-          } catch (_) {}
-          continue;
+      await client.connect();
+      const lock = await client.getMailboxLock(emailConfig.folder);
+      try {
+        // Ventana deslizante: connectedAt se actualiza tras cada poll exitoso.
+        // Si el servidor estuvo caído, connectedAt cubre el gap (last_poll - 2h).
+        const connectedAt = emailConfig.connectedAt ? new Date(emailConfig.connectedAt) : null;
+        const recentSince =
+          connectedAt && !Number.isNaN(connectedAt.getTime())
+            ? connectedAt
+            : new Date(Date.now() - EMAIL_FALLBACK_LOOKBACK_MS);
+        const unreadUids = await client.search({ seen: false });
+        const recentUids = await client.search({ since: recentSince });
+        const uids = [...new Set([...unreadUids, ...recentUids])];
+        emailPollStatus.lastMessagesChecked = uids.length;
+        for (const uid of uids) {
+          const message = await client.fetchOne(uid, { source: true, uid: true });
+          if (!message) continue;
+          const parsed = await simpleParser(message.source);
+          if (parsed.date && parsed.date < recentSince && !unreadUids.includes(uid)) continue;
+          const messageId = parsed.messageId || `uid-${uid}-${Date.now()}`;
+          if (isEmailProcessedStmt.get(messageId)) continue;
+          const fromAddress = parsed.from?.value?.[0];
+          const fromEmail = fromAddress?.address || "";
+          const fromName = fromAddress?.name || fromEmail;
+          if (shouldIgnoreEmail(fromEmail)) {
+            markEmailProcessedStmt.run(messageId, new Date().toISOString());
+            try {
+              await client.messageFlagsAdd(uid, ["\\Seen"]);
+            } catch (_) {}
+            continue;
+          }
+          const subject = (parsed.subject || "(sin asunto)").slice(0, 200);
+          const bodyText = (parsed.text || (parsed.html || "").replace(/<[^>]+>/g, ""))
+            .trim()
+            .slice(0, 4000);
+          const urgency = detectUrgency(subject, bodyText);
+          const ticket = normalizeTicket(
+            {
+              name: fromName || fromEmail,
+              contact: fromEmail,
+              area: emailConfig.defaultArea,
+              urgency,
+              subject,
+              description: bodyText,
+            },
+            "email"
+          );
+          if (ticket) {
+            insertTicket(ticket);
+            markEmailProcessedStmt.run(messageId, new Date().toISOString());
+            try {
+              await client.messageFlagsAdd(uid, ["\\Seen"]);
+            } catch (_) {}
+            created++;
+          }
         }
-        const subject = (parsed.subject || "(sin asunto)").slice(0, 200);
-        const bodyText = (parsed.text || (parsed.html || "").replace(/<[^>]+>/g, ""))
-          .trim()
-          .slice(0, 4000);
-        const urgency = detectUrgency(subject, bodyText);
-        const ticket = normalizeTicket(
-          {
-            name: fromName || fromEmail,
-            contact: fromEmail,
-            area: emailConfig.defaultArea,
-            urgency,
-            subject,
-            description: bodyText,
-          },
-          "email"
-        );
-        if (ticket) {
-          insertTicket(ticket);
-          markEmailProcessedStmt.run(messageId, new Date().toISOString());
-          try {
-            await client.messageFlagsAdd(uid, ["\\Seen"]);
-          } catch (_) {}
-          created++;
-        }
+      } finally {
+        lock.release();
       }
+      await client.logout();
+      emailPollStatus.lastPoll = new Date().toISOString();
+      emailPollStatus.lastError = null;
+      emailPollStatus.consecutiveErrors = 0;
+      emailPollStatus.ticketsCreated += created;
+      // Avanzar ventana: próximo poll busca desde ahora - 2h (cubre retrasos de entrega)
+      emailConfig.connectedAt = new Date(Date.now() - POLL_LOOKBACK_OVERLAP_MS).toISOString();
+      upsertConfigStmt.run("email_config", JSON.stringify(emailConfig));
+      if (created > 0) {
+        console.log(`[NeuroDesk] Sondeo IMAP: ${created} ticket(s) creado(s) desde correo.`);
+      }
+    } catch (err) {
+      emailPollStatus.lastPoll = new Date().toISOString();
+      emailPollStatus.lastError = err.message;
+      emailPollStatus.consecutiveErrors += 1;
+      console.error(
+        `[NeuroDesk] Error en sondeo IMAP (intento ${emailPollStatus.consecutiveErrors}): ${err.message}`
+      );
+      if (emailPollStatus.consecutiveErrors >= 3) {
+        console.error(
+          `[NeuroDesk] AVISO: el sondeo IMAP lleva ${emailPollStatus.consecutiveErrors} fallos consecutivos. Verifica credenciales y conectividad en Configuración > Correo entrante.`
+        );
+      }
+      try {
+        await client.logout();
+      } catch (_) {}
     } finally {
-      lock.release();
+      emailPollStatus.polling = false;
+      const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+      cleanOldEmailsStmt.run(cutoff);
     }
-    await client.logout();
+  }
+
+  try {
+    await Promise.race([doPoll(), absoluteTimeoutPromise]);
+  } catch (timeoutErr) {
     emailPollStatus.lastPoll = new Date().toISOString();
-    emailPollStatus.lastError = null;
-    emailPollStatus.ticketsCreated += created;
-    if (created > 0) {
-      console.log(`[NeuroDesk] Sondeo IMAP: ${created} ticket(s) creado(s) desde correo.`);
-    }
-  } catch (err) {
-    emailPollStatus.lastPoll = new Date().toISOString();
-    emailPollStatus.lastError = err.message;
-    console.error(`[NeuroDesk] Error en sondeo IMAP: ${err.message}`);
+    emailPollStatus.lastError = timeoutErr.message;
+    emailPollStatus.consecutiveErrors += 1;
+    emailPollStatus.polling = false;
+    console.error(`[NeuroDesk] ${timeoutErr.message}`);
     try {
       await client.logout();
     } catch (_) {}
   } finally {
-    emailPollStatus.polling = false;
-    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-    cleanOldEmailsStmt.run(cutoff);
+    clearTimeout(absoluteTimeoutHandle);
   }
+
   return {
     created,
     checked: emailPollStatus.lastMessagesChecked,

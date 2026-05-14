@@ -1339,7 +1339,20 @@ async function loadEmailStatus() {
     document.querySelector("#emailLastPoll").textContent = st.lastPoll
       ? new Date(st.lastPoll).toLocaleString()
       : "—";
-    document.querySelector("#emailLastError").textContent = st.lastError || "—";
+    const errEl = document.querySelector("#emailLastError");
+    errEl.textContent = st.lastError || "—";
+    errEl.style.color = st.lastError ? "var(--nd-danger, #e53e3e)" : "";
+    const consecEl = document.querySelector("#emailConsecutiveErrors");
+    if (consecEl) {
+      consecEl.textContent = st.consecutiveErrors || 0;
+      consecEl.style.color =
+        st.consecutiveErrors >= 3
+          ? "var(--nd-danger, #e53e3e)"
+          : st.consecutiveErrors > 0
+            ? "var(--nd-warning, #d97706)"
+            : "";
+      consecEl.style.fontWeight = st.consecutiveErrors >= 3 ? "700" : "";
+    }
     document.querySelector("#emailTicketsCreated").textContent = st.ticketsCreated || 0;
     const checked = document.querySelector("#emailMessagesChecked");
     if (checked) checked.textContent = st.lastMessagesChecked || 0;
