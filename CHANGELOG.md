@@ -19,6 +19,14 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [13.6] - 2026-05-14
+
+### Corrección jerarquía tipográfica — "Detalle filtrado"
+
+- **Fix**: el título "Detalle filtrado" se mostraba más pequeño que el subtítulo porque `.panelHeader h2` tiene estilo global de eyebrow (0.68rem + uppercase). Override contextual en `.reportTable` para que el h2 sea título real (0.9rem, bold, dark) y el meta debajo sea el texto pequeño muted.
+
+---
+
 ## [13.5] - 2026-05-14
 
 ### Indicadores — rediseño SERENE
