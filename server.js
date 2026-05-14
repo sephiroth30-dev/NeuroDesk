@@ -1403,8 +1403,13 @@ async function pollEmails(options = {}) {
     emailPollStatus.lastPoll = new Date().toISOString();
     emailPollStatus.lastError = null;
     emailPollStatus.ticketsCreated += created;
+    if (created > 0) {
+      console.log(`[NeuroDesk] Sondeo IMAP: ${created} ticket(s) creado(s) desde correo.`);
+    }
   } catch (err) {
+    emailPollStatus.lastPoll = new Date().toISOString();
     emailPollStatus.lastError = err.message;
+    console.error(`[NeuroDesk] Error en sondeo IMAP: ${err.message}`);
     try {
       await client.logout();
     } catch (_) {}
@@ -1453,8 +1458,14 @@ function startEmailPoller() {
     clearInterval(emailPollerTimer);
     emailPollerTimer = null;
   }
-  if (!emailConfig.enabled) return;
+  if (!emailConfig.enabled) {
+    console.log("[NeuroDesk] Sondeo IMAP desactivado — no se inicia el poller.");
+    return;
+  }
   const intervalMs = (emailConfig.pollIntervalMinutes || 5) * 60 * 1000;
+  console.log(
+    `[NeuroDesk] Sondeo IMAP iniciado — intervalo: ${emailConfig.pollIntervalMinutes || 5} min, cuenta: ${emailConfig.username}`
+  );
   pollEmails().catch(() => {});
   emailPollerTimer = setInterval(() => pollEmails().catch(() => {}), intervalMs);
 }

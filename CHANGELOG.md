@@ -19,6 +19,17 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [13.2] - 2026-05-14
+
+### Diagnóstico: sondeo IMAP en segundo plano
+
+- **Logging en el poller**: `pollEmails()` ahora registra en consola (visible en `pm2 logs neurodesk`) cada error IMAP con el mensaje exacto — antes los errores eran silenciosos y el poller fallaba sin ninguna traza
+- **`lastPoll` en fallo**: el timestamp `lastPoll` ahora se actualiza también cuando el sondeo falla, para que `/api/email/status` muestre cuándo ocurrió el último intento (no solo el último éxito)
+- **Log de inicio**: `startEmailPoller()` registra en consola al arrancar — intervalo configurado y cuenta IMAP — confirmando que el poller quedó activo tras el boot de PM2
+- **Log de tickets creados**: cuando el sondeo crea 1+ tickets desde correo, se registra en consola con el conteo
+
+---
+
 ## [13.1] - 2026-05-13
 
 ### Correcciones de consistencia visual (SERENE)
