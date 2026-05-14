@@ -19,6 +19,23 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [14.2] - 2026-05-14
+
+### fix: correos duplicados + imágenes adjuntas visibles en tickets
+
+**Correos duplicados:**
+- Deduplicación de destinatarios: si `ticket.contact` ya está en `adminEmails`, no se envía el correo de cliente por separado — solo se envía la versión admin con los datos completos
+- Limpieza del body: colapsa líneas vacías consecutivas al renderizar plantillas (evita blancos cuando `{{ticket_url}}` está vacío)
+
+**Imágenes adjuntas desde correo:**
+- Se crea `ATTACH_DIR` junto al `STORE_PATH` (fuera del repo, sobrevive deploys)
+- Al procesar correos entrantes, las imágenes adjuntas (`image/*`) se guardan en disco bajo `attachments/{ticket_id}/`
+- Nueva columna `attachments` en SQLite con migración automática
+- Endpoint `GET /api/tickets/:id/attachments/:filename` sirve las imágenes con autenticación de sesión
+- En la vista de detalle del ticket, las imágenes se muestran como thumbnails clicables (abren la imagen completa en nueva pestaña)
+
+---
+
 ## [14.1] - 2026-05-14
 
 ### feat: botón "Ver ticket" en correos de resolución + deep link

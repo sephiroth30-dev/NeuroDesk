@@ -966,6 +966,26 @@ function openTicketDetail(ticket) {
   ticketDetailId.textContent = ticket.id;
   detailSubject.textContent = ticket.subject || "(sin asunto)";
   detailDescription.textContent = ticket.description || "Sin descripcion registrada.";
+  const attachEl = document.querySelector("#detailAttachments");
+  if (attachEl) {
+    const imgs = Array.isArray(ticket.attachments) ? ticket.attachments.filter((a) => a.file) : [];
+    if (imgs.length > 0) {
+      attachEl.innerHTML = imgs
+        .map(
+          (a) =>
+            `<figure class="attachFigure">
+              <a href="/api/tickets/${escapeHtml(ticket.id)}/attachments/${escapeHtml(a.file)}" target="_blank" rel="noopener">
+                <img src="/api/tickets/${escapeHtml(ticket.id)}/attachments/${escapeHtml(a.file)}" alt="${escapeHtml(a.name || "imagen")}" class="attachThumb" loading="lazy">
+              </a>
+              <figcaption>${escapeHtml(a.name || "imagen")}</figcaption>
+            </figure>`
+        )
+        .join("");
+      attachEl.hidden = false;
+    } else {
+      attachEl.hidden = true;
+    }
+  }
   detailName.textContent = ticket.name;
   detailContact.textContent = ticket.contact || "Sin contacto";
   detailAvatar.textContent = (ticket.name || "N").trim().charAt(0).toUpperCase();

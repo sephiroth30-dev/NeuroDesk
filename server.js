@@ -13,10 +13,12 @@ const PUBLIC_DIR = path.join(__dirname, "public");
 // Datos fuera del directorio del proyecto para sobrevivir git pull y re-clones.
 // Override posible con ND_STORE_PATH si se necesita una ruta específica.
 const STORE_PATH = process.env.ND_STORE_PATH || path.join(os.homedir(), ".neurodesk", "data.json");
+const ATTACH_DIR = path.join(path.dirname(STORE_PATH), "attachments");
 const packageInfo = require("./package.json");
 
 try {
   fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
+  fs.mkdirSync(ATTACH_DIR, { recursive: true });
 } catch (err) {
   console.error("[NeuroDesk] No se pudo preparar la carpeta de datos:", err.message);
 }
@@ -353,6 +355,7 @@ const db = {
   if (!cols.includes("resolution")) db.exec("ALTER TABLE tickets ADD COLUMN resolution TEXT");
   if (!cols.includes("custom_fields")) db.exec("ALTER TABLE tickets ADD COLUMN custom_fields TEXT");
   if (!cols.includes("sort_order")) db.exec("ALTER TABLE tickets ADD COLUMN sort_order REAL");
+  if (!cols.includes("attachments")) db.exec("ALTER TABLE tickets ADD COLUMN attachments TEXT DEFAULT '[]'");
   db.exec(
     "UPDATE tickets SET sort_order = strftime('%s', created_at) * -1 WHERE sort_order IS NULL"
   );
@@ -527,13 +530,13 @@ const contentTypes = {
 
 const countTicketsStmt = db.prepare("SELECT COUNT(*) AS total FROM tickets");
 const listTicketsStmt = db.prepare(
-  `SELECT id, name, contact, area, urgency, status, source, subject, description, resolution, custom_fields AS customFields, sort_order AS sortOrder, created_at AS createdAt FROM tickets ORDER BY sort_order ASC, created_at DESC`
+  `SELECT id, name, contact, area, urgency, status, source, subject, description, resolution, custom_fields AS customFields, attachments, sort_order AS sortOrder, created_at AS createdAt FROM tickets ORDER BY sort_order ASC, created_at DESC`
 );
 const nextTicketNumberStmt = db.prepare(
   `SELECT COALESCE(MAX(CAST(SUBSTR(id, 4) AS INTEGER)), 1000) + 1 AS nextNumber FROM tickets WHERE id LIKE 'ND-%'`
 );
 const insertTicketStmt = db.prepare(
-  `INSERT INTO tickets (id, name, contact, area, urgency, status, source, subject, description, resolution, custom_fields, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  `INSERT INTO tickets (id, name, contact, area, urgency, status, source, subject, description, resolution, custom_fields, attachments, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 );
 const updateTicketStatusStmt = db.prepare("UPDATE tickets SET status = ? WHERE id = ?");
 const updateTicketFullStmt = db.prepare(
@@ -863,6 +866,7 @@ function insertTicket(ticket) {
     ticket.description || "",
     ticket.resolution || "",
     JSON.stringify(ticket.customFields || {}),
+    JSON.stringify(ticket.attachments || []),
     Date.now() * -1,
     ticket.createdAt
   );
@@ -880,10 +884,10 @@ function getTicketHistory(ticketId) {
 function getTickets() {
   return listTicketsStmt.all().map((ticket) => {
     let customFields = {};
-    try {
-      customFields = ticket.customFields ? JSON.parse(ticket.customFields) : {};
-    } catch (_) {}
-    return { ...ticket, customFields, history: getTicketHistory(ticket.id) };
+    try { customFields = ticket.customFields ? JSON.parse(ticket.customFields) : {}; } catch (_) {}
+    let attachments = [];
+    try { attachments = ticket.attachments ? JSON.parse(ticket.attachments) : []; } catch (_) {}
+    return { ...ticket, customFields, attachments, history: getTicketHistory(ticket.id) };
   });
 }
 
@@ -1295,16 +1299,19 @@ async function sendTicketNotification(type, ticket, opts = {}) {
   };
 
   const subject = renderTemplate(tpl.subject, vars);
-  const bodyText = renderTemplate(tpl.body, vars);
+  // Collapse 3+ consecutive newlines to 2 — cleans empty lines from missing vars like ticket_url
+  const bodyText = renderTemplate(tpl.body, vars).replace(/\n{3,}/g, "\n\n").trim();
 
   const adminEmails = String(notificationsConfig.adminEmails || "")
     .split(",")
     .map((e) => e.trim())
     .filter(Boolean);
 
+  const adminEmailSet = new Set(adminEmails.map((e) => e.toLowerCase()));
   const promises = [];
 
-  if (ticket.contact && ticket.contact.includes("@")) {
+  // Only send client email if the contact is NOT already in the admin list (avoids duplicates)
+  if (ticket.contact && ticket.contact.includes("@") && !adminEmailSet.has(ticket.contact.toLowerCase())) {
     promises.push(sendEmail(ticket.contact, subject, bodyText));
   }
 
@@ -1413,7 +1420,7 @@ async function pollEmails(options = {}) {
             .trim()
             .slice(0, 4000);
           const urgency = detectUrgency(subject, bodyText);
-          const ticket = normalizeTicket(
+          const ticketBase = normalizeTicket(
             {
               name: fromName || fromEmail,
               contact: fromEmail,
@@ -1424,6 +1431,24 @@ async function pollEmails(options = {}) {
             },
             "email"
           );
+          // Save image attachments to disk
+          const savedAttachments = [];
+          if (ticketBase && Array.isArray(parsed.attachments)) {
+            const ticketAttachDir = path.join(ATTACH_DIR, ticketBase.id);
+            for (const att of parsed.attachments) {
+              if (!att.contentType || !att.contentType.startsWith("image/")) continue;
+              const ext = att.filename
+                ? path.extname(att.filename).toLowerCase() || ".bin"
+                : ".bin";
+              const safeName = `${crypto.randomUUID()}${ext}`;
+              try {
+                fs.mkdirSync(ticketAttachDir, { recursive: true });
+                fs.writeFileSync(path.join(ticketAttachDir, safeName), att.content);
+                savedAttachments.push({ name: att.filename || safeName, file: safeName, type: att.contentType });
+              } catch (_) {}
+            }
+          }
+          const ticket = ticketBase ? { ...ticketBase, attachments: savedAttachments } : null;
           if (ticket) {
             insertTicket(ticket);
             markEmailProcessedStmt.run(messageId, new Date().toISOString());
@@ -1854,6 +1879,26 @@ async function handleApi(req, res) {
     } catch {
       sendJson(res, 400, { error: "No se pudo actualizar el ticket." });
     }
+    return;
+  }
+
+  // GET /api/tickets/:id/attachments/:filename — serve image attachments
+  if (req.method === "GET" && /^\/api\/tickets\/[^/]+\/attachments\/[^/]+$/.test(req.url)) {
+    const parts = req.url.split("/");
+    const ticketId = decodeURIComponent(parts[3] || "");
+    const filename = decodeURIComponent(parts[5] || "");
+    if (!ticketId || !filename || filename.includes("..") || filename.includes("/")) {
+      res.writeHead(400); res.end("Bad request"); return;
+    }
+    const filePath = path.join(ATTACH_DIR, ticketId, filename);
+    if (!filePath.startsWith(ATTACH_DIR)) { res.writeHead(403); res.end("Forbidden"); return; }
+    fs.readFile(filePath, (err, data) => {
+      if (err) { res.writeHead(404); res.end("Not found"); return; }
+      const ext = path.extname(filename).toLowerCase();
+      const mime = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp" }[ext] || "application/octet-stream";
+      res.writeHead(200, { "Content-Type": mime, "Cache-Control": "public, max-age=86400" });
+      res.end(data);
+    });
     return;
   }
 
