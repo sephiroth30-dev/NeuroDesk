@@ -176,23 +176,114 @@ textarea::placeholder {
 
 .sidebarFooter {
   border-top: 1px solid var(--line);
-  padding-top: 8px;
+  padding-top: 10px;
+}
+
+.sidebarUserCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: default;
+}
+
+.sidebarUserAvatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+.sidebarUserInfo {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 1px;
 }
 
-.sidebarCurrentUser {
-  padding: 4px 10px;
-  font-size: 0.72rem;
+.sidebarUserName {
+  font-size: 0.835rem;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--graphite);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: block;
 }
 
-body.sidebarCollapsed .sidebarCurrentUser {
+.sidebarUserRole {
+  font-size: 0.68rem;
+  color: var(--muted);
+  white-space: nowrap;
+  display: block;
+}
+
+.sidebarLogoutBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  padding: 0;
+}
+
+.sidebarLogoutBtn:hover {
+  background: rgba(255, 59, 48, 0.08);
+  color: var(--danger);
+}
+
+body.sidebarCollapsed .sidebarUserInfo {
+  display: none;
+}
+
+body.sidebarCollapsed .sidebarUserCard {
+  flex-direction: column;
+  padding: 6px 0;
+  gap: 6px;
+}
+
+body.sidebarCollapsed .sidebarLogoutBtn {
+  width: 34px;
+  height: 34px;
+}
+
+/* ── Sidebar badge (ticket count) ── */
+.sidebarBadge {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(60, 60, 67, 0.08);
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.sidebarItem.active .sidebarBadge {
+  background: rgba(10, 107, 255, 0.15);
+  color: var(--brand);
+}
+
+body.sidebarCollapsed .sidebarBadge {
   display: none;
 }
 
@@ -780,11 +871,12 @@ button[type="submit"]:active {
 .sectionHeader {
   grid-template-columns: 1fr auto;
   align-items: center;
-  margin-bottom: 10px;
-  padding: 16px 20px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  margin-bottom: 12px;
+  padding: 4px 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* ── Status Bars ── */
@@ -1818,6 +1910,48 @@ body.sidebarCollapsed .ticketDetailOverlay {
 }
 .tabPanel[hidden] {
   display: none;
+}
+
+/* ── SLA Input Cards ── */
+.slaInputsGrid label {
+  display: grid;
+  gap: 6px;
+  padding: 20px 20px 16px;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  transition: border-color 0.13s;
+}
+
+.slaInputsGrid label:focus-within {
+  border-color: var(--brand);
+}
+
+.slaInputsGrid label input[type="number"] {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: var(--graphite);
+  letter-spacing: -0.03em;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  min-height: auto;
+  width: 100%;
+  box-shadow: none;
+  margin-top: 2px;
+}
+
+.slaInputsGrid label input[type="number"]:focus {
+  outline: none;
+  box-shadow: none;
+  border: none;
+  background: transparent;
 }
 
 /* ── SLA Settings ── */

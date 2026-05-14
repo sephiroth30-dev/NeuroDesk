@@ -220,6 +220,14 @@ const VIEW_TITLES = {
   admin: "Tickets",
 };
 
+const VIEW_EYEBROWS = {
+  overview: null,
+  create: null,
+  sla: "INDICADORES",
+  settings: "AJUSTES",
+  admin: "ADMINISTRACIÓN",
+};
+
 function updateTopbarDate() {
   const el = document.getElementById("topbarDate");
   if (!el) return;
@@ -241,6 +249,16 @@ function showView(name) {
 
   const topbarTitle = document.getElementById("topbarTitle");
   if (topbarTitle) topbarTitle.textContent = VIEW_TITLES[name] || "NeuroDesk";
+
+  const topbarDateEl = document.getElementById("topbarDate");
+  if (topbarDateEl) {
+    const eyebrow = VIEW_EYEBROWS[name];
+    if (eyebrow != null) {
+      topbarDateEl.textContent = eyebrow;
+    } else {
+      updateTopbarDate();
+    }
+  }
 
   if (name !== "overview") {
     selectedTickets.clear();
@@ -1958,6 +1976,12 @@ async function doRefresh() {
   renderTickets();
   renderVersion(version);
   renderStats(stats);
+
+  const badge = document.getElementById("sidebarTicketCount");
+  if (badge) {
+    const active = tickets.filter((t) => t.status !== "cerrado").length;
+    badge.textContent = active > 0 ? active : "";
+  }
   renderSlaReport();
 }
 
@@ -2202,6 +2226,8 @@ async function init() {
     const me = await requestJson("/api/auth/me");
     currentUser.textContent = me.username;
     currentUsername = me.username;
+    const avatarEl = document.getElementById("sidebarUserAvatar");
+    if (avatarEl) avatarEl.textContent = me.username.slice(0, 2).toUpperCase();
   } catch {
     window.location.replace("/login");
     return;

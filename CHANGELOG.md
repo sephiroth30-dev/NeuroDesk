@@ -19,6 +19,20 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [13.1] - 2026-05-13
+
+### Correcciones de consistencia visual (SERENE)
+
+- **Icono Tickets**: reemplazado el clipboard por ticket stub (rectángulo con hendiduras en los lados — estilo SF Symbols "ticket")
+- **Icono Configuración**: reemplazado la rueda dentada por sliders horizontales (SF Symbols "slider.horizontal.3") — alineado con el mockup
+- **Sidebar footer**: nuevo user card con avatar circular (iniciales), nombre de usuario, subtítulo "Equipo interno" y botón de logout compacto; comportamiento colapsado muestra solo avatar + logout
+- **Badge de tickets**: número de tickets activos (no cerrados) al lado de "Tickets" en el sidebar; se oculta en estado colapsado
+- **Topbar eyebrow dinámico**: ahora cambia por vista — Resumen muestra la fecha, Tickets muestra "ADMINISTRACIÓN", Indicadores muestra "INDICADORES", Configuración muestra "AJUSTES"
+- **Section headers**: eliminado el estilo de tarjeta (borde + sombra + fondo) en las vistas — headers transparentes y planos
+- **SLA config cards**: los inputs de horas en la pestaña "Tiempos SLA" se renderizan como tarjetas con el número grande editable en primer plano
+
+---
+
 ## [13.0] - 2026-05-13
 
 ### Rediseño visual completo — Tema Indigo iOS (SERENE)
