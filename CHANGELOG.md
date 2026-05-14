@@ -19,6 +19,15 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [13.8] - 2026-05-14
+
+### Hotfix: Indicadores aparecía en el Panel
+
+- **Bug crítico**: `#slaView { display: flex }` sobreescribía `.view { display: none }` por especificidad del selector ID — la vista de Indicadores quedaba siempre visible debajo del Panel
+- **Fix**: cambiado a `#slaView.active { display: flex }` para que el flex solo aplique cuando la vista está activa
+
+---
+
 ## [13.7] - 2026-05-14
 
 ### Indicadores — espaciado y compacidad del filtro

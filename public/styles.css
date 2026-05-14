@@ -549,7 +549,7 @@ button[type="submit"]:active {
 }
 
 /* Vista Indicadores: flex column con gap uniforme entre secciones */
-#slaView {
+#slaView.active {
   display: flex;
   flex-direction: column;
   gap: 16px;
