@@ -19,6 +19,17 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [13.7] - 2026-05-14
+
+### Indicadores — espaciado y compacidad del filtro
+
+- **`#slaView` gap uniforme**: el contenedor ahora usa `display: flex; flex-direction: column; gap: 16px` — todas las secciones (sectionHeader, filterPanel, slaMetricsCard, slaChartsCard, reportTable) se separan uniformemente sin gestionar márgenes individuales
+- **Padding interior aumentado**: `.slaMetricItem` y `.slaChartItem` pasan de `20px 24px` a `24px 28px` para dar más aire dentro de las cards
+- **Inputs del filtro compactos**: `.filterPanel input, .filterPanel select` reducidos a `min-height: 32px` (el global era 40px) — el panel de filtros ocupa menos vertical y se acerca al diseño SERENE
+- **Márgenes individuales eliminados**: se quitan `margin-bottom` de slaMetricsCard, slaChartsCard, filterPanel y `margin-top` de reportTable (el `gap` del flex container los reemplaza)
+
+---
+
 ## [13.6] - 2026-05-14
 
 ### Corrección jerarquía tipográfica — "Detalle filtrado"

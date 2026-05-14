@@ -548,6 +548,13 @@ button[type="submit"]:active {
   display: block;
 }
 
+/* Vista Indicadores: flex column con gap uniforme entre secciones */
+#slaView {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 /* ── Donut Hero ── */
 /* ── Stats Grid ── */
 .statsGrid {
@@ -817,12 +824,11 @@ button[type="submit"]:active {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  margin-bottom: 10px;
   overflow: hidden;
 }
 
 .slaMetricItem {
-  padding: 20px 24px;
+  padding: 24px 28px;
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
@@ -889,12 +895,11 @@ button[type="submit"]:active {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  margin-bottom: 10px;
   overflow: hidden;
 }
 
 .slaChartItem {
-  padding: 20px 24px;
+  padding: 24px 28px;
   border-right: 1px solid var(--line);
 }
 
@@ -982,13 +987,20 @@ button[type="submit"]:active {
 .filterPanel {
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 1fr));
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 10px 14px;
   padding: 16px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+}
+
+/* Inputs más compactos dentro del filtro — el global es 40px */
+.filterPanel input,
+.filterPanel select {
+  min-height: 32px;
+  padding: 5px 10px;
+  font-size: 0.82rem;
 }
 
 .filterPanel label {
@@ -1003,12 +1015,12 @@ button[type="submit"]:active {
 .sectionHeader {
   grid-template-columns: 1fr auto;
   align-items: center;
-  margin-bottom: 12px;
   padding: 4px 0;
   background: transparent;
   border: none;
   border-radius: 0;
   box-shadow: none;
+  /* margin-bottom gestionado por el gap del contenedor padre */
 }
 
 /* ── Status Bars ── */
@@ -1479,7 +1491,7 @@ tbody tr:last-child td {
 }
 
 .reportTable {
-  margin-top: 10px;
+  /* margin controlado por el gap del #slaView */
 }
 
 /* Jerarquía correcta: título grande, meta pequeño */
