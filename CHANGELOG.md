@@ -19,6 +19,19 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [13.4] - 2026-05-14
+
+### Panel — rediseño SERENE (Opción A)
+
+- **Stat cards**: color "Resueltos hoy" cambiado de verde a azul (acento); "SLA vencido" solo se colorea en rojo cuando hay tickets realmente vencidos (antes siempre era rojo aunque fuera 0)
+- **Kanban headers**: eliminados fondos de color por columna; ahora cada columna muestra un dot (●) del color del estado + texto neutro + conteo en gris
+- **Tablero de tickets**: título convertido de eyebrow uppercase a encabezado real (1rem/700)
+- **Controles del board**: "Tarjetas | Lista | Cerrados" unificados en un segmented control tipo pill; desaparece el dropdown "Estado" del header (la funcionalidad sigue vía click en stat cards)
+- **Tarjetas de ticket**: eliminados el checkbox de selección y el dropdown de estado; SLA cambiado de pill con fondo a dot + texto (verde/rojo); fecha del ticket en la esquina inferior derecha
+- **Filtro SLA vencido**: rojo dinámico (solo cuando `breached > 0`)
+
+---
+
 ## [13.3] - 2026-05-14
 
 ### Fix: sondeo IMAP en segundo plano — causas raíz resueltas

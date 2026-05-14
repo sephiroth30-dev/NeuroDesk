@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/tokens.css?v=13.0" />
-    <link rel="stylesheet" href="/styles.css?v=13.0" />
+    <link rel="stylesheet" href="/tokens.css?v=13.4" />
+    <link rel="stylesheet" href="/styles.css?v=13.4" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -218,7 +218,7 @@
             <p class="statCardSub">Abiertos o en progreso</p>
           </article>
           <article
-            class="statCard statCard--danger"
+            class="statCard"
             data-stat-filter="sla_vencido"
             role="button"
             tabindex="0"
@@ -302,12 +302,12 @@
 
         <section id="ticketBoard" class="ticketBoard" aria-label="Tablero de tickets">
           <div class="boardHeader">
-            <div class="panelHeader">
+            <div class="boardHeaderTitle">
               <h2>Tablero de tickets</h2>
-              <p>Seguimiento operativo por estado.</p>
+              <p>Seguimiento operativo por estado</p>
             </div>
             <div class="boardTools">
-              <label>
+              <label class="statusFilterLabel">
                 Estado
                 <select id="statusFilter">
                   <option value="todos">Todos</option>
@@ -319,19 +319,10 @@
                 </select>
               </label>
               <div class="viewToggle" aria-label="Modo de visualización">
-                <button class="toggleButton active" type="button" data-board-view="cards">
-                  Tarjetas
-                </button>
+                <button class="toggleButton active" type="button" data-board-view="cards">Tarjetas</button>
                 <button class="toggleButton" type="button" data-board-view="list">Lista</button>
+                <button id="toggleClosedBtn" class="toggleButton" type="button" title="Mostrar u ocultar tickets cerrados">Cerrados</button>
               </div>
-              <button
-                id="toggleClosedBtn"
-                class="ghostButton"
-                type="button"
-                title="Mostrar u ocultar tickets cerrados"
-              >
-                Cerrados
-              </button>
             </div>
           </div>
           <div id="kanbanBoard" class="kanbanBoard"></div>
@@ -1460,7 +1451,7 @@
       </div>
     </div>
 
-    <script src="/app.js?v=13.3" defer></script>
+    <script src="/app.js?v=13.4" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {

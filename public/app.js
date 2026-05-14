@@ -436,6 +436,10 @@ function renderStats(stats) {
   if (statBreachedCount) statBreachedCount.textContent = breached;
   if (statComplianceCount) statComplianceCount.textContent = `${compliance}%`;
 
+  // Color rojo en SLA vencido solo cuando hay tickets fuera de SLA
+  const slaCard = document.querySelector("[data-stat-filter='sla_vencido']");
+  if (slaCard) slaCard.classList.toggle("statCard--danger", breached > 0);
+
   if (statResolvedTodayCount) {
     const today = new Date().toDateString();
     const resolvedToday = cachedTickets.filter(
@@ -539,21 +543,20 @@ function renderKanban(tickets) {
 }
 
 function renderTicketCard(ticket) {
-  const slaText = ticket.sla.breached ? "SLA vencido" : `${ticket.sla.remainingHours}h SLA`;
+  const slaText = ticket.sla.breached ? "SLA vencido" : `SLA ${ticket.sla.remainingHours}h`;
   const createdAt = formatDate.format(new Date(ticket.createdAt));
   return `
     <article class="ticketCard urgency-${escapeHtml(ticket.urgency)}" draggable="true" data-ticket-id="${escapeHtml(ticket.id)}">
       <div class="ticketTitle">
-        <input type="checkbox" class="bulkCheckbox cardCheckbox" data-ticket-id="${escapeHtml(ticket.id)}" ${selectedTickets.has(ticket.id) ? "checked" : ""} aria-label="Seleccionar ${escapeHtml(ticket.id)}">
         <span>${escapeHtml(ticket.id)}</span>
         <span class="badge ${escapeHtml(ticket.urgency)}">${escapeHtml(ticket.urgency)}</span>
       </div>
       <p class="ticketName">${escapeHtml(ticket.name)}</p>
       ${ticket.subject ? `<p class="ticketSubject">${escapeHtml(ticket.subject)}</p>` : ""}
-      <p class="ticketMeta">${escapeHtml(ticket.contact)} · ${escapeHtml(ticket.area)} · ${createdAt}</p>
+      <p class="ticketMeta">${escapeHtml(ticket.contact)}</p>
       <div class="cardFooter">
-        <span class="sla ${ticket.sla.breached ? "breached" : ""}">${slaText}</span>
-        ${renderStatusSelect(ticket)}
+        <span class="sla ${ticket.sla.breached ? "breached" : ""}"><span class="slaDot"></span>${slaText}</span>
+        <span class="ticketDate">${createdAt}</span>
       </div>
     </article>
   `;
@@ -1849,7 +1852,6 @@ document.querySelector(".statsGrid")?.addEventListener("keydown", (e) => {
 const toggleClosedBtn = document.querySelector("#toggleClosedBtn");
 toggleClosedBtn?.addEventListener("click", () => {
   showClosedTickets = !showClosedTickets;
-  toggleClosedBtn.textContent = showClosedTickets ? "Ocultar cerrados" : "Cerrados";
   toggleClosedBtn.classList.toggle("active", showClosedTickets);
   selectedTickets.clear();
   updateBulkBar();
