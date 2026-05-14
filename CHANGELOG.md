@@ -19,6 +19,21 @@ A partir de v5.0 el esquema es `funcional.estetico` (se eliminó el cero inicial
 
 ---
 
+## [13.5] - 2026-05-14
+
+### Indicadores — rediseño SERENE
+
+- **Card de métricas unificada**: las 3 métricas (Cumplimiento, Tickets filtrados, Promedio restante) pasan de 3 tarjetas independientes con borde azul superior a una sola card horizontal con divisores internos
+- **Donut más pequeño** (96px): alineado horizontalmente con la etiqueta y descripción de Cumplimiento
+- **Promedio restante en azul** (acento): antes era gris/negro
+- **Card de gráficas unificada**: Estados SLA + Urgencia en una sola card con dos columnas (antes 2 cards separadas)
+- **Sin borde-top azul** en ninguna metricCard
+- **Subtitle limpio**: eliminado el título duplicado "Estadísticas SLA" del header de la vista (ya lo muestra el topbar)
+- **Botón Exportar PDF** restyled como `secondaryAction` (antes era `primaryAction`)
+- Responsive: en móvil las secciones apilan verticalmente con divisor horizontal
+
+---
+
 ## [13.4] - 2026-05-14
 
 ### Panel — rediseño SERENE (Opción A)

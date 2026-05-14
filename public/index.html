@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/tokens.css?v=13.4" />
-    <link rel="stylesheet" href="/styles.css?v=13.4" />
+    <link rel="stylesheet" href="/tokens.css?v=13.5" />
+    <link rel="stylesheet" href="/styles.css?v=13.5" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -408,11 +408,10 @@
       <section id="slaView" class="view" aria-label="Estadísticas SLA">
         <div class="sectionHeader">
           <div>
-            <h2>Estadísticas SLA</h2>
-            <p>Cumplimiento, vencidos y distribución.</p>
+            <p>Cumplimiento, vencidos y distribución del periodo seleccionado.</p>
           </div>
           <div class="sectionActions">
-            <button id="exportSlaButton" class="primaryAction" type="button">Exportar PDF</button>
+            <button id="exportSlaButton" class="secondaryAction" type="button">Exportar PDF</button>
             <button id="backToOverviewButton" class="ghostButton" type="button">Volver</button>
           </div>
         </div>
@@ -474,42 +473,46 @@
             <input id="slaSearchFilter" type="search" placeholder="Ticket, contacto o área" />
           </label>
         </section>
-        <section class="slaDetailGrid">
-          <article class="metricCard heroMetric">
-            <h2>Cumplimiento</h2>
+        <!-- Card unificada: 3 métricas -->
+        <div class="slaMetricsCard">
+          <div class="slaMetricItem slaMetricDonut">
             <div
-              class="donut large"
+              class="donut donutMd"
               id="slaDetailDonut"
               style="--value: 100; --donut-color: var(--donut-ok)"
             >
               <span id="slaDetailCompliance">100%</span>
             </div>
-          </article>
-          <article class="metricCard">
-            <h2>Tickets filtrados</h2>
-            <strong id="slaFilteredCount">0</strong>
-            <p>Resultado del filtro aplicado.</p>
-          </article>
-          <article class="metricCard">
-            <h2>Promedio restante</h2>
-            <strong id="metricRemaining">0h</strong>
-            <p>Tiempo promedio antes de vencer.</p>
-          </article>
-          <article class="chartPanel">
-            <div class="panelHeader">
-              <h2>Estados SLA</h2>
-              <p>Tickets activos vs resueltos.</p>
+            <div>
+              <p class="slaMetricLabel">Cumplimiento</p>
+              <p class="slaMetricDesc">Tickets dentro del objetivo en el periodo seleccionado.</p>
             </div>
+          </div>
+          <div class="slaMetricItem">
+            <p class="slaMetricLabel">Tickets filtrados</p>
+            <strong id="slaFilteredCount" class="slaMetricValue">0</strong>
+            <p class="slaMetricDesc">Resultado del filtro aplicado</p>
+          </div>
+          <div class="slaMetricItem">
+            <p class="slaMetricLabel">Promedio restante</p>
+            <strong id="metricRemaining" class="slaMetricValue slaMetricValueAccent">0h</strong>
+            <p class="slaMetricDesc">Tiempo medio antes de vencer SLA</p>
+          </div>
+        </div>
+
+        <!-- Card unificada: gráficas -->
+        <div class="slaChartsCard">
+          <div class="slaChartItem">
+            <h3 class="slaChartTitle">Estados SLA</h3>
+            <p class="slaChartSub">Activos vs resueltos</p>
             <div id="slaStatusBars" class="statusBars"></div>
-          </article>
-          <article class="chartPanel">
-            <div class="panelHeader">
-              <h2>Urgencia</h2>
-              <p>Impacto potencial sobre SLA.</p>
-            </div>
+          </div>
+          <div class="slaChartItem">
+            <h3 class="slaChartTitle">Urgencia</h3>
+            <p class="slaChartSub">Impacto potencial sobre SLA</p>
             <div id="slaUrgencyBars" class="statusBars"></div>
-          </article>
-        </section>
+          </div>
+        </div>
         <section class="chartPanel reportTable">
           <div class="panelHeader">
             <h2>Detalle filtrado</h2>

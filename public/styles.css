@@ -810,11 +810,109 @@ button[type="submit"]:active {
 }
 
 /* ── SLA Detail View ── */
-.slaDetailGrid {
+/* ── Métricas SLA — card unificada ── */
+.slaMetricsCard {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: auto 1fr 1fr;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.slaMetricItem {
+  padding: 20px 24px;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.slaMetricItem:last-child {
+  border-right: none;
+}
+
+.slaMetricItem.slaMetricDonut {
+  flex-direction: row;
+  align-items: center;
+  gap: 18px;
+}
+
+.slaMetricLabel {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 6px;
+}
+
+.slaMetricValue {
+  display: block;
+  font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--graphite);
+  line-height: 1.1;
+  margin: 2px 0 4px;
+}
+
+.slaMetricValueAccent {
+  color: var(--brand);
+}
+
+.slaMetricDesc {
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Donut tamaño medio para la métrica de cumplimiento */
+.donut.donutMd {
+  width: 96px;
+  flex-shrink: 0;
+}
+.donut.donutMd::after {
+  inset: 13px;
+}
+.donut.donutMd span {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+/* ── Gráficas SLA — card unificada ── */
+.slaChartsCard {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.slaChartItem {
+  padding: 20px 24px;
+  border-right: 1px solid var(--line);
+}
+
+.slaChartItem:last-child {
+  border-right: none;
+}
+
+.slaChartTitle {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--graphite);
+  margin: 0 0 2px;
+}
+
+.slaChartSub {
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin: 0 0 14px;
 }
 
 .metricCard,
@@ -826,7 +924,6 @@ button[type="submit"]:active {
 
 .metricCard {
   min-height: 100px;
-  border-top: 3px solid var(--brand);
   transition: box-shadow 0.18s;
 }
 
@@ -1434,11 +1531,11 @@ tbody tr:last-child td {
 
 /* ── Responsive ── */
 @media (max-width: 1080px) {
-  .slaDetailGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .slaMetricsCard {
+    grid-template-columns: 1fr 1fr;
   }
-  .heroMetric {
-    grid-template-columns: 1fr;
+  .slaMetricItem.slaMetricDonut {
+    grid-column: 1 / -1;
   }
 }
 
@@ -1603,9 +1700,21 @@ tbody tr:last-child td {
     white-space: normal;
   }
 
-  .slaDetailGrid,
+  .slaMetricsCard,
+  .slaChartsCard,
   .filterPanel {
     grid-template-columns: 1fr;
+  }
+
+  .slaMetricItem,
+  .slaChartItem {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .slaMetricItem:last-child,
+  .slaChartItem:last-child {
+    border-bottom: none;
   }
 
   .kanbanBoard {
