@@ -103,6 +103,7 @@ function statement(sql) {
         description,
         resolution,
         customFields,
+        attachments,
         sortOrder,
         createdAt
       ) => {
@@ -118,6 +119,7 @@ function statement(sql) {
           description,
           resolution,
           customFields,
+          attachments,
           sortOrder,
           createdAt,
         });
