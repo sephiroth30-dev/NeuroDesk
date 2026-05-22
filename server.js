@@ -104,6 +104,7 @@ function statement(sql) {
         resolution,
         customFields,
         attachments,
+        workedHours,
         sortOrder,
         createdAt
       ) => {
@@ -120,6 +121,7 @@ function statement(sql) {
           resolution,
           customFields,
           attachments,
+          workedHours,
           sortOrder,
           createdAt,
         });
@@ -151,6 +153,7 @@ function statement(sql) {
         description,
         resolution,
         customFields,
+        workedHours,
         id
       ) => {
         const ticket = store.tickets.find((t) => t.id === id);
@@ -165,6 +168,7 @@ function statement(sql) {
           description,
           resolution,
           customFields,
+          workedHours,
         });
         saveStore();
         return { changes: 1 };
@@ -358,6 +362,7 @@ const db = {
   if (!cols.includes("custom_fields")) db.exec("ALTER TABLE tickets ADD COLUMN custom_fields TEXT");
   if (!cols.includes("sort_order")) db.exec("ALTER TABLE tickets ADD COLUMN sort_order REAL");
   if (!cols.includes("attachments")) db.exec("ALTER TABLE tickets ADD COLUMN attachments TEXT DEFAULT '[]'");
+  if (!cols.includes("worked_hours")) db.exec("ALTER TABLE tickets ADD COLUMN worked_hours REAL");
   db.exec(
     "UPDATE tickets SET sort_order = strftime('%s', created_at) * -1 WHERE sort_order IS NULL"
   );
@@ -532,17 +537,17 @@ const contentTypes = {
 
 const countTicketsStmt = db.prepare("SELECT COUNT(*) AS total FROM tickets");
 const listTicketsStmt = db.prepare(
-  `SELECT id, name, contact, area, urgency, status, source, subject, description, resolution, custom_fields AS customFields, attachments, sort_order AS sortOrder, created_at AS createdAt FROM tickets ORDER BY sort_order ASC, created_at DESC`
+  `SELECT id, name, contact, area, urgency, status, source, subject, description, resolution, custom_fields AS customFields, attachments, worked_hours AS workedHours, sort_order AS sortOrder, created_at AS createdAt FROM tickets ORDER BY sort_order ASC, created_at DESC`
 );
 const nextTicketNumberStmt = db.prepare(
   `SELECT COALESCE(MAX(CAST(SUBSTR(id, 4) AS INTEGER)), 1000) + 1 AS nextNumber FROM tickets WHERE id LIKE 'ND-%'`
 );
 const insertTicketStmt = db.prepare(
-  `INSERT INTO tickets (id, name, contact, area, urgency, status, source, subject, description, resolution, custom_fields, attachments, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  `INSERT INTO tickets (id, name, contact, area, urgency, status, source, subject, description, resolution, custom_fields, attachments, worked_hours, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 );
 const updateTicketStatusStmt = db.prepare("UPDATE tickets SET status = ? WHERE id = ?");
 const updateTicketFullStmt = db.prepare(
-  `UPDATE tickets SET name = ?, contact = ?, area = ?, urgency = ?, status = ?, subject = ?, description = ?, resolution = ?, custom_fields = ? WHERE id = ?`
+  `UPDATE tickets SET name = ?, contact = ?, area = ?, urgency = ?, status = ?, subject = ?, description = ?, resolution = ?, custom_fields = ?, worked_hours = ? WHERE id = ?`
 );
 const updateTicketPositionStmt = db.prepare(
   "UPDATE tickets SET status = ?, sort_order = ? WHERE id = ?"
@@ -869,6 +874,7 @@ function insertTicket(ticket) {
     ticket.resolution || "",
     JSON.stringify(ticket.customFields || {}),
     JSON.stringify(ticket.attachments || []),
+    ticket.workedHours ?? null,
     Date.now() * -1,
     ticket.createdAt
   );
@@ -954,6 +960,10 @@ function updateTicketFull(id, data) {
   const resolutionNote = String(data.resolutionNote || "")
     .trim()
     .slice(0, 4000);
+  const workedHours =
+    data.workedHours !== undefined && data.workedHours !== "" && data.workedHours !== null
+      ? Math.max(0, parseFloat(data.workedHours) || 0) || null
+      : null;
   const customFields = normalizeCustomFields(data.customFields || data.custom_fields || {});
 
   if (!name || !appConfig.sla[urgency] || !ticketStatuses.includes(status)) return null;
@@ -971,6 +981,7 @@ function updateTicketFull(id, data) {
     description,
     resolution,
     JSON.stringify(customFields),
+    workedHours,
     id
   );
   if (result.changes === 0) return null;

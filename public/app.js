@@ -67,6 +67,7 @@ const detailStatus = document.querySelector("#detailStatus");
 const detailUrgency = document.querySelector("#detailUrgency");
 const detailArea = document.querySelector("#detailArea");
 const detailResolution = document.querySelector("#detailResolution");
+const detailWorkedHours = document.querySelector("#detailWorkedHours");
 const detailMessage = document.querySelector("#detailMessage");
 const detailCustomFields = document.querySelector("#detailCustomFields");
 const detailHistory = document.querySelector("#detailHistory");
@@ -749,7 +750,7 @@ function downloadCsv() {
     return;
   }
 
-  const headers = ["ID", "Nombre", "Contacto", "Área", "Urgencia", "Estado", "Fuente", "Creado"];
+  const headers = ["ID", "Nombre", "Contacto", "Área", "Urgencia", "Estado", "Fuente", "Horas trabajadas", "Creado"];
   const rows = filtered.map((t) => [
     t.id,
     t.name,
@@ -758,6 +759,7 @@ function downloadCsv() {
     t.urgency,
     t.status,
     t.source,
+    t.workedHours ?? "",
     t.createdAt,
   ]);
   const csv = [headers, ...rows]
@@ -1004,6 +1006,7 @@ function openTicketDetail(ticket) {
     .join("");
   detailArea.value = ticket.area || "";
   detailResolution.value = "";
+  detailWorkedHours.value = ticket.workedHours != null ? ticket.workedHours : "";
   detailMessage.textContent = "";
   renderTicketHistory(ticket);
   renderCustomFieldInputs(ticket);
@@ -1057,6 +1060,7 @@ function collectDetailPayload(statusOverride) {
     status: statusOverride || detailStatus.value,
     resolution: "",
     resolutionNote: detailResolution.value.trim(),
+    workedHours: detailWorkedHours.value !== "" ? parseFloat(detailWorkedHours.value) : null,
     customFields,
   };
 }
