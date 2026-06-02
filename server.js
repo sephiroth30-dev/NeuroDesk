@@ -101,6 +101,7 @@ function statement(sql) {
         source,
         subject,
         description,
+        htmlBody,
         resolution,
         customFields,
         attachments,
@@ -118,6 +119,7 @@ function statement(sql) {
           source,
           subject,
           description,
+          htmlBody,
           resolution,
           customFields,
           attachments,
@@ -543,7 +545,7 @@ const nextTicketNumberStmt = db.prepare(
   `SELECT COALESCE(MAX(CAST(SUBSTR(id, 4) AS INTEGER)), 1000) + 1 AS nextNumber FROM tickets WHERE id LIKE 'ND-%'`
 );
 const insertTicketStmt = db.prepare(
-  `INSERT INTO tickets (id, name, contact, area, urgency, status, source, subject, description, resolution, custom_fields, attachments, worked_hours, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  `INSERT INTO tickets (id, name, contact, area, urgency, status, source, subject, description, html_body, resolution, custom_fields, attachments, worked_hours, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 );
 const updateTicketStatusStmt = db.prepare("UPDATE tickets SET status = ? WHERE id = ?");
 const updateTicketFullStmt = db.prepare(
@@ -794,6 +796,7 @@ function normalizeTicket(input, source = "web") {
   const description = String(input.description || "")
     .trim()
     .slice(0, 4000);
+  const htmlBody = String(input.htmlBody || "").slice(0, 200000);
   const customFields = normalizeCustomFields(input.customFields || input.custom_fields || {});
 
   if (!name || !appConfig.sla[urgency]) return null;
@@ -808,6 +811,7 @@ function normalizeTicket(input, source = "web") {
     source,
     subject,
     description,
+    htmlBody,
     resolution: "",
     customFields,
     createdAt: new Date().toISOString(),
@@ -871,6 +875,7 @@ function insertTicket(ticket) {
     ticket.source,
     ticket.subject || "",
     ticket.description || "",
+    ticket.htmlBody || "",
     ticket.resolution || "",
     JSON.stringify(ticket.customFields || {}),
     JSON.stringify(ticket.attachments || []),
@@ -1445,6 +1450,7 @@ async function pollEmails(options = {}) {
               urgency,
               subject,
               description: bodyText,
+              htmlBody: parsed.html || "",
             },
             "email"
           );

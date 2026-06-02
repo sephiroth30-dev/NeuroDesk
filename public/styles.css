@@ -1915,11 +1915,28 @@ body.sidebarCollapsed .ticketDetailOverlay {
 }
 
 .detailDescription {
-  white-space: pre-wrap;
   color: #334155;
   line-height: 1.6;
   padding-bottom: 22px;
   border-bottom: 1px solid var(--line);
+}
+
+.emailPlainText {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: inherit;
+  margin: 0;
+  color: #334155;
+  line-height: 1.6;
+}
+
+.emailHtmlFrame {
+  width: 100%;
+  min-height: 120px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: #fff;
+  display: block;
 }
 
 .detailAttachments {

@@ -964,11 +964,50 @@ document.addEventListener("click", (e) => {
   if (ticket) openEditModal(ticket);
 });
 
+function renderTicketBody(container, ticket) {
+  container.innerHTML = "";
+  if (ticket.htmlBody) {
+    const iframe = document.createElement("iframe");
+    iframe.className = "emailHtmlFrame";
+    iframe.setAttribute("sandbox", "allow-same-origin");
+    iframe.setAttribute("title", "Contenido del correo");
+    container.appendChild(iframe);
+    // Write after appending so the document is accessible
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head>
+<meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 14px; color: #222; margin: 12px; word-break: break-word; }
+  img { max-width: 100%; height: auto; }
+  a { color: #2563eb; }
+  table { border-collapse: collapse; max-width: 100%; }
+  td, th { padding: 4px 8px; }
+</style>
+</head><body>${ticket.htmlBody}</body></html>`);
+    doc.close();
+    // Auto-resize iframe to content height
+    iframe.addEventListener("load", () => {
+      try {
+        iframe.style.height = iframe.contentDocument.body.scrollHeight + 32 + "px";
+      } catch (_) {}
+    });
+    try {
+      iframe.style.height = doc.body.scrollHeight + 32 + "px";
+    } catch (_) {}
+  } else {
+    const pre = document.createElement("pre");
+    pre.className = "emailPlainText";
+    pre.textContent = ticket.description || "Sin descripcion registrada.";
+    container.appendChild(pre);
+  }
+}
+
 function openTicketDetail(ticket) {
   activeTicketId = ticket.id;
   ticketDetailId.textContent = ticket.id;
   detailSubject.textContent = ticket.subject || "(sin asunto)";
-  detailDescription.textContent = ticket.description || "Sin descripcion registrada.";
+  renderTicketBody(detailDescription, ticket);
   const attachEl = document.querySelector("#detailAttachments");
   if (attachEl) {
     const imgs = Array.isArray(ticket.attachments) ? ticket.attachments.filter((a) => a.file) : [];
