@@ -77,8 +77,6 @@ const closeTicketDetailStatus = document.querySelector("#closeTicketDetailStatus
 const detailDeleteButton = document.querySelector("#detailDeleteButton");
 const detailAssignedTo = document.querySelector("#detailAssignedTo");
 const sendReplyBtn = document.querySelector("#sendReplyBtn");
-const replyMessage = document.querySelector("#replyMessage");
-const replyStatusEl = document.querySelector("#replyStatus");
 const boardSearch = document.querySelector("#boardSearch");
 const boardAreaFilter = document.querySelector("#boardAreaFilter");
 const boardDateFrom = document.querySelector("#boardDateFrom");
@@ -1082,11 +1080,8 @@ function openTicketDetail(ticket) {
     if (agentsList) agentsList.innerHTML = agents.map((a) => `<option value="${escapeHtml(a)}">`).join("");
     detailAssignedTo.value = ticket.assignedTo || "";
   }
-  if (replyMessage) replyMessage.value = "";
-  if (replyStatusEl) replyStatusEl.textContent = "";
-  // Only show reply box for email-sourced tickets with a contact
-  const replyBox = document.getElementById("replyBox");
-  if (replyBox) replyBox.hidden = !(ticket.source === "email" && ticket.contact);
+  // Show "Enviar al cliente" only for email-sourced tickets with a contact address
+  if (sendReplyBtn) sendReplyBtn.hidden = !(ticket.source === "email" && ticket.contact);
   renderTicketHistory(ticket);
   renderCustomFieldInputs(ticket);
   showDetailView();
@@ -1136,14 +1131,10 @@ function renderTicketHistory(ticket) {
   detailHistory.scrollTop = detailHistory.scrollHeight;
 }
 
-function renderAttachments(ticket) {
-  const attachEl = document.querySelector("#detailAttachments");
-  if (!attachEl) return;
-  const atts = Array.isArray(ticket.attachments) ? ticket.attachments.filter((a) => a.file) : [];
-  if (atts.length === 0) { attachEl.hidden = true; return; }
+function buildAttachFigures(atts, ticketId) {
   const IMAGE_TYPES = /^image\//;
-  attachEl.innerHTML = atts.map((a) => {
-    const url = `/api/tickets/${encodeURIComponent(ticket.id)}/attachments/${encodeURIComponent(a.file)}`;
+  return atts.map((a) => {
+    const url = `/api/tickets/${encodeURIComponent(ticketId)}/attachments/${encodeURIComponent(a.file)}`;
     const isImage = IMAGE_TYPES.test(a.type || "");
     const isPdf = (a.type || "").includes("pdf");
     const icon = isPdf
@@ -1163,7 +1154,25 @@ function renderAttachments(ticket) {
       </figcaption>
     </figure>`;
   }).join("");
-  attachEl.hidden = false;
+}
+
+function renderAttachments(ticket) {
+  const allAtts = Array.isArray(ticket.attachments) ? ticket.attachments.filter((a) => a.file) : [];
+  // Client attachments (from email) go at top; agent-uploaded go near resolutionBox
+  const clientAtts = allAtts.filter((a) => a.source !== "agent");
+  const agentAtts  = allAtts.filter((a) => a.source === "agent");
+
+  const clientEl = document.querySelector("#detailAttachments");
+  if (clientEl) {
+    clientEl.innerHTML = buildAttachFigures(clientAtts, ticket.id);
+    clientEl.hidden = clientAtts.length === 0;
+  }
+
+  const agentEl = document.querySelector("#agentAttachments");
+  if (agentEl) {
+    agentEl.innerHTML = agentAtts.length > 0 ? buildAttachFigures(agentAtts, ticket.id) : "";
+    agentEl.hidden = agentAtts.length === 0;
+  }
 }
 
 function collectDetailPayload(statusOverride) {
@@ -1293,23 +1302,26 @@ saveTicketDetail.addEventListener("click", () =>
 );
 
 sendReplyBtn?.addEventListener("click", async () => {
-  if (!activeTicketId || !replyMessage) return;
-  const message = replyMessage.value.trim();
-  if (!message) { if (replyStatusEl) replyStatusEl.textContent = "Escribe un mensaje antes de enviar."; return; }
+  if (!activeTicketId) return;
+  const textarea = document.querySelector("#detailResolution");
+  const msgEl = document.querySelector("#detailMessage");
+  const message = textarea?.value.trim();
+  if (!message) { if (msgEl) msgEl.textContent = "Escribe el mensaje antes de enviarlo al cliente."; textarea?.focus(); return; }
   sendReplyBtn.disabled = true;
-  if (replyStatusEl) replyStatusEl.textContent = "Enviando…";
+  if (msgEl) msgEl.textContent = "Enviando…";
   try {
     await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}/reply`, {
       method: "POST",
       body: JSON.stringify({ message }),
     });
-    replyMessage.value = "";
-    if (replyStatusEl) { replyStatusEl.textContent = "Respuesta enviada correctamente."; replyStatusEl.style.color = "var(--ok)"; }
+    if (textarea) textarea.value = "";
+    if (msgEl) { msgEl.textContent = "Respuesta enviada al cliente."; msgEl.style.color = "var(--ok)"; }
+    setTimeout(() => { if (msgEl) { msgEl.textContent = ""; msgEl.style.color = ""; } }, 4000);
     await refresh();
     const updated = cachedTickets.find((t) => t.id === activeTicketId);
     if (updated) renderTicketHistory(updated);
   } catch (err) {
-    if (replyStatusEl) { replyStatusEl.textContent = err.message; replyStatusEl.style.color = ""; }
+    if (msgEl) { msgEl.textContent = err.message; msgEl.style.color = ""; }
   } finally {
     sendReplyBtn.disabled = false;
   }
@@ -1380,8 +1392,9 @@ document.addEventListener("paste", async (e) => {
   if (file) await uploadFile(file);
 });
 
-// Delete attachment
-document.querySelector("#detailAttachments")?.addEventListener("click", async (e) => {
+// Delete attachment (client or agent section)
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("#detailAttachments") && !e.target.closest("#agentAttachments")) return;
   const btn = e.target.closest(".attachDelete");
   if (!btn || !activeTicketId) return;
   if (!confirm("¿Eliminar este adjunto?")) return;

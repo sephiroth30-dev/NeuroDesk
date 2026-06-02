@@ -1201,33 +1201,15 @@ button[type="submit"]:active {
   background: var(--line);
 }
 
-.replyBox {
-  border-top: 1px solid var(--line);
-  padding: 20px 0 0;
-  margin: 16px 0;
-}
-
-.replyBoxTitle {
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-  margin: 0 0 10px;
-}
-
-.replyBox textarea {
-  width: 100%;
-  min-height: 90px;
-  resize: vertical;
-  font-size: 0.875rem;
-}
-
-.replyBoxActions {
+.agentAttachments {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 10px;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
 }
 
 label {

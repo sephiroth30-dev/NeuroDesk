@@ -1373,16 +1373,6 @@
             <h3 id="detailSubject"></h3>
             <div id="detailDescription" class="detailDescription"></div>
             <div id="detailAttachments" class="detailAttachments" hidden></div>
-            <input type="file" id="attachFileInput" style="display:none" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.bmp" multiple>
-            <div class="replyBox" id="replyBox" hidden>
-              <h4 class="replyBoxTitle">Responder al solicitante</h4>
-              <textarea id="replyMessage" rows="4" placeholder="Escribe tu respuesta al correo del cliente…"></textarea>
-              <div class="replyBoxActions">
-                <button id="sendReplyBtn" class="primaryAction" type="button">Enviar respuesta</button>
-                <p id="replyStatus" class="message"></p>
-              </div>
-            </div>
-
             <section class="ticketHistoryPanel" aria-label="Historial del ticket">
               <div id="detailHistory" class="ticketHistory"></div>
             </section>
@@ -1401,12 +1391,15 @@
                 rows="4"
                 placeholder="Describe la gestión realizada, un avance o la nota de cierre…"
               ></textarea>
+              <div id="agentAttachments" class="agentAttachments" hidden></div>
               <div class="resolutionActions">
-                <button id="saveQuickNote" class="primaryAction" type="button">+ Nota rápida</button>
+                <button id="saveQuickNote" class="primaryAction" type="button" title="Guarda una nota interna visible solo en el historial. No notifica al cliente.">+ Nota rápida</button>
+                <button id="sendReplyBtn" class="primaryAction" type="button" title="Envía el texto al correo del cliente que abrió este ticket." hidden>Enviar al cliente</button>
                 <p id="detailMessage" class="message"></p>
                 <span id="uploadStatus" class="attachStatus"></span>
               </div>
             </div>
+            <input type="file" id="attachFileInput" style="display:none" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.bmp" multiple>
           </section>
           <aside class="ticketProperties">
             <div class="propertyAvatar" id="detailAvatar">N</div>

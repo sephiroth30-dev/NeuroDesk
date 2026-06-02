@@ -1962,7 +1962,7 @@ async function handleApi(req, res) {
       const buffer = Buffer.from(b64, "base64");
       if (buffer.length > 8_000_000) { sendJson(res, 400, { error: "Archivo muy grande (máx 8 MB)." }); return; }
       fs.writeFileSync(path.join(ticketAttachDir, safeName), buffer);
-      const newAtt = { name: origName, file: safeName, type: mimeType || "application/octet-stream" };
+      const newAtt = { name: origName, file: safeName, type: mimeType || "application/octet-stream", source: "agent" };
       let attachments = [];
       try { attachments = rawTicket.attachments ? JSON.parse(rawTicket.attachments) : []; } catch (_) {}
       if (!Array.isArray(attachments)) attachments = [];
