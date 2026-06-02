@@ -1951,8 +1951,10 @@ async function handleApi(req, res) {
       const body = await readBody(req, 12_000_000); // 12 MB max (base64 overhead)
       const { name: origName, type: mimeType, data: b64 } = body;
       if (!origName || !b64) { sendJson(res, 400, { error: "Nombre y datos requeridos." }); return; }
-      const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp)|application\/(pdf|msword|vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|spreadsheetml\.sheet))|text\/plain)$/;
-      if (mimeType && !ALLOWED_MIME.test(mimeType)) { sendJson(res, 400, { error: "Tipo de archivo no permitido." }); return; }
+      const BLOCKED_MIME = /^(text\/html|application\/(javascript|x-sh|x-bash|x-php)|image\/svg\+xml)$/;
+      if (mimeType && BLOCKED_MIME.test(mimeType)) { sendJson(res, 400, { error: "Tipo de archivo no permitido." }); return; }
+      const ALLOWED_EXT = /\.(jpe?g|png|gif|webp|bmp|tiff?|pdf|docx?|xlsx?|txt|csv)$/i;
+      if (!ALLOWED_EXT.test(path.extname(origName))) { sendJson(res, 400, { error: "Extensión no permitida." }); return; }
       const ext = path.extname(origName).toLowerCase() || ".bin";
       const safeName = `${crypto.randomUUID()}${ext}`;
       const ticketAttachDir = path.join(ATTACH_DIR, id);

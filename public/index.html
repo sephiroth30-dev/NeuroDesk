@@ -1373,14 +1373,13 @@
             <h3 id="detailSubject"></h3>
             <div id="detailDescription" class="detailDescription"></div>
             <div id="detailAttachments" class="detailAttachments" hidden></div>
-            <div class="uploadZone" id="uploadZone">
-              <input type="file" id="attachFileInput" class="uploadFileInput" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple>
-              <label for="attachFileInput" class="uploadZoneLabel">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                <span>Adjuntar archivo</span>
-                <small>Imágenes, PDF, Word, Excel · máx 8 MB</small>
+            <div class="attachBar" id="attachBar">
+              <input type="file" id="attachFileInput" class="attachFileInputHidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.bmp" multiple>
+              <label for="attachFileInput" class="attachClipBtn" title="Adjuntar archivo (también puedes pegar con Ctrl+V)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                Adjuntar
               </label>
-              <p id="uploadStatus" class="uploadStatus"></p>
+              <span id="uploadStatus" class="attachStatus"></span>
             </div>
             <div class="replyBox" id="replyBox" hidden>
               <h4 class="replyBoxTitle">Responder al solicitante</h4>

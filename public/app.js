@@ -1318,25 +1318,36 @@ sendReplyBtn?.addEventListener("click", async () => {
 });
 // ── File upload ───────────────────────────────────────────────────────────────
 
+function setUploadStatus(msg, ok = null) {
+  if (!uploadStatus) return;
+  uploadStatus.textContent = msg;
+  uploadStatus.className = "attachStatus" + (ok === true ? " attachStatus--ok" : ok === false ? " attachStatus--err" : "");
+  if (msg) setTimeout(() => { if (uploadStatus.textContent === msg) uploadStatus.textContent = ""; }, 4000);
+}
+
 async function uploadFile(file) {
   if (!activeTicketId) return;
-  if (file.size > 8_000_000) { if (uploadStatus) uploadStatus.textContent = `${file.name}: excede 8 MB`; return; }
-  if (uploadStatus) { uploadStatus.textContent = `Subiendo ${file.name}…`; uploadStatus.style.color = ""; }
+  if (file.size > 8_000_000) { setUploadStatus(`${file.name} excede 8 MB`, false); return; }
+  setUploadStatus(`Subiendo ${file.name}…`);
   return new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onload = async (e) => {
-      const b64 = e.target.result.split(",")[1];
+    reader.onerror = () => { setUploadStatus("No se pudo leer el archivo.", false); resolve(); };
+    reader.onload = async (ev) => {
+      const result = ev.target.result;
+      const b64 = result.includes(",") ? result.split(",")[1] : result;
+      // Derive name for clipboard pastes that arrive without a real filename
+      const name = file.name && file.name !== "image.png" ? file.name
+        : `captura-${new Date().toISOString().slice(0,19).replace(/[:T]/g,"-")}.png`;
       try {
         await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}/attachments`, {
           method: "POST",
-          body: JSON.stringify({ name: file.name, type: file.type, data: b64 }),
+          body: JSON.stringify({ name, type: file.type || "image/png", data: b64 }),
         });
-        if (uploadStatus) { uploadStatus.textContent = `${file.name} adjuntado.`; uploadStatus.style.color = "var(--ok)"; }
-        await refresh();
-        const updated = cachedTickets.find((t) => t.id === activeTicketId);
-        if (updated) renderAttachments(updated);
+        setUploadStatus(`✓ ${name} adjuntado`, true);
+        const updated = (await requestJson("/api/tickets")).find((t) => t.id === activeTicketId);
+        if (updated) { Object.assign(cachedTickets.find((t) => t.id === activeTicketId) || {}, updated); renderAttachments(updated); }
       } catch (err) {
-        if (uploadStatus) { uploadStatus.textContent = `Error: ${err.message}`; uploadStatus.style.color = ""; }
+        setUploadStatus(`Error: ${err.message}`, false);
       }
       resolve();
     };
@@ -1349,12 +1360,26 @@ attachFileInput?.addEventListener("change", async (e) => {
   attachFileInput.value = "";
 });
 
-// Drag & drop on upload zone
-document.querySelector("#uploadZone")?.addEventListener("dragover", (e) => { e.preventDefault(); e.currentTarget.classList.add("dragover"); });
-document.querySelector("#uploadZone")?.addEventListener("dragleave", (e) => e.currentTarget.classList.remove("dragover"));
-document.querySelector("#uploadZone")?.addEventListener("drop", async (e) => {
-  e.preventDefault(); e.currentTarget.classList.remove("dragover");
+// Drag & drop onto the conversation area
+const ticketConversation = document.querySelector(".ticketConversation");
+ticketConversation?.addEventListener("dragover", (e) => { e.preventDefault(); ticketConversation.classList.add("dropTarget"); });
+ticketConversation?.addEventListener("dragleave", () => ticketConversation.classList.remove("dropTarget"));
+ticketConversation?.addEventListener("drop", async (e) => {
+  e.preventDefault(); ticketConversation.classList.remove("dropTarget");
+  if (!activeTicketId) return;
   for (const file of Array.from(e.dataTransfer.files || [])) await uploadFile(file);
+});
+
+// Paste from clipboard (Ctrl+V / screenshot)
+document.addEventListener("paste", async (e) => {
+  if (!activeTicketId) return;
+  if (!ticketDetailModal || ticketDetailModal.hidden) return;
+  const items = Array.from(e.clipboardData?.items || []);
+  const imageItem = items.find((i) => i.kind === "file" && i.type.startsWith("image/"));
+  if (!imageItem) return;
+  e.preventDefault();
+  const file = imageItem.getAsFile();
+  if (file) await uploadFile(file);
 });
 
 // Delete attachment
