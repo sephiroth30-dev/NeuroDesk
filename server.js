@@ -677,12 +677,12 @@ function serveFile(res, filename) {
   });
 }
 
-function readBody(req) {
+function readBody(req, maxBytes = 1_000_000) {
   return new Promise((resolve, reject) => {
     let body = "";
     req.on("data", (chunk) => {
       body += chunk;
-      if (body.length > 1_000_000) {
+      if (body.length > maxBytes) {
         req.destroy();
         reject(new Error("Payload too large"));
       }
@@ -1942,7 +1942,76 @@ async function handleApi(req, res) {
     return;
   }
 
-  // GET /api/tickets/:id/attachments/:filename — serve image attachments
+  // POST /api/tickets/:id/attachments — upload file (base64 JSON)
+  if (req.method === "POST" && /^\/api\/tickets\/[^/]+\/attachments$/.test(req.url)) {
+    try {
+      const id = decodeURIComponent(req.url.split("/")[3] || "");
+      const rawTicket = store.tickets.find((t) => t.id === id);
+      if (!rawTicket) { sendJson(res, 404, { error: "Ticket no encontrado." }); return; }
+      const body = await readBody(req, 12_000_000); // 12 MB max (base64 overhead)
+      const { name: origName, type: mimeType, data: b64 } = body;
+      if (!origName || !b64) { sendJson(res, 400, { error: "Nombre y datos requeridos." }); return; }
+      const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp)|application\/(pdf|msword|vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|spreadsheetml\.sheet))|text\/plain)$/;
+      if (mimeType && !ALLOWED_MIME.test(mimeType)) { sendJson(res, 400, { error: "Tipo de archivo no permitido." }); return; }
+      const ext = path.extname(origName).toLowerCase() || ".bin";
+      const safeName = `${crypto.randomUUID()}${ext}`;
+      const ticketAttachDir = path.join(ATTACH_DIR, id);
+      fs.mkdirSync(ticketAttachDir, { recursive: true });
+      const buffer = Buffer.from(b64, "base64");
+      if (buffer.length > 8_000_000) { sendJson(res, 400, { error: "Archivo muy grande (máx 8 MB)." }); return; }
+      fs.writeFileSync(path.join(ticketAttachDir, safeName), buffer);
+      const newAtt = { name: origName, file: safeName, type: mimeType || "application/octet-stream" };
+      let attachments = [];
+      try { attachments = rawTicket.attachments ? JSON.parse(rawTicket.attachments) : []; } catch (_) {}
+      if (!Array.isArray(attachments)) attachments = [];
+      attachments.push(newAtt);
+      rawTicket.attachments = JSON.stringify(attachments);
+      saveStore();
+      notifyClients("ticketsChanged", { action: "updated", id });
+      sendJson(res, 201, newAtt);
+    } catch (err) {
+      sendJson(res, 500, { error: err.message || "No se pudo subir el archivo." });
+    }
+    return;
+  }
+
+  // DELETE /api/tickets/:id/attachments/:filename — remove an attachment
+  if (req.method === "DELETE" && /^\/api\/tickets\/[^/]+\/attachments\/[^/]+$/.test(req.url)) {
+    const parts = req.url.split("/");
+    const id = decodeURIComponent(parts[3] || "");
+    const filename = decodeURIComponent(parts[5] || "");
+    if (!id || !filename || filename.includes("..") || filename.includes("/")) { sendJson(res, 400, { error: "Solicitud inválida." }); return; }
+    const rawTicket = store.tickets.find((t) => t.id === id);
+    if (!rawTicket) { sendJson(res, 404, { error: "Ticket no encontrado." }); return; }
+    let attachments = [];
+    try { attachments = rawTicket.attachments ? JSON.parse(rawTicket.attachments) : []; } catch (_) {}
+    rawTicket.attachments = JSON.stringify(attachments.filter((a) => a.file !== filename));
+    saveStore();
+    try { fs.unlinkSync(path.join(ATTACH_DIR, id, filename)); } catch (_) {}
+    notifyClients("ticketsChanged", { action: "updated", id });
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  // POST /api/tickets/:id/notes — add quick note to history without changing status
+  if (req.method === "POST" && /^\/api\/tickets\/[^/]+\/notes$/.test(req.url)) {
+    try {
+      const id = decodeURIComponent(req.url.split("/")[3] || "");
+      const rawTicket = store.tickets.find((t) => t.id === id);
+      if (!rawTicket) { sendJson(res, 404, { error: "Ticket no encontrado." }); return; }
+      const body = await readBody(req);
+      const note = String(body.note || "").trim().slice(0, 4000);
+      if (!note) { sendJson(res, 400, { error: "La nota no puede estar vacía." }); return; }
+      addTicketHistory(id, note, rawTicket.status);
+      notifyClients("ticketsChanged", { action: "updated", id });
+      sendJson(res, 201, { ok: true });
+    } catch (err) {
+      sendJson(res, 400, { error: err.message || "No se pudo guardar la nota." });
+    }
+    return;
+  }
+
+  // GET /api/tickets/:id/attachments/:filename — serve attachments
   if (req.method === "GET" && /^\/api\/tickets\/[^/]+\/attachments\/[^/]+$/.test(req.url)) {
     const parts = req.url.split("/");
     const ticketId = decodeURIComponent(parts[3] || "");
@@ -1955,8 +2024,22 @@ async function handleApi(req, res) {
     fs.readFile(filePath, (err, data) => {
       if (err) { res.writeHead(404); res.end("Not found"); return; }
       const ext = path.extname(filename).toLowerCase();
-      const mime = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp" }[ext] || "application/octet-stream";
-      res.writeHead(200, { "Content-Type": mime, "Cache-Control": "public, max-age=86400" });
+      const mimeMap = {
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+        ".gif": "image/gif", ".webp": "image/webp",
+        ".pdf": "application/pdf", ".txt": "text/plain",
+        ".doc": "application/msword",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xls": "application/vnd.ms-excel",
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      };
+      const mime = mimeMap[ext] || "application/octet-stream";
+      const inline = mime.startsWith("image/") || mime === "application/pdf";
+      res.writeHead(200, {
+        "Content-Type": mime,
+        "Cache-Control": "public, max-age=86400",
+        "Content-Disposition": inline ? `inline; filename="${filename}"` : `attachment; filename="${filename}"`,
+      });
       res.end(data);
     });
     return;

@@ -2097,41 +2097,220 @@ body.sidebarCollapsed .ticketDetailOverlay {
   border-top: 1px solid var(--line);
 }
 
+.historyHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .ticketHistoryPanel h3 {
   font-size: 0.95rem;
   margin: 0;
   font-weight: 700;
 }
 
-.ticketHistory {
+.compactBtn {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+}
+
+.quickNoteForm {
   display: grid;
   gap: 8px;
+  padding: 12px;
+  background: var(--soft);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
 }
 
-.historyItem {
+.quickNoteForm textarea {
+  font-size: 0.875rem;
+  resize: vertical;
+}
+
+.quickNoteActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ── Timeline ── */
+.ticketHistory {
   display: grid;
-  gap: 7px;
-  padding: 11px 13px;
+  gap: 0;
+}
+
+.timeline {
+  display: grid;
+  gap: 0;
+  padding-left: 8px;
+}
+
+.timelineItem {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 12px;
+  position: relative;
+  padding-bottom: 20px;
+}
+
+.timelineItem:last-child {
+  padding-bottom: 0;
+}
+
+.timelineItem::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 20px;
+  bottom: 0;
+  width: 2px;
+  background: var(--line);
+}
+
+.timelineItem:last-child::before {
+  display: none;
+}
+
+.timelineDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px var(--line);
+  position: relative;
+  z-index: 1;
+  align-self: start;
+  justify-self: center;
+}
+
+.timelineBody {
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: #f8fafc;
+  padding: 10px 13px;
 }
 
-.historyItem div {
+.timelineMeta {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: 12px;
-  color: var(--muted);
-  font-size: 0.76rem;
+  margin-bottom: 6px;
 }
 
-.historyItem strong {
-  color: var(--graphite);
+.timelineStatus {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
-.historyItem p {
+
+.timelineDate {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.timelineNote {
   white-space: pre-wrap;
-  line-height: 1.5;
+  line-height: 1.55;
   font-size: 0.875rem;
+  color: var(--text);
+  margin: 0;
+}
+
+/* ── File upload zone ── */
+.uploadZone {
+  position: relative;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--radius-sm);
+  margin: 12px 0;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.uploadZone.dragover {
+  border-color: var(--brand);
+  background: #eff6ff;
+}
+
+.uploadFileInput {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  min-height: unset;
+}
+
+.uploadZoneLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.uploadZoneLabel span {
+  color: var(--brand);
+}
+
+.uploadZoneLabel small {
+  font-weight: 400;
+  margin-left: auto;
+  font-size: 0.74rem;
+}
+
+.uploadStatus {
+  padding: 0 16px 8px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  min-height: 18px;
+}
+
+/* ── Attachment file icon (non-image) ── */
+.attachIcon {
+  width: 60px;
+  height: 70px;
+  display: grid;
+  place-items: center;
+  background: var(--soft);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+
+.attachName {
+  display: block;
+  font-size: 0.68rem;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.attachDelete {
+  display: block;
+  margin: 2px auto 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 2px;
+  border-radius: 3px;
+}
+
+.attachDelete:hover {
+  color: var(--danger);
+  background: #fee2e2;
 }
 
 .ticketProperties {

@@ -83,6 +83,13 @@ const boardSearch = document.querySelector("#boardSearch");
 const boardAreaFilter = document.querySelector("#boardAreaFilter");
 const boardDateFrom = document.querySelector("#boardDateFrom");
 const boardDateTo = document.querySelector("#boardDateTo");
+const attachFileInput = document.querySelector("#attachFileInput");
+const uploadStatus = document.querySelector("#uploadStatus");
+const addNoteToggle = document.querySelector("#addNoteToggle");
+const quickNoteForm = document.querySelector("#quickNoteForm");
+const quickNoteText = document.querySelector("#quickNoteText");
+const saveQuickNote = document.querySelector("#saveQuickNote");
+const quickNoteMsg = document.querySelector("#quickNoteMsg");
 
 // Edit modal
 const editModal = document.querySelector("#editModal");
@@ -1053,26 +1060,7 @@ function openTicketDetail(ticket) {
   ticketDetailId.textContent = ticket.id;
   detailSubject.textContent = ticket.subject || "(sin asunto)";
   renderTicketBody(detailDescription, ticket);
-  const attachEl = document.querySelector("#detailAttachments");
-  if (attachEl) {
-    const imgs = Array.isArray(ticket.attachments) ? ticket.attachments.filter((a) => a.file) : [];
-    if (imgs.length > 0) {
-      attachEl.innerHTML = imgs
-        .map(
-          (a) =>
-            `<figure class="attachFigure">
-              <a href="/api/tickets/${escapeHtml(ticket.id)}/attachments/${escapeHtml(a.file)}" target="_blank" rel="noopener">
-                <img src="/api/tickets/${escapeHtml(ticket.id)}/attachments/${escapeHtml(a.file)}" alt="${escapeHtml(a.name || "imagen")}" class="attachThumb" loading="lazy">
-              </a>
-              <figcaption>${escapeHtml(a.name || "imagen")}</figcaption>
-            </figure>`
-        )
-        .join("");
-      attachEl.hidden = false;
-    } else {
-      attachEl.hidden = true;
-    }
-  }
+  renderAttachments(ticket);
   detailName.textContent = ticket.name;
   detailContact.textContent = ticket.contact || "Sin contacto";
   detailAvatar.textContent = (ticket.name || "N").trim().charAt(0).toUpperCase();
@@ -1115,27 +1103,69 @@ function closeTicketDetailModal() {
   showView("overview");
 }
 
+const STATUS_COLORS = {
+  abierto: "#3b82f6",
+  en_proceso: "#f59e0b",
+  en_espera: "#f97316",
+  resuelto: "#22c55e",
+  cerrado: "#94a3b8",
+};
+
 function renderTicketHistory(ticket) {
   const history = Array.isArray(ticket.history) ? ticket.history : [];
   if (history.length === 0) {
     detailHistory.innerHTML = '<p class="empty compact">Sin notas guardadas.</p>';
     return;
   }
-  detailHistory.innerHTML = history
+  detailHistory.innerHTML = `<div class="timeline">${history
     .slice()
     .reverse()
-    .map(
-      (item) => `
-    <article class="historyItem">
-      <div>
-        <strong>${escapeHtml(getLabel(statuses, item.status))}</strong>
-        <span>${formatDate.format(new Date(item.createdAt))}</span>
-      </div>
-      <p>${escapeHtml(item.note)}</p>
-    </article>
-  `
-    )
-    .join("");
+    .map((item) => {
+      const color = STATUS_COLORS[item.status] || "#94a3b8";
+      const label = getLabel(statuses, item.status);
+      return `
+      <div class="timelineItem">
+        <div class="timelineDot" style="background:${color}" title="${escapeHtml(label)}"></div>
+        <div class="timelineBody">
+          <div class="timelineMeta">
+            <span class="timelineStatus" style="color:${color}">${escapeHtml(label)}</span>
+            <span class="timelineDate">${formatDate.format(new Date(item.createdAt))}</span>
+          </div>
+          <p class="timelineNote">${escapeHtml(item.note)}</p>
+        </div>
+      </div>`;
+    })
+    .join("")}</div>`;
+}
+
+function renderAttachments(ticket) {
+  const attachEl = document.querySelector("#detailAttachments");
+  if (!attachEl) return;
+  const atts = Array.isArray(ticket.attachments) ? ticket.attachments.filter((a) => a.file) : [];
+  if (atts.length === 0) { attachEl.hidden = true; return; }
+  const IMAGE_TYPES = /^image\//;
+  attachEl.innerHTML = atts.map((a) => {
+    const url = `/api/tickets/${encodeURIComponent(ticket.id)}/attachments/${encodeURIComponent(a.file)}`;
+    const isImage = IMAGE_TYPES.test(a.type || "");
+    const isPdf = (a.type || "").includes("pdf");
+    const icon = isPdf
+      ? `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#e24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><text x="6" y="18" font-size="6" fill="#e24" stroke="none">PDF</text></svg>`
+      : `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+    return `<figure class="attachFigure">
+      <a href="${url}" target="_blank" rel="noopener" title="${escapeHtml(a.name || "archivo")}">
+        ${isImage
+          ? `<img src="${url}" alt="${escapeHtml(a.name || "imagen")}" class="attachThumb" loading="lazy">`
+          : `<div class="attachIcon">${icon}</div>`}
+      </a>
+      <figcaption>
+        <span class="attachName">${escapeHtml(a.name || "archivo")}</span>
+        <button class="attachDelete" data-att-file="${escapeHtml(a.file)}" title="Eliminar adjunto" aria-label="Eliminar adjunto">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </figcaption>
+    </figure>`;
+  }).join("");
+  attachEl.hidden = false;
 }
 
 function collectDetailPayload(statusOverride) {
@@ -1286,6 +1316,90 @@ sendReplyBtn?.addEventListener("click", async () => {
     sendReplyBtn.disabled = false;
   }
 });
+// ── File upload ───────────────────────────────────────────────────────────────
+
+async function uploadFile(file) {
+  if (!activeTicketId) return;
+  if (file.size > 8_000_000) { if (uploadStatus) uploadStatus.textContent = `${file.name}: excede 8 MB`; return; }
+  if (uploadStatus) { uploadStatus.textContent = `Subiendo ${file.name}…`; uploadStatus.style.color = ""; }
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const b64 = e.target.result.split(",")[1];
+      try {
+        await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}/attachments`, {
+          method: "POST",
+          body: JSON.stringify({ name: file.name, type: file.type, data: b64 }),
+        });
+        if (uploadStatus) { uploadStatus.textContent = `${file.name} adjuntado.`; uploadStatus.style.color = "var(--ok)"; }
+        await refresh();
+        const updated = cachedTickets.find((t) => t.id === activeTicketId);
+        if (updated) renderAttachments(updated);
+      } catch (err) {
+        if (uploadStatus) { uploadStatus.textContent = `Error: ${err.message}`; uploadStatus.style.color = ""; }
+      }
+      resolve();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+attachFileInput?.addEventListener("change", async (e) => {
+  for (const file of Array.from(e.target.files || [])) await uploadFile(file);
+  attachFileInput.value = "";
+});
+
+// Drag & drop on upload zone
+document.querySelector("#uploadZone")?.addEventListener("dragover", (e) => { e.preventDefault(); e.currentTarget.classList.add("dragover"); });
+document.querySelector("#uploadZone")?.addEventListener("dragleave", (e) => e.currentTarget.classList.remove("dragover"));
+document.querySelector("#uploadZone")?.addEventListener("drop", async (e) => {
+  e.preventDefault(); e.currentTarget.classList.remove("dragover");
+  for (const file of Array.from(e.dataTransfer.files || [])) await uploadFile(file);
+});
+
+// Delete attachment
+document.querySelector("#detailAttachments")?.addEventListener("click", async (e) => {
+  const btn = e.target.closest(".attachDelete");
+  if (!btn || !activeTicketId) return;
+  if (!confirm("¿Eliminar este adjunto?")) return;
+  try {
+    await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}/attachments/${encodeURIComponent(btn.dataset.attFile)}`, { method: "DELETE" });
+    await refresh();
+    const updated = cachedTickets.find((t) => t.id === activeTicketId);
+    if (updated) renderAttachments(updated);
+  } catch (err) { alert(err.message); }
+});
+
+// Quick note toggle
+addNoteToggle?.addEventListener("click", () => {
+  if (!quickNoteForm) return;
+  quickNoteForm.hidden = !quickNoteForm.hidden;
+  if (!quickNoteForm.hidden) quickNoteText?.focus();
+});
+
+saveQuickNote?.addEventListener("click", async () => {
+  if (!activeTicketId) return;
+  const note = quickNoteText?.value.trim();
+  if (!note) { if (quickNoteMsg) quickNoteMsg.textContent = "Escribe una nota antes de guardar."; return; }
+  saveQuickNote.disabled = true;
+  try {
+    await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}/notes`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    });
+    if (quickNoteText) quickNoteText.value = "";
+    if (quickNoteForm) quickNoteForm.hidden = true;
+    if (quickNoteMsg) quickNoteMsg.textContent = "";
+    await refresh();
+    const updated = cachedTickets.find((t) => t.id === activeTicketId);
+    if (updated) renderTicketHistory(updated);
+  } catch (err) {
+    if (quickNoteMsg) { quickNoteMsg.textContent = err.message; }
+  } finally {
+    saveQuickNote.disabled = false;
+  }
+});
+
 resolveTicketDetail.addEventListener("click", () => showClosureModal("resuelto"));
 closeTicketDetailStatus.addEventListener("click", () => showClosureModal("cerrado"));
 document.querySelector("#silentCloseBtn")?.addEventListener("click", () => showClosureModal("cerrado", true));
