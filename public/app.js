@@ -1393,29 +1393,34 @@ document.querySelector("#detailAttachments")?.addEventListener("click", async (e
   } catch (err) { alert(err.message); }
 });
 
-// Nota rápida — usa el textarea principal de gestión
-saveQuickNote?.addEventListener("click", async () => {
+// Nota rápida — guarda el contenido del textarea sin cambiar estado del ticket
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("#saveQuickNote")) return;
   if (!activeTicketId) return;
-  const note = detailResolution?.value.trim();
+  const textarea = document.querySelector("#detailResolution");
+  const msgEl = document.querySelector("#detailMessage");
+  const note = textarea?.value.trim();
   if (!note) {
-    if (detailMessage) { detailMessage.textContent = "Escribe algo en la caja de nota antes de guardar."; }
+    if (msgEl) msgEl.textContent = "Escribe algo antes de guardar la nota.";
+    textarea?.focus();
     return;
   }
-  saveQuickNote.disabled = true;
+  const btn = document.querySelector("#saveQuickNote");
+  if (btn) btn.disabled = true;
+  if (msgEl) msgEl.textContent = "";
   try {
     await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}/notes`, {
       method: "POST",
       body: JSON.stringify({ note }),
     });
-    detailResolution.value = "";
-    if (detailMessage) detailMessage.textContent = "";
+    if (textarea) textarea.value = "";
     await refresh();
     const updated = cachedTickets.find((t) => t.id === activeTicketId);
     if (updated) renderTicketHistory(updated);
   } catch (err) {
-    if (detailMessage) detailMessage.textContent = err.message;
+    if (msgEl) msgEl.textContent = err.message;
   } finally {
-    saveQuickNote.disabled = false;
+    if (btn) btn.disabled = false;
   }
 });
 

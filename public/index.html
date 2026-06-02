@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/tokens.css?v=14.3" />
-    <link rel="stylesheet" href="/styles.css?v=14.3" />
+    <link rel="stylesheet" href="/tokens.css?v=14.6" />
+    <link rel="stylesheet" href="/styles.css?v=14.6" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -1382,33 +1382,31 @@
                 <p id="replyStatus" class="message"></p>
               </div>
             </div>
+
+            <section class="ticketHistoryPanel" aria-label="Historial del ticket">
+              <div id="detailHistory" class="ticketHistory"></div>
+            </section>
+
             <div class="resolutionBox">
               <div class="resolutionHeader">
-                <span class="resolutionLabel">Nota de gestión</span>
+                <span class="resolutionLabel">Que se realizó / nota de cierre</span>
                 <label for="attachFileInput" class="attachClipBtn" title="Adjuntar archivo · también puedes pegar con Ctrl+V">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
                   Adjuntar
                 </label>
-                <span id="uploadStatus" class="attachStatus"></span>
               </div>
               <textarea
                 id="detailResolution"
                 class="resolutionTextarea"
-                rows="5"
-                placeholder="Escribe aquí qué se realizó, un avance o la nota de cierre…"
+                rows="4"
+                placeholder="Describe la gestión realizada, un avance o la nota de cierre…"
               ></textarea>
               <div class="resolutionActions">
-                <button id="saveQuickNote" class="quickNoteBtn" type="button">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  Nota rápida
-                </button>
+                <button id="saveQuickNote" class="primaryAction" type="button">+ Nota rápida</button>
                 <p id="detailMessage" class="message"></p>
+                <span id="uploadStatus" class="attachStatus"></span>
               </div>
             </div>
-            <section class="ticketHistoryPanel" aria-label="Historial del ticket">
-              <h3 class="historyTitle">Historial</h3>
-              <div id="detailHistory" class="ticketHistory"></div>
-            </section>
           </section>
           <aside class="ticketProperties">
             <div class="propertyAvatar" id="detailAvatar">N</div>
@@ -1525,7 +1523,7 @@
       </div>
     </div>
 
-    <script src="/app.js?v=14.3" defer></script>
+    <script src="/app.js?v=14.6" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {

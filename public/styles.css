@@ -2086,10 +2086,18 @@ body.sidebarCollapsed .ticketDetailOverlay {
 }
 
 /* ── Resolution / note box ── */
-.resolutionBox {
-  margin-top: 22px;
+/* ── History panel (ABOVE the resolution box) ── */
+.ticketHistoryPanel {
+  margin-top: 20px;
+  padding-top: 20px;
   border-top: 1px solid var(--line);
-  padding-top: 18px;
+}
+
+/* ── Resolution / write area (bottom of conversation) ── */
+.resolutionBox {
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
 }
 
 .resolutionHeader {
@@ -2100,19 +2108,20 @@ body.sidebarCollapsed .ticketDetailOverlay {
 }
 
 .resolutionLabel {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
   flex: 1;
 }
 
 .resolutionTextarea {
+  display: block;
   width: 100%;
-  min-height: 100px;
+  box-sizing: border-box;
+  min-height: 90px;
   resize: vertical;
   font-size: 0.875rem;
+  font-family: inherit;
   line-height: 1.6;
   padding: 10px 12px;
   border: 1px solid var(--line);
@@ -2120,57 +2129,23 @@ body.sidebarCollapsed .ticketDetailOverlay {
   background: var(--surface);
   color: var(--text);
   transition: border-color 0.15s;
-  font-family: inherit;
 }
 
 .resolutionTextarea:focus {
   outline: none;
   border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
 }
 
 .resolutionActions {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
-.quickNoteBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border: 1.5px solid var(--brand);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--brand);
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.quickNoteBtn:hover {
-  background: var(--brand);
-  color: #fff;
-}
-
-/* ── History panel ── */
-.ticketHistoryPanel {
-  display: grid;
-  gap: 12px;
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid var(--line);
-}
-
-.historyTitle {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-  margin: 0;
+#saveQuickNote {
+  flex-shrink: 0;
 }
 
 /* ── Timeline ── */
