@@ -1111,17 +1111,123 @@ button[type="submit"]:active {
 .boardTools {
   flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 8px;
 }
 
 .boardTools label {
   display: grid;
   gap: 5px;
-  min-width: 150px;
+  min-width: 120px;
   color: var(--muted);
   font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.boardSearch {
+  align-self: flex-end;
+  min-width: 200px;
+  min-height: 38px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  background: var(--surface);
+  color: var(--text);
+}
+.boardSearch:focus {
+  outline: 2px solid var(--brand);
+  outline-offset: -1px;
+}
+
+.boardDateInput {
+  min-height: 38px;
+  padding: 6px 8px;
+  font-size: 0.8rem;
+}
+
+.newBadge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  background: var(--brand);
+  color: #fff;
+  border-radius: 20px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  vertical-align: middle;
+  letter-spacing: 0.04em;
+}
+
+.ticketCard--new {
+  border-left: 3px solid var(--brand);
+}
+
+.ticketRow--new td:first-child {
+  border-left: 3px solid var(--brand);
+}
+
+.ticketAssigned {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 2px 0 0;
+}
+
+.sidebarBadge--new {
+  background: var(--brand) !important;
+  color: #fff !important;
+}
+
+.assignedCell {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.loadMoreBtn {
+  display: block;
+  margin: 20px auto;
+  padding: 9px 28px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.15s;
+}
+.loadMoreBtn:hover {
+  background: var(--line);
+}
+
+.replyBox {
+  border-top: 1px solid var(--line);
+  padding: 20px 0 0;
+  margin: 16px 0;
+}
+
+.replyBoxTitle {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+.replyBox textarea {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+  font-size: 0.875rem;
+}
+
+.replyBoxActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
 }
 
 label {

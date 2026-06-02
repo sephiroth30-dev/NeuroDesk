@@ -307,6 +307,7 @@
               <p>Seguimiento operativo por estado</p>
             </div>
             <div class="boardTools">
+              <input id="boardSearch" type="search" placeholder="Buscar ticket…" class="boardSearch" autocomplete="off" aria-label="Buscar tickets">
               <label class="statusFilterLabel">
                 Estado
                 <select id="statusFilter">
@@ -317,6 +318,20 @@
                   <option value="resuelto">Resuelto</option>
                   <option value="cerrado">Cerrado</option>
                 </select>
+              </label>
+              <label class="statusFilterLabel">
+                Área
+                <select id="boardAreaFilter">
+                  <option value="">Todas</option>
+                </select>
+              </label>
+              <label class="statusFilterLabel">
+                Desde
+                <input id="boardDateFrom" type="date" class="boardDateInput">
+              </label>
+              <label class="statusFilterLabel">
+                Hasta
+                <input id="boardDateTo" type="date" class="boardDateInput">
               </label>
               <div class="viewToggle" aria-label="Modo de visualización">
                 <button class="toggleButton active" type="button" data-board-view="cards">Tarjetas</button>
@@ -1358,6 +1373,14 @@
             <h3 id="detailSubject"></h3>
             <div id="detailDescription" class="detailDescription"></div>
             <div id="detailAttachments" class="detailAttachments" hidden></div>
+            <div class="replyBox" id="replyBox" hidden>
+              <h4 class="replyBoxTitle">Responder al solicitante</h4>
+              <textarea id="replyMessage" rows="4" placeholder="Escribe tu respuesta al correo del cliente…"></textarea>
+              <div class="replyBoxActions">
+                <button id="sendReplyBtn" class="primaryAction" type="button">Enviar respuesta</button>
+                <p id="replyStatus" class="message"></p>
+              </div>
+            </div>
             <div class="resolutionBox">
               <label>
                 Que se realizo / nota de cierre
@@ -1389,6 +1412,11 @@
             <label
               >Area
               <input id="detailArea" type="text" />
+            </label>
+            <label
+              >Asignado a
+              <input id="detailAssignedTo" type="text" list="agentsList" placeholder="Sin asignar" autocomplete="off">
+              <datalist id="agentsList"></datalist>
             </label>
             <div id="detailCustomFields" class="detailCustomFields"></div>
             <label

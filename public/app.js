@@ -75,6 +75,14 @@ const saveTicketDetail = document.querySelector("#saveTicketDetail");
 const resolveTicketDetail = document.querySelector("#resolveTicketDetail");
 const closeTicketDetailStatus = document.querySelector("#closeTicketDetailStatus");
 const detailDeleteButton = document.querySelector("#detailDeleteButton");
+const detailAssignedTo = document.querySelector("#detailAssignedTo");
+const sendReplyBtn = document.querySelector("#sendReplyBtn");
+const replyMessage = document.querySelector("#replyMessage");
+const replyStatusEl = document.querySelector("#replyStatus");
+const boardSearch = document.querySelector("#boardSearch");
+const boardAreaFilter = document.querySelector("#boardAreaFilter");
+const boardDateFrom = document.querySelector("#boardDateFrom");
+const boardDateTo = document.querySelector("#boardDateTo");
 
 // Edit modal
 const editModal = document.querySelector("#editModal");
@@ -163,6 +171,9 @@ let activeTicketId = null;
 let pendingClosureStatus = null;
 let pendingClosureSilent = false;
 let showClosedTickets = false;
+let listPage = 1;
+const LIST_PAGE_SIZE = 50;
+let lastVisitTs = localStorage.getItem("nd_lastVisit") || new Date(0).toISOString();
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -270,7 +281,13 @@ function showView(name) {
     adminSelected.clear();
   }
   document.querySelectorAll(".sidebarItem").forEach((btn) => btn.classList.remove("active"));
-  if (name === "overview") sidebarOverviewButton?.classList.add("active");
+  if (name === "overview") {
+    sidebarOverviewButton?.classList.add("active");
+    lastVisitTs = new Date().toISOString();
+    localStorage.setItem("nd_lastVisit", lastVisitTs);
+    const badge = document.getElementById("sidebarTicketCount");
+    if (badge) badge.classList.remove("sidebarBadge--new");
+  }
   if (name === "admin") adminButton?.classList.add("active");
   if (name === "sla") slaButton?.classList.add("active");
   if (name === "settings") settingsButton?.classList.add("active");
@@ -502,11 +519,28 @@ function getVisibleTickets() {
         new Date(t.resolvedAt).toDateString() === today
     );
   }
-  const tickets = showClosedTickets
+  let tickets = showClosedTickets
     ? cachedTickets
     : cachedTickets.filter((t) => t.status !== "cerrado");
-  if (currentFilter === "todos") return tickets;
-  return tickets.filter((t) => t.status === currentFilter);
+  if (currentFilter !== "todos") tickets = tickets.filter((t) => t.status === currentFilter);
+
+  const search = boardSearch?.value.trim().toLowerCase() || "";
+  if (search) {
+    tickets = tickets.filter((t) => {
+      const haystack = [t.id, t.name, t.contact, t.subject, t.description, t.area, t.assignedTo]
+        .join(" ").toLowerCase();
+      return haystack.includes(search);
+    });
+  }
+  const area = boardAreaFilter?.value || "";
+  if (area) tickets = tickets.filter((t) => t.area === area);
+
+  const from = boardDateFrom?.value ? new Date(boardDateFrom.value) : null;
+  const to = boardDateTo?.value ? new Date(boardDateTo.value + "T23:59:59") : null;
+  if (from) tickets = tickets.filter((t) => new Date(t.createdAt) >= from);
+  if (to) tickets = tickets.filter((t) => new Date(t.createdAt) <= to);
+
+  return tickets;
 }
 
 function renderTickets() {
@@ -547,15 +581,17 @@ function renderKanban(tickets) {
 function renderTicketCard(ticket) {
   const slaText = ticket.sla.breached ? "SLA vencido" : `SLA ${ticket.sla.remainingHours}h`;
   const createdAt = formatDate.format(new Date(ticket.createdAt));
+  const isNew = ticket.createdAt > lastVisitTs;
   return `
-    <article class="ticketCard urgency-${escapeHtml(ticket.urgency)}" draggable="true" data-ticket-id="${escapeHtml(ticket.id)}">
+    <article class="ticketCard urgency-${escapeHtml(ticket.urgency)}${isNew ? " ticketCard--new" : ""}" draggable="true" data-ticket-id="${escapeHtml(ticket.id)}">
       <div class="ticketTitle">
-        <span>${escapeHtml(ticket.id)}</span>
+        <span>${escapeHtml(ticket.id)}${isNew ? '<span class="newBadge">Nuevo</span>' : ""}</span>
         <span class="badge ${escapeHtml(ticket.urgency)}">${escapeHtml(ticket.urgency)}</span>
       </div>
       <p class="ticketName">${escapeHtml(ticket.name)}</p>
       ${ticket.subject ? `<p class="ticketSubject">${escapeHtml(ticket.subject)}</p>` : ""}
       <p class="ticketMeta">${escapeHtml(ticket.contact)}</p>
+      ${ticket.assignedTo ? `<p class="ticketAssigned">👤 ${escapeHtml(ticket.assignedTo)}</p>` : ""}
       <div class="cardFooter">
         <span class="sla ${ticket.sla.breached ? "breached" : ""}"><span class="slaDot"></span>${slaText}</span>
         <span class="ticketDate">${createdAt}</span>
@@ -569,6 +605,8 @@ function renderTicketList(tickets) {
     ticketListView.innerHTML = '<p class="empty">Sin tickets para este filtro.</p>';
     return;
   }
+  const visible = tickets.slice(0, listPage * LIST_PAGE_SIZE);
+  const hasMore = tickets.length > visible.length;
   ticketListView.innerHTML = `
     <div class="tableWrap">
       <table>
@@ -576,17 +614,18 @@ function renderTicketList(tickets) {
           <tr>
             <th><input type="checkbox" id="selectAllCheckbox" class="bulkCheckbox" aria-label="Seleccionar todos"></th>
             <th>Ticket</th><th>Solicitante</th><th>Contacto</th><th>Área</th>
-            <th>Urgencia</th><th>SLA</th><th>Estado</th><th></th>
+            <th>Urgencia</th><th>SLA</th><th>Estado</th><th>Asignado</th><th></th>
           </tr>
         </thead>
         <tbody>
-          ${tickets
+          ${visible
             .map((ticket) => {
               const slaText = ticket.sla.breached ? "Vencido" : `${ticket.sla.remainingHours}h`;
+              const isNew = ticket.createdAt > lastVisitTs;
               return `
-              <tr class="ticketRow" data-ticket-id="${escapeHtml(ticket.id)}">
+              <tr class="ticketRow${isNew ? " ticketRow--new" : ""}" data-ticket-id="${escapeHtml(ticket.id)}">
                 <td><input type="checkbox" class="bulkCheckbox rowCheckbox" data-ticket-id="${escapeHtml(ticket.id)}" ${selectedTickets.has(ticket.id) ? "checked" : ""}></td>
-                <td><span class="ticketCode">${escapeHtml(ticket.id)}</span></td>
+                <td><span class="ticketCode">${escapeHtml(ticket.id)}</span>${isNew ? '<span class="newBadge">Nuevo</span>' : ""}</td>
                 <td class="subjectCell">${escapeHtml(ticket.subject || ticket.description || "(sin asunto)")}</td>
                 <td>${escapeHtml(ticket.name)}</td>
                 <td>${escapeHtml(ticket.contact)}</td>
@@ -594,6 +633,7 @@ function renderTicketList(tickets) {
                 <td><span class="badge ${escapeHtml(ticket.urgency)}">${escapeHtml(ticket.urgency)}</span></td>
                 <td><span class="sla ${ticket.sla.breached ? "breached" : ""}">${slaText}</span></td>
                 <td>${renderStatusSelect(ticket)}</td>
+                <td class="assignedCell">${escapeHtml(ticket.assignedTo || "—")}</td>
                 <td class="rowActions"></td>
               </tr>
             `;
@@ -602,13 +642,18 @@ function renderTicketList(tickets) {
         </tbody>
       </table>
     </div>
+    ${hasMore ? `<button class="loadMoreBtn" id="loadMoreBtn">Cargar más (${tickets.length - visible.length} restantes)</button>` : ""}
   `;
-  const allSelected = tickets.every((t) => selectedTickets.has(t.id));
+  const allSelected = visible.every((t) => selectedTickets.has(t.id));
   const selectAll = document.querySelector("#selectAllCheckbox");
   if (selectAll) {
-    selectAll.checked = allSelected && tickets.length > 0;
+    selectAll.checked = allSelected && visible.length > 0;
     selectAll.indeterminate = !allSelected && selectedTickets.size > 0;
   }
+  document.querySelector("#loadMoreBtn")?.addEventListener("click", () => {
+    listPage++;
+    renderTickets();
+  });
 }
 
 function renderStatusSelect(ticket) {
@@ -1047,6 +1092,17 @@ function openTicketDetail(ticket) {
   detailResolution.value = "";
   detailWorkedHours.value = ticket.workedHours != null ? ticket.workedHours : "";
   detailMessage.textContent = "";
+  if (detailAssignedTo) {
+    const agents = [...new Set(cachedTickets.map((t) => t.assignedTo).filter(Boolean))];
+    const agentsList = document.getElementById("agentsList");
+    if (agentsList) agentsList.innerHTML = agents.map((a) => `<option value="${escapeHtml(a)}">`).join("");
+    detailAssignedTo.value = ticket.assignedTo || "";
+  }
+  if (replyMessage) replyMessage.value = "";
+  if (replyStatusEl) replyStatusEl.textContent = "";
+  // Only show reply box for email-sourced tickets with a contact
+  const replyBox = document.getElementById("replyBox");
+  if (replyBox) replyBox.hidden = !(ticket.source === "email" && ticket.contact);
   renderTicketHistory(ticket);
   renderCustomFieldInputs(ticket);
   showDetailView();
@@ -1100,6 +1156,7 @@ function collectDetailPayload(statusOverride) {
     resolution: "",
     resolutionNote: detailResolution.value.trim(),
     workedHours: detailWorkedHours.value !== "" ? parseFloat(detailWorkedHours.value) : null,
+    assignedTo: detailAssignedTo?.value || "",
     customFields,
   };
 }
@@ -1206,6 +1263,29 @@ saveTicketDetail.addEventListener("click", () =>
     detailMessage.textContent = err.message;
   })
 );
+
+sendReplyBtn?.addEventListener("click", async () => {
+  if (!activeTicketId || !replyMessage) return;
+  const message = replyMessage.value.trim();
+  if (!message) { if (replyStatusEl) replyStatusEl.textContent = "Escribe un mensaje antes de enviar."; return; }
+  sendReplyBtn.disabled = true;
+  if (replyStatusEl) replyStatusEl.textContent = "Enviando…";
+  try {
+    await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}/reply`, {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    });
+    replyMessage.value = "";
+    if (replyStatusEl) { replyStatusEl.textContent = "Respuesta enviada correctamente."; replyStatusEl.style.color = "var(--ok)"; }
+    await refresh();
+    const updated = cachedTickets.find((t) => t.id === activeTicketId);
+    if (updated) renderTicketHistory(updated);
+  } catch (err) {
+    if (replyStatusEl) { replyStatusEl.textContent = err.message; replyStatusEl.style.color = ""; }
+  } finally {
+    sendReplyBtn.disabled = false;
+  }
+});
 resolveTicketDetail.addEventListener("click", () => showClosureModal("resuelto"));
 closeTicketDetailStatus.addEventListener("click", () => showClosureModal("cerrado"));
 document.querySelector("#silentCloseBtn")?.addEventListener("click", () => showClosureModal("cerrado", true));
@@ -1897,8 +1977,14 @@ statusFilter.addEventListener("change", (e) => {
   currentFilter = e.target.value;
   selectedTickets.clear();
   updateBulkBar();
+  listPage = 1;
   renderTickets();
 });
+
+boardSearch?.addEventListener("input", () => { listPage = 1; renderTickets(); });
+boardAreaFilter?.addEventListener("change", () => { listPage = 1; renderTickets(); });
+boardDateFrom?.addEventListener("change", () => { listPage = 1; renderTickets(); });
+boardDateTo?.addEventListener("change", () => { listPage = 1; renderTickets(); });
 
 document.querySelector(".statsGrid")?.addEventListener("click", (e) => {
   const card = e.target.closest("[data-stat-filter]");
@@ -2067,10 +2153,20 @@ async function doRefresh() {
   renderVersion(version);
   renderStats(stats);
 
+  // Update area filter dropdown with distinct areas
+  if (boardAreaFilter) {
+    const current = boardAreaFilter.value;
+    const areas = [...new Set(tickets.map((t) => t.area).filter(Boolean))].sort();
+    boardAreaFilter.innerHTML = '<option value="">Todas</option>' +
+      areas.map((a) => `<option value="${escapeHtml(a)}" ${current === a ? "selected" : ""}>${escapeHtml(a)}</option>`).join("");
+  }
+
   const badge = document.getElementById("sidebarTicketCount");
   if (badge) {
+    const newCount = tickets.filter((t) => t.createdAt > lastVisitTs && t.status !== "cerrado").length;
     const active = tickets.filter((t) => t.status !== "cerrado").length;
-    badge.textContent = active > 0 ? active : "";
+    badge.textContent = newCount > 0 ? `+${newCount}` : (active > 0 ? active : "");
+    badge.classList.toggle("sidebarBadge--new", newCount > 0);
   }
   renderSlaReport();
 }

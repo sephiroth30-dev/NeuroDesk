@@ -102,6 +102,7 @@ function statement(sql) {
         subject,
         description,
         htmlBody,
+        assignedTo,
         resolution,
         customFields,
         attachments,
@@ -120,6 +121,7 @@ function statement(sql) {
           subject,
           description,
           htmlBody,
+          assignedTo,
           resolution,
           customFields,
           attachments,
@@ -156,6 +158,7 @@ function statement(sql) {
         resolution,
         customFields,
         workedHours,
+        assignedTo,
         id
       ) => {
         const ticket = store.tickets.find((t) => t.id === id);
@@ -171,6 +174,7 @@ function statement(sql) {
           resolution,
           customFields,
           workedHours,
+          assignedTo,
         });
         saveStore();
         return { changes: 1 };
@@ -545,11 +549,11 @@ const nextTicketNumberStmt = db.prepare(
   `SELECT COALESCE(MAX(CAST(SUBSTR(id, 4) AS INTEGER)), 1000) + 1 AS nextNumber FROM tickets WHERE id LIKE 'ND-%'`
 );
 const insertTicketStmt = db.prepare(
-  `INSERT INTO tickets (id, name, contact, area, urgency, status, source, subject, description, html_body, resolution, custom_fields, attachments, worked_hours, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  `INSERT INTO tickets (id, name, contact, area, urgency, status, source, subject, description, html_body, assigned_to, resolution, custom_fields, attachments, worked_hours, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 );
 const updateTicketStatusStmt = db.prepare("UPDATE tickets SET status = ? WHERE id = ?");
 const updateTicketFullStmt = db.prepare(
-  `UPDATE tickets SET name = ?, contact = ?, area = ?, urgency = ?, status = ?, subject = ?, description = ?, resolution = ?, custom_fields = ?, worked_hours = ? WHERE id = ?`
+  `UPDATE tickets SET name = ?, contact = ?, area = ?, urgency = ?, status = ?, subject = ?, description = ?, resolution = ?, custom_fields = ?, worked_hours = ?, assigned_to = ? WHERE id = ?`
 );
 const updateTicketPositionStmt = db.prepare(
   "UPDATE tickets SET status = ?, sort_order = ? WHERE id = ?"
@@ -797,6 +801,7 @@ function normalizeTicket(input, source = "web") {
     .trim()
     .slice(0, 4000);
   const htmlBody = String(input.htmlBody || "").slice(0, 200000);
+  const assignedTo = String(input.assignedTo || "").trim().slice(0, 100);
   const customFields = normalizeCustomFields(input.customFields || input.custom_fields || {});
 
   if (!name || !appConfig.sla[urgency]) return null;
@@ -812,6 +817,7 @@ function normalizeTicket(input, source = "web") {
     subject,
     description,
     htmlBody,
+    assignedTo,
     resolution: "",
     customFields,
     createdAt: new Date().toISOString(),
@@ -876,6 +882,7 @@ function insertTicket(ticket) {
     ticket.subject || "",
     ticket.description || "",
     ticket.htmlBody || "",
+    ticket.assignedTo || "",
     ticket.resolution || "",
     JSON.stringify(ticket.customFields || {}),
     JSON.stringify(ticket.attachments || []),
@@ -965,6 +972,7 @@ function updateTicketFull(id, data) {
   const resolutionNote = String(data.resolutionNote || "")
     .trim()
     .slice(0, 4000);
+  const assignedTo = String(data.assignedTo || "").trim().slice(0, 100);
   const workedHours =
     data.workedHours !== undefined && data.workedHours !== "" && data.workedHours !== null
       ? Math.max(0, parseFloat(data.workedHours) || 0) || null
@@ -987,6 +995,7 @@ function updateTicketFull(id, data) {
     resolution,
     JSON.stringify(customFields),
     workedHours,
+    assignedTo,
     id
   );
   if (result.changes === 0) return null;
@@ -1345,6 +1354,15 @@ async function sendTicketNotification(type, ticket, opts = {}) {
   await Promise.allSettled(promises);
 }
 
+function stripEmailSignature(text) {
+  return text
+    .replace(/\n[-_*]{2,}\s*\n[\s\S]*/g, "")
+    .replace(/\n\s*(Atentamente|Saludos|Cordialmente|Con respecto|Best regards?|Regards?|Thanks?,?|Sincerely)[,:\s][\s\S]*/gi, "")
+    .replace(/\*[A-ZÁ-Ú][a-záéíóúñ]+ [A-ZÁ-Ú][a-záéíóúñ]+\*/g, "")
+    .replace(/\n\s*[-\w.]+@[-\w.]+\s*\n[\s\S]{0,200}$/g, "")
+    .trim();
+}
+
 function detectUrgency(subject, body) {
   const text = `${subject} ${body}`.toLowerCase();
   if (/urgent|critico|critica|emergencia|critical|urgente/.test(text)) return "critica";
@@ -1438,9 +1456,8 @@ async function pollEmails(options = {}) {
             continue;
           }
           const subject = (parsed.subject || "(sin asunto)").slice(0, 200);
-          const bodyText = (parsed.text || (parsed.html || "").replace(/<[^>]+>/g, ""))
-            .trim()
-            .slice(0, 4000);
+          const rawText = (parsed.text || (parsed.html || "").replace(/<[^>]+>/g, "")).trim();
+          const bodyText = stripEmailSignature(rawText).slice(0, 4000);
           const urgency = detectUrgency(subject, bodyText);
           const ticketBase = normalizeTicket(
             {
@@ -1901,6 +1918,26 @@ async function handleApi(req, res) {
       sendJson(res, 200, { ...ticket, sla: getSlaState(ticket) });
     } catch {
       sendJson(res, 400, { error: "No se pudo actualizar el ticket." });
+    }
+    return;
+  }
+
+  // POST /api/tickets/:id/reply — send email reply to ticket contact
+  if (req.method === "POST" && /^\/api\/tickets\/[^/]+\/reply$/.test(req.url)) {
+    try {
+      const id = decodeURIComponent(req.url.split("/")[3] || "");
+      const rawTicket = store.tickets.find((t) => t.id === id);
+      if (!rawTicket) { sendJson(res, 404, { error: "Ticket no encontrado." }); return; }
+      if (!rawTicket.contact) { sendJson(res, 400, { error: "El ticket no tiene correo de contacto." }); return; }
+      const body = await readBody(req);
+      const message = String(body.message || "").trim().slice(0, 4000);
+      if (!message) { sendJson(res, 400, { error: "El mensaje no puede estar vacío." }); return; }
+      await sendEmail(rawTicket.contact, `Re: ${rawTicket.subject || rawTicket.id}`, message);
+      addTicketHistory(id, `Respuesta enviada al cliente:\n${message}`, rawTicket.status);
+      notifyClients("ticketsChanged", { action: "updated", id });
+      sendJson(res, 200, { ok: true });
+    } catch (err) {
+      sendJson(res, 500, { error: err.message || "No se pudo enviar la respuesta." });
     }
     return;
   }
