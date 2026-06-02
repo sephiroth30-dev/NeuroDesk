@@ -1311,7 +1311,10 @@ const STATUS_LABELS = {
 };
 
 async function sendTicketNotification(type, ticket, opts = {}) {
-  if (!notificationsConfig.smtp?.enabled) return;
+  if (!notificationsConfig.smtp?.enabled) {
+    console.log(`[NeuroDesk] Notificación "${type}" omitida — SMTP desactivado. Actívalo en Configuración > Notificaciones.`);
+    return;
+  }
   const tpl = notificationsConfig.templates?.[type] || DEFAULT_NOTIFICATIONS_CONFIG.templates[type];
   if (!tpl) return;
 
@@ -1349,6 +1352,8 @@ async function sendTicketNotification(type, ticket, opts = {}) {
   if (adminEmails.length > 0) {
     const adminBody = `${bodyText}\n\n---\nSolicitante: ${ticket.name}\nContacto: ${ticket.contact || "—"}`;
     promises.push(sendEmail(adminEmails.join(", "), `[Admin] ${subject}`, adminBody));
+  } else {
+    console.log(`[NeuroDesk] Notificación "${type}" — no hay correos de administradores configurados. Agrégalos en Configuración > Notificaciones > Correos de administradores.`);
   }
 
   await Promise.allSettled(promises);
@@ -1484,7 +1489,7 @@ async function pollEmails(options = {}) {
               try {
                 fs.mkdirSync(ticketAttachDir, { recursive: true });
                 fs.writeFileSync(path.join(ticketAttachDir, safeName), att.content);
-                savedAttachments.push({ name: att.filename || safeName, file: safeName, type: att.contentType });
+                savedAttachments.push({ name: att.filename || safeName, file: safeName, type: att.contentType, source: "client" });
               } catch (_) {}
             }
           }
