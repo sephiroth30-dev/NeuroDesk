@@ -85,11 +85,7 @@ const boardDateFrom = document.querySelector("#boardDateFrom");
 const boardDateTo = document.querySelector("#boardDateTo");
 const attachFileInput = document.querySelector("#attachFileInput");
 const uploadStatus = document.querySelector("#uploadStatus");
-const addNoteToggle = document.querySelector("#addNoteToggle");
-const quickNoteForm = document.querySelector("#quickNoteForm");
-const quickNoteText = document.querySelector("#quickNoteText");
 const saveQuickNote = document.querySelector("#saveQuickNote");
-const quickNoteMsg = document.querySelector("#quickNoteMsg");
 
 // Edit modal
 const editModal = document.querySelector("#editModal");
@@ -1118,15 +1114,15 @@ function renderTicketHistory(ticket) {
     return;
   }
   detailHistory.innerHTML = `<div class="timeline">${history
-    .slice()
-    .reverse()
+    .slice() // oldest first — natural reading order top→bottom
     .map((item) => {
-      const color = STATUS_COLORS[item.status] || "#94a3b8";
-      const label = getLabel(statuses, item.status);
+      const isQuick = item.isQuickNote === true;
+      const color = isQuick ? "#f59e0b" : (STATUS_COLORS[item.status] || "#94a3b8");
+      const label = isQuick ? "Nota" : getLabel(statuses, item.status);
       return `
-      <div class="timelineItem">
+      <div class="timelineItem${isQuick ? " timelineItem--note" : ""}">
         <div class="timelineDot" style="background:${color}" title="${escapeHtml(label)}"></div>
-        <div class="timelineBody">
+        <div class="timelineBody${isQuick ? " timelineBody--note" : ""}">
           <div class="timelineMeta">
             <span class="timelineStatus" style="color:${color}">${escapeHtml(label)}</span>
             <span class="timelineDate">${formatDate.format(new Date(item.createdAt))}</span>
@@ -1136,6 +1132,8 @@ function renderTicketHistory(ticket) {
       </div>`;
     })
     .join("")}</div>`;
+  // Scroll timeline to bottom so latest entry is visible
+  detailHistory.scrollTop = detailHistory.scrollHeight;
 }
 
 function renderAttachments(ticket) {
@@ -1395,31 +1393,27 @@ document.querySelector("#detailAttachments")?.addEventListener("click", async (e
   } catch (err) { alert(err.message); }
 });
 
-// Quick note toggle
-addNoteToggle?.addEventListener("click", () => {
-  if (!quickNoteForm) return;
-  quickNoteForm.hidden = !quickNoteForm.hidden;
-  if (!quickNoteForm.hidden) quickNoteText?.focus();
-});
-
+// Nota rápida — usa el textarea principal de gestión
 saveQuickNote?.addEventListener("click", async () => {
   if (!activeTicketId) return;
-  const note = quickNoteText?.value.trim();
-  if (!note) { if (quickNoteMsg) quickNoteMsg.textContent = "Escribe una nota antes de guardar."; return; }
+  const note = detailResolution?.value.trim();
+  if (!note) {
+    if (detailMessage) { detailMessage.textContent = "Escribe algo en la caja de nota antes de guardar."; }
+    return;
+  }
   saveQuickNote.disabled = true;
   try {
     await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}/notes`, {
       method: "POST",
       body: JSON.stringify({ note }),
     });
-    if (quickNoteText) quickNoteText.value = "";
-    if (quickNoteForm) quickNoteForm.hidden = true;
-    if (quickNoteMsg) quickNoteMsg.textContent = "";
+    detailResolution.value = "";
+    if (detailMessage) detailMessage.textContent = "";
     await refresh();
     const updated = cachedTickets.find((t) => t.id === activeTicketId);
     if (updated) renderTicketHistory(updated);
   } catch (err) {
-    if (quickNoteMsg) { quickNoteMsg.textContent = err.message; }
+    if (detailMessage) detailMessage.textContent = err.message;
   } finally {
     saveQuickNote.disabled = false;
   }

@@ -237,7 +237,7 @@ function statement(sql) {
       all: (ticketId) =>
         store.ticketHistory
           .filter((item) => item.ticketId === ticketId)
-          .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))),
+          .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))),
     };
   }
   if (compact.startsWith("INSERT INTO config")) {
@@ -2004,7 +2004,10 @@ async function handleApi(req, res) {
       const body = await readBody(req);
       const note = String(body.note || "").trim().slice(0, 4000);
       if (!note) { sendJson(res, 400, { error: "La nota no puede estar vacía." }); return; }
-      addTicketHistory(id, note, rawTicket.status);
+      // Push directly so isQuickNote flag is preserved in the JSON store
+      const entry = { id: crypto.randomUUID(), ticketId: id, note, status: rawTicket.status, createdAt: new Date().toISOString(), isQuickNote: true };
+      store.ticketHistory.push(entry);
+      saveStore();
       notifyClients("ticketsChanged", { action: "updated", id });
       sendJson(res, 201, { ok: true });
     } catch (err) {
