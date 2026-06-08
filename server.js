@@ -933,6 +933,7 @@ function updateTicketStatus(id, status) {
   if (result.changes === 0) return null;
   const updated = store.tickets.find((t) => t.id === id);
   if (updated) {
+    applySlaTransition(updated, oldStatus, status);
     if (status === "resuelto" && !updated.resolvedAt) {
       updated.resolvedAt = new Date().toISOString();
       saveStore();
@@ -1001,6 +1002,7 @@ function updateTicketFull(id, data) {
   if (result.changes === 0) return null;
   const updatedRaw = store.tickets.find((t) => t.id === id);
   if (updatedRaw) {
+    applySlaTransition(updatedRaw, oldStatus, status);
     if (status === "resuelto" && !updatedRaw.resolvedAt) {
       updatedRaw.resolvedAt = new Date().toISOString();
       saveStore();
@@ -1033,12 +1035,15 @@ function updateTicketPosition(id, status, orderedIds) {
     .forEach((ticketId, index) => {
       updateTicketPositionStmt.run(status, index + 1, String(ticketId));
     });
-  if (status === "resuelto" && rawTicket && !rawTicket.resolvedAt) {
-    rawTicket.resolvedAt = new Date().toISOString();
-    saveStore();
-  } else if (status !== "resuelto" && rawTicket && rawTicket.resolvedAt) {
-    rawTicket.resolvedAt = null;
-    saveStore();
+  if (rawTicket) {
+    applySlaTransition(rawTicket, oldStatus, status);
+    if (status === "resuelto" && !rawTicket.resolvedAt) {
+      rawTicket.resolvedAt = new Date().toISOString();
+      saveStore();
+    } else if (status !== "resuelto" && rawTicket.resolvedAt) {
+      rawTicket.resolvedAt = null;
+      saveStore();
+    }
   }
   notifyClients("ticketsChanged", { action: "position", id });
   const ticket = getTickets().find((t) => t.id === id);
@@ -1051,13 +1056,46 @@ function updateTicketPosition(id, status, orderedIds) {
   return ticket;
 }
 
+function applySlaTransition(rawTicket, oldStatus, newStatus) {
+  if (!rawTicket || oldStatus === newStatus) return;
+  if (newStatus === "en_espera" && oldStatus !== "en_espera") {
+    rawTicket.slaFrozenAt = new Date().toISOString();
+    saveStore();
+  } else if (oldStatus === "en_espera" && newStatus !== "en_espera") {
+    if (rawTicket.slaFrozenAt) {
+      rawTicket.slaPausedMs =
+        (rawTicket.slaPausedMs || 0) + (Date.now() - new Date(rawTicket.slaFrozenAt).getTime());
+      rawTicket.slaFrozenAt = null;
+      saveStore();
+    }
+  }
+}
+
 function getSlaState(ticket) {
-  const elapsedHours = (Date.now() - new Date(ticket.createdAt).getTime()) / 36e5;
+  const status = ticket.status;
+  const isFinished = status === "resuelto" || status === "cerrado";
+  const isPaused = status === "en_espera";
+  const createdMs = new Date(ticket.createdAt).getTime();
+  const pausedMs = ticket.slaPausedMs || 0;
+
+  let endMs;
+  if (isFinished && ticket.resolvedAt) {
+    endMs = new Date(ticket.resolvedAt).getTime();
+  } else if (isPaused && ticket.slaFrozenAt) {
+    endMs = new Date(ticket.slaFrozenAt).getTime();
+  } else {
+    endMs = Date.now();
+  }
+
+  const elapsedHours = Math.max((endMs - createdMs - pausedMs) / 36e5, 0);
   const limitHours = appConfig.sla[ticket.urgency] || 8;
   return {
     limitHours,
     remainingHours: Number(Math.max(limitHours - elapsedHours, 0).toFixed(1)),
+    elapsedHours: Number(elapsedHours.toFixed(1)),
     breached: elapsedHours > limitHours,
+    paused: isPaused,
+    finished: isFinished,
   };
 }
 

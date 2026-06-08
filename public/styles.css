@@ -1461,6 +1461,11 @@ select:focus {
   background: none;
   color: var(--danger);
 }
+.sla.paused {
+  background: none;
+  color: var(--graphite);
+  opacity: 0.55;
+}
 .slaDot {
   width: 7px;
   height: 7px;

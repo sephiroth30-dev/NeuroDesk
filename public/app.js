@@ -580,7 +580,12 @@ function renderKanban(tickets) {
 }
 
 function renderTicketCard(ticket) {
-  const slaText = ticket.sla.breached ? "SLA vencido" : `SLA ${ticket.sla.remainingHours}h`;
+  const slaCls = ticket.sla.paused ? "paused" : ticket.sla.breached ? "breached" : "";
+  const slaText = ticket.sla.paused
+    ? "SLA pausado"
+    : ticket.sla.breached
+      ? "SLA vencido"
+      : `SLA ${ticket.sla.remainingHours}h`;
   const createdAt = formatDate.format(new Date(ticket.createdAt));
   const isNew = ticket.createdAt > lastVisitTs;
   return `
@@ -594,7 +599,7 @@ function renderTicketCard(ticket) {
       <p class="ticketMeta">${escapeHtml(ticket.contact)}</p>
       ${ticket.assignedTo ? `<p class="ticketAssigned">👤 ${escapeHtml(ticket.assignedTo)}</p>` : ""}
       <div class="cardFooter">
-        <span class="sla ${ticket.sla.breached ? "breached" : ""}"><span class="slaDot"></span>${slaText}</span>
+        <span class="sla ${slaCls}"><span class="slaDot"></span>${slaText}</span>
         <span class="ticketDate">${createdAt}</span>
       </div>
     </article>
@@ -621,7 +626,8 @@ function renderTicketList(tickets) {
         <tbody>
           ${visible
             .map((ticket) => {
-              const slaText = ticket.sla.breached ? "Vencido" : `${ticket.sla.remainingHours}h`;
+              const slaCls = ticket.sla.paused ? "paused" : ticket.sla.breached ? "breached" : "";
+              const slaText = ticket.sla.paused ? "Pausado" : ticket.sla.breached ? "Vencido" : `${ticket.sla.remainingHours}h`;
               const isNew = ticket.createdAt > lastVisitTs;
               return `
               <tr class="ticketRow${isNew ? " ticketRow--new" : ""}" data-ticket-id="${escapeHtml(ticket.id)}">
@@ -632,7 +638,7 @@ function renderTicketList(tickets) {
                 <td>${escapeHtml(ticket.contact)}</td>
                 <td>${escapeHtml(ticket.area)}</td>
                 <td><span class="badge ${escapeHtml(ticket.urgency)}">${escapeHtml(ticket.urgency)}</span></td>
-                <td><span class="sla ${ticket.sla.breached ? "breached" : ""}">${slaText}</span></td>
+                <td><span class="sla ${slaCls}">${slaText}</span></td>
                 <td>${renderStatusSelect(ticket)}</td>
                 <td class="assignedCell">${escapeHtml(ticket.assignedTo || "—")}</td>
                 <td class="rowActions"></td>
@@ -923,7 +929,8 @@ function renderSlaTicketTable(tickets) {
         <tbody>
           ${tickets
             .map((ticket) => {
-              const slaText = ticket.sla.breached ? "Vencido" : `${ticket.sla.remainingHours}h`;
+              const slaCls = ticket.sla.paused ? "paused" : ticket.sla.breached ? "breached" : "";
+              const slaText = ticket.sla.paused ? "Pausado" : ticket.sla.breached ? "Vencido" : `${ticket.sla.remainingHours}h`;
               return `
               <tr>
                 <td>${escapeHtml(ticket.id)}</td>
@@ -933,7 +940,7 @@ function renderSlaTicketTable(tickets) {
                 <td>${escapeHtml(ticket.area)}</td>
                 <td><span class="badge ${escapeHtml(ticket.urgency)}">${escapeHtml(ticket.urgency)}</span></td>
                 <td>${escapeHtml(getLabel(statuses, ticket.status))}</td>
-                <td><span class="sla ${ticket.sla.breached ? "breached" : ""}">${slaText}</span></td>
+                <td><span class="sla ${slaCls}">${slaText}</span></td>
               </tr>
             `;
             })
