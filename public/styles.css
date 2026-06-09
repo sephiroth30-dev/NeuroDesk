@@ -850,49 +850,58 @@ button[type="submit"]:active {
 /* ── Grid de métricas individuales ── */
 .slaMetricsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 14px;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+  gap: 12px;
   margin-bottom: 14px;
 }
 .slaMetricCard {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 22px 24px;
+  padding: 20px 22px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 .slaMetricCard--donut {
   flex-direction: row;
   align-items: center;
-  gap: 18px;
+  gap: 20px;
+  padding: 22px 28px;
 }
+.slaMetricCard--danger { border-left: 3px solid var(--danger); }
+.slaMetricCard--accent { border-left: 3px solid var(--brand); }
 .slaMetricCard--danger .slaMetricCardValue { color: var(--danger); }
 .slaMetricCard--accent .slaMetricCardValue { color: var(--brand); }
-.slaMetricCardBody { display: flex; flex-direction: column; gap: 4px; }
-.slaMetricIcon { color: var(--muted); margin-bottom: 6px; }
+.slaMetricCardBody { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.slaMetricIcon { color: var(--muted); margin-bottom: 2px; flex-shrink: 0; }
 .slaMetricCardValue {
   display: block;
-  font-size: 2rem;
+  font-size: 1.9rem;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--graphite);
   line-height: 1.1;
 }
 .slaMetricCardLabel {
-  font-size: 0.68rem;
+  font-size: 0.67rem;
   font-weight: 700;
-  color: var(--text);
+  color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.06em;
   margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .slaMetricCardDesc {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: var(--muted);
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Donut tamaño medio para la métrica de cumplimiento */
@@ -1718,6 +1727,7 @@ tbody tr:last-child td {
 /* ── Responsive ── */
 @media (max-width: 1080px) {
   .slaMetricsGrid { grid-template-columns: repeat(3, 1fr); }
+  .slaMetricCard--donut { grid-column: span 3; }
 }
 
 @media (max-width: 1024px) {
@@ -1882,6 +1892,7 @@ tbody tr:last-child td {
   }
 
   .slaMetricsGrid { grid-template-columns: repeat(2, 1fr); }
+  .slaMetricCard--donut { grid-column: span 2; }
   .slaChartsCard,
   .filterPanel {
     grid-template-columns: 1fr;

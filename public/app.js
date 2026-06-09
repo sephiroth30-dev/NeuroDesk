@@ -892,10 +892,12 @@ function summarizeTickets(tickets) {
   tickets.forEach((t) => { if (t.area) areaCounts[t.area] = (areaCounts[t.area] || 0) + 1; });
   const topAreas = Object.entries(areaCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
 
-  const compliance =
-    active.length === 0
-      ? 100
-      : Math.round(((active.length - breached.length) / active.length) * 100);
+  // Compliance: sobre TODOS los tickets del período (activos + cerrados)
+  // Un ticket cerrado que se resolvió a tiempo cuenta como cumplido
+  const allBreached = tickets.filter((t) => t.sla.breached).length;
+  const compliance = tickets.length === 0
+    ? 100
+    : Math.round(((tickets.length - allBreached) / tickets.length) * 100);
   const avgRemaining =
     active.length === 0
       ? 0
