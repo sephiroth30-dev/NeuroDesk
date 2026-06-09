@@ -946,7 +946,7 @@ function renderVolumeChart(tickets) {
   if (!el) return;
   if (tickets.length === 0) { el.innerHTML = '<p class="empty" style="font-size:0.8rem">Sin datos</p>'; return; }
 
-  const from = slaDateFrom.value ? new Date(`${slaDateFrom.value}T00:00:00`) : new Date(tickets.reduce((min, t) => t.createdAt < min ? t.createdAt : min, tickets[0].createdAt));
+  const from = slaDateFrom.value ? new Date(`${slaDateFrom.value}T00:00:00`) : new Date(tickets.reduce((min, t) => String(t.createdAt) < min ? String(t.createdAt) : min, String(tickets[0].createdAt)));
   const to = slaDateTo.value ? new Date(`${slaDateTo.value}T23:59:59`) : new Date();
   const dayMs = 86_400_000;
   const days = Math.min(Math.ceil((to - from) / dayMs) + 1, 90);
@@ -958,7 +958,7 @@ function renderVolumeChart(tickets) {
     buckets.push({ key, label: d.toLocaleDateString("es-CO", { day: "2-digit", month: "short" }), count: 0 });
   }
   tickets.forEach((t) => {
-    const key = t.createdAt.slice(0, 10);
+    const key = String(t.createdAt || "").slice(0, 10);
     const b = buckets.find((b) => b.key === key);
     if (b) b.count++;
   });
