@@ -920,12 +920,18 @@ button[type="submit"]:active {
 /* ── Gráficas SLA — card unificada ── */
 .slaChartsCard {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(4, 1fr);
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
   margin-bottom: 14px;
+}
+
+.contactBarEmail {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .slaChartItem {

@@ -892,6 +892,16 @@ function summarizeTickets(tickets) {
   tickets.forEach((t) => { if (t.area) areaCounts[t.area] = (areaCounts[t.area] || 0) + 1; });
   const topAreas = Object.entries(areaCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
 
+  // Top contacts
+  const contactMap = {};
+  tickets.forEach((t) => {
+    const key = t.contact || t.name || "";
+    if (!key) return;
+    if (!contactMap[key]) contactMap[key] = { name: t.name || key, contact: t.contact || "", count: 0 };
+    contactMap[key].count++;
+  });
+  const topContacts = Object.values(contactMap).sort((a, b) => b.count - a.count).slice(0, 8);
+
   // Compliance: sobre TODOS los tickets del período (activos + cerrados)
   // Un ticket cerrado que se resolvió a tiempo cuenta como cumplido
   const allBreached = tickets.filter((t) => t.sla.breached).length;
@@ -935,6 +945,7 @@ function summarizeTickets(tickets) {
     byStatus,
     byUrgency,
     topAreas,
+    topContacts,
     compliance,
     avgRemainingHours: avgRemaining,
     breached: breached.length,
@@ -980,6 +991,25 @@ function renderSlaReport() {
     }).join("");
   } else if (areaEl) {
     areaEl.innerHTML = '<p class="empty" style="font-size:0.8rem">Sin datos</p>';
+  }
+
+  // Top contacts
+  const contactEl = document.getElementById("slaContactBars");
+  if (contactEl && summary.topContacts.length > 0) {
+    const maxC = summary.topContacts[0].count;
+    contactEl.innerHTML = summary.topContacts.map(({ name, contact, count }) => {
+      const pct = Math.round((count / maxC) * 100);
+      const label = name && contact && name !== contact
+        ? `${escapeHtml(name)} <span class="contactBarEmail">&lt;${escapeHtml(contact)}&gt;</span>`
+        : escapeHtml(name || contact);
+      return `<div class="statusBar">
+        <span class="statusBarLabel">${label}</span>
+        <div class="statusBarTrack"><div class="statusBarFill" style="width:${pct}%;background:var(--accent)"></div></div>
+        <span class="statusBarCount">${count}</span>
+      </div>`;
+    }).join("");
+  } else if (contactEl) {
+    contactEl.innerHTML = '<p class="empty" style="font-size:0.8rem">Sin datos</p>';
   }
 
   if (slaReportMeta)

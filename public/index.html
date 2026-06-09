@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/tokens.css?v=14.8" />
-    <link rel="stylesheet" href="/styles.css?v=14.8" />
+    <link rel="stylesheet" href="/tokens.css?v=14.9" />
+    <link rel="stylesheet" href="/styles.css?v=14.9" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -561,6 +561,11 @@
             <h3 class="slaChartTitle">Top áreas</h3>
             <p class="slaChartSub">Áreas con más tickets</p>
             <div id="slaAreaBars" class="statusBars"></div>
+          </div>
+          <div class="slaChartItem">
+            <h3 class="slaChartTitle">Top contactos</h3>
+            <p class="slaChartSub">Quién genera más tickets</p>
+            <div id="slaContactBars" class="statusBars"></div>
           </div>
         </div>
 
@@ -1552,7 +1557,7 @@
       </div>
     </div>
 
-    <script src="/app.js?v=14.8" defer></script>
+    <script src="/app.js?v=14.9" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {
