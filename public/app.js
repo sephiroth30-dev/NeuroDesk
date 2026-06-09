@@ -943,48 +943,6 @@ function summarizeTickets(tickets) {
   };
 }
 
-function renderVolumeChart(tickets) {
-  const el = document.getElementById("slaVolumeChart");
-  if (!el) return;
-  if (tickets.length === 0) { el.innerHTML = '<p class="empty" style="font-size:0.8rem">Sin datos</p>'; return; }
-
-  const from = slaDateFrom.value ? new Date(`${slaDateFrom.value}T00:00:00`) : new Date(tickets.reduce((min, t) => String(t.createdAt) < min ? String(t.createdAt) : min, String(tickets[0].createdAt)));
-  const to = slaDateTo.value ? new Date(`${slaDateTo.value}T23:59:59`) : new Date();
-  const dayMs = 86_400_000;
-  const days = Math.min(Math.ceil((to - from) / dayMs) + 1, 90);
-
-  const buckets = [];
-  for (let i = 0; i < days; i++) {
-    const d = new Date(from.getTime() + i * dayMs);
-    const key = d.toISOString().slice(0, 10);
-    buckets.push({ key, label: d.toLocaleDateString("es-CO", { day: "2-digit", month: "short" }), count: 0 });
-  }
-  tickets.forEach((t) => {
-    const key = String(t.createdAt || "").slice(0, 10);
-    const b = buckets.find((b) => b.key === key);
-    if (b) b.count++;
-  });
-
-  const max = Math.max(...buckets.map((b) => b.count), 1);
-  // Show at most 60 bars; if more days, group by week
-  const showBuckets = days <= 60 ? buckets : (() => {
-    const weeks = [];
-    for (let i = 0; i < buckets.length; i += 7) {
-      const chunk = buckets.slice(i, i + 7);
-      weeks.push({ key: chunk[0].key, label: chunk[0].label, count: chunk.reduce((s, b) => s + b.count, 0) });
-    }
-    return weeks;
-  })();
-  const wMax = Math.max(...showBuckets.map((b) => b.count), 1);
-
-  el.innerHTML = `<div class="volumeBars">${showBuckets.map((b) => {
-    const pct = Math.round((b.count / wMax) * 100);
-    return `<div class="volumeBar" title="${b.label}: ${b.count} ticket${b.count !== 1 ? "s" : ""}">
-      <div class="volumeBarFill" style="height:${Math.max(pct, 2)}%"></div>
-      ${showBuckets.length <= 20 ? `<span class="volumeBarLabel">${b.label.split(" ")[0]}</span>` : ""}
-    </div>`;
-  }).join("")}</div>`;
-}
 
 function renderSlaReport() {
   const filtered = getFilteredSlaTickets();
@@ -1023,8 +981,6 @@ function renderSlaReport() {
   } else if (areaEl) {
     areaEl.innerHTML = '<p class="empty" style="font-size:0.8rem">Sin datos</p>';
   }
-
-  renderVolumeChart(filtered);
 
   if (slaReportMeta)
     slaReportMeta.textContent = `Generado ${formatDate.format(new Date())} · ${filtered.length} tickets`;
