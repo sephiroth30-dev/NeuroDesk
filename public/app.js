@@ -867,6 +867,15 @@ function getFilteredSlaTickets() {
   });
 }
 
+function hoursLabel(h) {
+  if (h == null || isNaN(h)) return "—";
+  if (h < 1) return `${Math.round(h * 60)}min`;
+  if (h < 24) return `${h.toFixed(1)}h`;
+  const days = Math.floor(h / 24);
+  const rem = Math.round(h % 24);
+  return rem > 0 ? `${days}d ${rem}h` : `${days}d`;
+}
+
 function summarizeTickets(tickets) {
   const active = tickets.filter((t) => t.status !== "resuelto" && t.status !== "cerrado");
   const breached = active.filter((t) => t.sla.breached);
@@ -878,6 +887,11 @@ function summarizeTickets(tickets) {
     acc[u.key] = tickets.filter((t) => t.urgency === u.key).length;
     return acc;
   }, {});
+  // Top areas
+  const areaCounts = {};
+  tickets.forEach((t) => { if (t.area) areaCounts[t.area] = (areaCounts[t.area] || 0) + 1; });
+  const topAreas = Object.entries(areaCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
   const compliance =
     active.length === 0
       ? 100
@@ -885,16 +899,89 @@ function summarizeTickets(tickets) {
   const avgRemaining =
     active.length === 0
       ? 0
-      : Number(
-          (active.reduce((sum, t) => sum + t.sla.remainingHours, 0) / active.length).toFixed(1)
-        );
+      : Number((active.reduce((sum, t) => sum + t.sla.remainingHours, 0) / active.length).toFixed(1));
+
+  // Avg resolution time — from createdAt to first resolved/closed history entry
+  const resTimes = [];
+  tickets.forEach((t) => {
+    if ((t.status === "resuelto" || t.status === "cerrado") && Array.isArray(t.history)) {
+      const resolvedEntry = t.history.find((h) => h.status === "resuelto" || h.status === "cerrado");
+      if (resolvedEntry) {
+        const ms = new Date(resolvedEntry.createdAt) - new Date(t.createdAt);
+        if (ms > 0) resTimes.push(ms / 3_600_000);
+      }
+    }
+  });
+  const avgResolutionHours = resTimes.length > 0
+    ? Number((resTimes.reduce((s, v) => s + v, 0) / resTimes.length).toFixed(1))
+    : null;
+
+  // Avg first response time — from createdAt to first history entry
+  const respTimes = [];
+  tickets.forEach((t) => {
+    if (Array.isArray(t.history) && t.history.length > 0) {
+      const first = t.history[0];
+      const ms = new Date(first.createdAt) - new Date(t.createdAt);
+      if (ms > 0) respTimes.push(ms / 3_600_000);
+    }
+  });
+  const avgFirstResponseHours = respTimes.length > 0
+    ? Number((respTimes.reduce((s, v) => s + v, 0) / respTimes.length).toFixed(1))
+    : null;
+
   return {
     byStatus,
     byUrgency,
+    topAreas,
     compliance,
     avgRemainingHours: avgRemaining,
     breached: breached.length,
+    avgResolutionHours,
+    avgFirstResponseHours,
   };
+}
+
+function renderVolumeChart(tickets) {
+  const el = document.getElementById("slaVolumeChart");
+  if (!el) return;
+  if (tickets.length === 0) { el.innerHTML = '<p class="empty" style="font-size:0.8rem">Sin datos</p>'; return; }
+
+  const from = slaDateFrom.value ? new Date(`${slaDateFrom.value}T00:00:00`) : new Date(tickets.reduce((min, t) => t.createdAt < min ? t.createdAt : min, tickets[0].createdAt));
+  const to = slaDateTo.value ? new Date(`${slaDateTo.value}T23:59:59`) : new Date();
+  const dayMs = 86_400_000;
+  const days = Math.min(Math.ceil((to - from) / dayMs) + 1, 90);
+
+  const buckets = [];
+  for (let i = 0; i < days; i++) {
+    const d = new Date(from.getTime() + i * dayMs);
+    const key = d.toISOString().slice(0, 10);
+    buckets.push({ key, label: d.toLocaleDateString("es-CO", { day: "2-digit", month: "short" }), count: 0 });
+  }
+  tickets.forEach((t) => {
+    const key = t.createdAt.slice(0, 10);
+    const b = buckets.find((b) => b.key === key);
+    if (b) b.count++;
+  });
+
+  const max = Math.max(...buckets.map((b) => b.count), 1);
+  // Show at most 60 bars; if more days, group by week
+  const showBuckets = days <= 60 ? buckets : (() => {
+    const weeks = [];
+    for (let i = 0; i < buckets.length; i += 7) {
+      const chunk = buckets.slice(i, i + 7);
+      weeks.push({ key: chunk[0].key, label: chunk[0].label, count: chunk.reduce((s, b) => s + b.count, 0) });
+    }
+    return weeks;
+  })();
+  const wMax = Math.max(...showBuckets.map((b) => b.count), 1);
+
+  el.innerHTML = `<div class="volumeBars">${showBuckets.map((b) => {
+    const pct = Math.round((b.count / wMax) * 100);
+    return `<div class="volumeBar" title="${b.label}: ${b.count} ticket${b.count !== 1 ? "s" : ""}">
+      <div class="volumeBarFill" style="height:${Math.max(pct, 2)}%"></div>
+      ${showBuckets.length <= 20 ? `<span class="volumeBarLabel">${b.label.split(" ")[0]}</span>` : ""}
+    </div>`;
+  }).join("")}</div>`;
 }
 
 function renderSlaReport() {
@@ -905,10 +992,38 @@ function renderSlaReport() {
   if (slaDetailCompliance) slaDetailCompliance.textContent = `${summary.compliance}%`;
   if (metricRemaining) metricRemaining.textContent = `${summary.avgRemainingHours}h`;
   if (slaDetailDonut) slaDetailDonut.style.setProperty("--value", summary.compliance);
-  if (slaDetailDonut)
-    slaDetailDonut.style.setProperty("--donut-color", complianceColor(summary.compliance));
+  if (slaDetailDonut) slaDetailDonut.style.setProperty("--donut-color", complianceColor(summary.compliance));
+
+  const metricBreachedEl = document.getElementById("metricBreached");
+  if (metricBreachedEl) metricBreachedEl.textContent = summary.breached;
+
+  const metricAvgRes = document.getElementById("metricAvgResolution");
+  if (metricAvgRes) metricAvgRes.textContent = hoursLabel(summary.avgResolutionHours);
+
+  const metricAvgResp = document.getElementById("metricAvgFirstResponse");
+  if (metricAvgResp) metricAvgResp.textContent = hoursLabel(summary.avgFirstResponseHours);
+
   renderBars(slaStatusBars, statuses, summary.byStatus);
   renderBars(slaUrgencyBars, urgencies, summary.byUrgency);
+
+  // Top areas
+  const areaEl = document.getElementById("slaAreaBars");
+  if (areaEl && summary.topAreas.length > 0) {
+    const maxA = summary.topAreas[0][1];
+    areaEl.innerHTML = summary.topAreas.map(([area, count]) => {
+      const pct = Math.round((count / maxA) * 100);
+      return `<div class="statusBar">
+        <span class="statusBarLabel">${escapeHtml(area)}</span>
+        <div class="statusBarTrack"><div class="statusBarFill" style="width:${pct}%;background:var(--brand)"></div></div>
+        <span class="statusBarCount">${count}</span>
+      </div>`;
+    }).join("");
+  } else if (areaEl) {
+    areaEl.innerHTML = '<p class="empty" style="font-size:0.8rem">Sin datos</p>';
+  }
+
+  renderVolumeChart(filtered);
+
   if (slaReportMeta)
     slaReportMeta.textContent = `Generado ${formatDate.format(new Date())} · ${filtered.length} tickets`;
   renderSlaTicketTable(filtered);
@@ -2128,6 +2243,50 @@ exportSlaButton.addEventListener("click", () => {
   document.body.classList.add("printing-sla");
   window.print();
   setTimeout(() => document.body.classList.remove("printing-sla"), 500);
+});
+
+// ── Presets de fecha para Indicadores ────────────────────────────────────────
+function toDateInput(d) { return d.toISOString().slice(0, 10); }
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".slaPresetBtn");
+  if (!btn) return;
+  const now = new Date();
+  let from, to;
+  switch (btn.dataset.preset) {
+    case "today":
+      from = to = now;
+      break;
+    case "week": {
+      const day = now.getDay() || 7;
+      from = new Date(now); from.setDate(now.getDate() - day + 1);
+      to = now;
+      break;
+    }
+    case "month":
+      from = new Date(now.getFullYear(), now.getMonth(), 1);
+      to = now;
+      break;
+    case "lastmonth":
+      from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      to = new Date(now.getFullYear(), now.getMonth(), 0);
+      break;
+    case "30d":
+      from = new Date(now); from.setDate(now.getDate() - 29);
+      to = now;
+      break;
+    case "90d":
+      from = new Date(now); from.setDate(now.getDate() - 89);
+      to = now;
+      break;
+    default: return;
+  }
+  if (slaDateFrom) slaDateFrom.value = toDateInput(from);
+  if (slaDateTo) slaDateTo.value = toDateInput(to);
+  // Mark active preset
+  document.querySelectorAll(".slaPresetBtn").forEach((b) => b.classList.remove("active"));
+  btn.classList.add("active");
+  renderSlaReport();
 });
 
 statusFilter.addEventListener("change", (e) => {

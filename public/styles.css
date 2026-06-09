@@ -818,61 +818,81 @@ button[type="submit"]:active {
 
 /* ── SLA Detail View ── */
 /* ── Métricas SLA — card unificada ── */
-.slaMetricsCard {
+/* ── Presets de fecha ── */
+.slaPresets {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.slaPresetsLabel {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-right: 4px;
+}
+.slaPresetBtn {
+  padding: 5px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  line-height: 1.4;
+}
+.slaPresetBtn:hover { background: var(--hover); border-color: var(--brand); color: var(--brand); }
+.slaPresetBtn.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+/* ── Grid de métricas individuales ── */
+.slaMetricsGrid {
   display: grid;
-  grid-template-columns: auto 1fr 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.slaMetricCard {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.slaMetricItem {
-  padding: 32px 36px;
-  border-right: 1px solid var(--line);
+  padding: 22px 24px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  gap: 4px;
 }
-
-.slaMetricItem:last-child {
-  border-right: none;
-}
-
-.slaMetricItem.slaMetricDonut {
+.slaMetricCard--donut {
   flex-direction: row;
   align-items: center;
   gap: 18px;
 }
-
-.slaMetricLabel {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin: 0 0 10px;
-}
-
-.slaMetricValue {
+.slaMetricCard--danger .slaMetricCardValue { color: var(--danger); }
+.slaMetricCard--accent .slaMetricCardValue { color: var(--brand); }
+.slaMetricCardBody { display: flex; flex-direction: column; gap: 4px; }
+.slaMetricIcon { color: var(--muted); margin-bottom: 6px; }
+.slaMetricCardValue {
   display: block;
-  font-size: 2.2rem;
+  font-size: 2rem;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--graphite);
   line-height: 1.1;
-  margin: 0 0 10px;
 }
-
-.slaMetricValueAccent {
-  color: var(--brand);
+.slaMetricCardLabel {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin: 0;
 }
-
-.slaMetricDesc {
-  font-size: 0.74rem;
+.slaMetricCardDesc {
+  font-size: 0.72rem;
   color: var(--muted);
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 /* Donut tamaño medio para la métrica de cumplimiento */
@@ -896,15 +916,61 @@ button[type="submit"]:active {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
+  margin-bottom: 14px;
 }
 
 .slaChartItem {
-  padding: 32px 36px;
+  padding: 28px 32px;
   border-right: 1px solid var(--line);
 }
 
 .slaChartItem:last-child {
   border-right: none;
+}
+
+.slaChartItem--full {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--line);
+  border-right: none;
+}
+
+/* ── Gráfica de volumen por día ── */
+.volumeChart {
+  margin-top: 12px;
+  height: 100px;
+}
+.volumeBars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 80px;
+}
+.volumeBar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 3px;
+  cursor: default;
+}
+.volumeBarFill {
+  width: 100%;
+  background: var(--brand);
+  border-radius: 3px 3px 0 0;
+  opacity: 0.75;
+  transition: opacity 0.15s;
+  min-height: 3px;
+}
+.volumeBar:hover .volumeBarFill { opacity: 1; }
+.volumeBarLabel {
+  font-size: 0.6rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .slaChartTitle {
@@ -1651,12 +1717,7 @@ tbody tr:last-child td {
 
 /* ── Responsive ── */
 @media (max-width: 1080px) {
-  .slaMetricsCard {
-    grid-template-columns: 1fr 1fr;
-  }
-  .slaMetricItem.slaMetricDonut {
-    grid-column: 1 / -1;
-  }
+  .slaMetricsGrid { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 1024px) {
@@ -1820,19 +1881,17 @@ tbody tr:last-child td {
     white-space: normal;
   }
 
-  .slaMetricsCard,
+  .slaMetricsGrid { grid-template-columns: repeat(2, 1fr); }
   .slaChartsCard,
   .filterPanel {
     grid-template-columns: 1fr;
   }
 
-  .slaMetricItem,
   .slaChartItem {
     border-right: none;
     border-bottom: 1px solid var(--line);
   }
 
-  .slaMetricItem:last-child,
   .slaChartItem:last-child {
     border-bottom: none;
   }
@@ -2708,10 +2767,10 @@ label .fieldLabel {
 
 /* ── Print ── */
 @media print {
-  body {
-    background: #ffffff;
-  }
+  @page { margin: 14mm; size: A4 landscape; }
+  body { background: #fff; }
 
+  body.printing-sla .sidebar,
   body.printing-sla .topbar,
   body.printing-sla #overviewView,
   body.printing-sla #createView,
@@ -2719,30 +2778,21 @@ label .fieldLabel {
   body.printing-sla .modalOverlay,
   body.printing-sla .bulkBar,
   body.printing-sla .filterPanel,
-  body.printing-sla .sectionActions {
-    display: none;
-  }
+  body.printing-sla .sectionActions,
+  body.printing-sla .slaPresets,
+  body.printing-sla .no-print-table,
+  body.printing-sla .no-print-hide { display: none !important; }
 
-  body.printing-sla #slaView {
-    display: block;
-  }
+  body.printing-sla #slaView { display: block; }
+  body.printing-sla .shell { width: 100%; padding: 0; margin: 0; }
 
-  .shell {
-    width: 100%;
-    padding: 0;
-  }
+  .slaMetricsGrid { grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .slaMetricCard { padding: 14px 16px; break-inside: avoid; }
+  .slaChartsCard { break-inside: avoid; }
+  .slaChartItem--full { display: none; } /* quitar gráfica de barras en print */
 
-  .sectionHeader,
-  .metricCard,
-  .chartPanel {
-    box-shadow: none;
-    break-inside: avoid;
-  }
-
-  table {
-    min-width: 0;
-    font-size: 0.72rem;
-  }
+  table { min-width: 0; font-size: 0.7rem; }
+  .slaMetricCardValue { font-size: 1.4rem; }
 }
 
 /* ── Topbar user area ── */

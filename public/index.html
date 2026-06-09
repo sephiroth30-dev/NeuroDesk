@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/tokens.css?v=14.6" />
-    <link rel="stylesheet" href="/styles.css?v=14.6" />
+    <link rel="stylesheet" href="/tokens.css?v=14.7" />
+    <link rel="stylesheet" href="/styles.css?v=14.7" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -423,13 +423,26 @@
       <section id="slaView" class="view" aria-label="Estadísticas SLA">
         <div class="sectionHeader">
           <div>
-            <p>Cumplimiento, vencidos y distribución del periodo seleccionado.</p>
+            <h2>Indicadores</h2>
+            <p>Métricas del período seleccionado en tiempo real.</p>
           </div>
           <div class="sectionActions">
             <button id="exportSlaButton" class="secondaryAction" type="button">Exportar PDF</button>
             <button id="backToOverviewButton" class="ghostButton" type="button">Volver</button>
           </div>
         </div>
+
+        <!-- Presets de fecha -->
+        <div class="slaPresets" aria-label="Accesos rápidos de período">
+          <span class="slaPresetsLabel">Período:</span>
+          <button class="slaPresetBtn" data-preset="today" type="button">Hoy</button>
+          <button class="slaPresetBtn" data-preset="week" type="button">Esta semana</button>
+          <button class="slaPresetBtn" data-preset="month" type="button">Este mes</button>
+          <button class="slaPresetBtn" data-preset="lastmonth" type="button">Mes anterior</button>
+          <button class="slaPresetBtn" data-preset="30d" type="button">Últimos 30 días</button>
+          <button class="slaPresetBtn" data-preset="90d" type="button">Últimos 90 días</button>
+        </div>
+
         <section class="filterPanel" aria-label="Filtros de SLA">
           <label>
             Desde
@@ -488,38 +501,55 @@
             <input id="slaSearchFilter" type="search" placeholder="Ticket, contacto o área" />
           </label>
         </section>
-        <!-- Card unificada: 3 métricas -->
-        <div class="slaMetricsCard">
-          <div class="slaMetricItem slaMetricDonut">
-            <div
-              class="donut donutMd"
-              id="slaDetailDonut"
-              style="--value: 100; --donut-color: var(--donut-ok)"
-            >
+
+        <!-- Tarjetas de métricas individuales -->
+        <div class="slaMetricsGrid">
+          <div class="slaMetricCard slaMetricCard--donut">
+            <div class="donut donutMd" id="slaDetailDonut" style="--value: 100; --donut-color: var(--donut-ok)">
               <span id="slaDetailCompliance">100%</span>
             </div>
-            <div>
-              <p class="slaMetricLabel">Cumplimiento</p>
-              <p class="slaMetricDesc">Tickets dentro del objetivo en el periodo seleccionado.</p>
+            <div class="slaMetricCardBody">
+              <p class="slaMetricCardLabel">Cumplimiento SLA</p>
+              <p class="slaMetricCardDesc">Tickets resueltos dentro del objetivo</p>
             </div>
           </div>
-          <div class="slaMetricItem">
-            <p class="slaMetricLabel">Tickets filtrados</p>
-            <strong id="slaFilteredCount" class="slaMetricValue">0</strong>
-            <p class="slaMetricDesc">Resultado del filtro aplicado</p>
+          <div class="slaMetricCard">
+            <svg class="slaMetricIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+            <strong id="slaFilteredCount" class="slaMetricCardValue">0</strong>
+            <p class="slaMetricCardLabel">Tickets en período</p>
+            <p class="slaMetricCardDesc">Total según filtros activos</p>
           </div>
-          <div class="slaMetricItem">
-            <p class="slaMetricLabel">Promedio restante</p>
-            <strong id="metricRemaining" class="slaMetricValue slaMetricValueAccent">0h</strong>
-            <p class="slaMetricDesc">Tiempo medio antes de vencer SLA</p>
+          <div class="slaMetricCard slaMetricCard--danger">
+            <svg class="slaMetricIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <strong id="metricBreached" class="slaMetricCardValue">0</strong>
+            <p class="slaMetricCardLabel">SLA Vencidos</p>
+            <p class="slaMetricCardDesc">Tickets fuera del objetivo</p>
+          </div>
+          <div class="slaMetricCard slaMetricCard--accent">
+            <svg class="slaMetricIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <strong id="metricAvgResolution" class="slaMetricCardValue">—</strong>
+            <p class="slaMetricCardLabel">Tiempo promedio resolución</p>
+            <p class="slaMetricCardDesc">Desde apertura hasta cierre</p>
+          </div>
+          <div class="slaMetricCard">
+            <svg class="slaMetricIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            <strong id="metricAvgFirstResponse" class="slaMetricCardValue">—</strong>
+            <p class="slaMetricCardLabel">Primera respuesta promedio</p>
+            <p class="slaMetricCardDesc">Tiempo hasta el primer registro</p>
+          </div>
+          <div class="slaMetricCard">
+            <svg class="slaMetricIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <strong id="metricRemaining" class="slaMetricCardValue">0h</strong>
+            <p class="slaMetricCardLabel">Promedio SLA restante</p>
+            <p class="slaMetricCardDesc">Tickets activos aún en plazo</p>
           </div>
         </div>
 
-        <!-- Card unificada: gráficas -->
+        <!-- Gráficas: barras de estado + urgencia + volumen diario -->
         <div class="slaChartsCard">
           <div class="slaChartItem">
-            <h3 class="slaChartTitle">Estados SLA</h3>
-            <p class="slaChartSub">Activos vs resueltos</p>
+            <h3 class="slaChartTitle">Estados</h3>
+            <p class="slaChartSub">Distribución por estado</p>
             <div id="slaStatusBars" class="statusBars"></div>
           </div>
           <div class="slaChartItem">
@@ -527,8 +557,23 @@
             <p class="slaChartSub">Impacto potencial sobre SLA</p>
             <div id="slaUrgencyBars" class="statusBars"></div>
           </div>
+          <div class="slaChartItem slaChartItem--full">
+            <h3 class="slaChartTitle">Volumen por día</h3>
+            <p class="slaChartSub">Tickets creados en el período seleccionado</p>
+            <div id="slaVolumeChart" class="volumeChart"></div>
+          </div>
         </div>
-        <section class="chartPanel reportTable">
+
+        <!-- Top áreas -->
+        <div class="slaChartsCard no-print-hide">
+          <div class="slaChartItem slaChartItem--full">
+            <h3 class="slaChartTitle">Top áreas</h3>
+            <p class="slaChartSub">Áreas con más tickets en el período</p>
+            <div id="slaAreaBars" class="statusBars"></div>
+          </div>
+        </div>
+
+        <section class="chartPanel reportTable no-print-table">
           <div class="panelHeader">
             <h2>Detalle filtrado</h2>
             <p id="slaReportMeta">Reporte SLA NeuroDesk</p>
@@ -1516,7 +1561,7 @@
       </div>
     </div>
 
-    <script src="/app.js?v=14.6" defer></script>
+    <script src="/app.js?v=14.7" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {
