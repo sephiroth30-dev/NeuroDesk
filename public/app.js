@@ -2221,6 +2221,15 @@ cancelCreateButton.addEventListener("click", () => {
   showView("overview");
 });
 slaButton.addEventListener("click", () => {
+  // Activar "Este mes" por defecto si no hay fechas seleccionadas
+  if (!slaDateFrom.value && !slaDateTo.value) {
+    const now = new Date();
+    slaDateFrom.value = toDateInput(new Date(now.getFullYear(), now.getMonth(), 1));
+    slaDateTo.value = toDateInput(now);
+    document.querySelectorAll(".slaPresetBtn").forEach((b) => b.classList.remove("active"));
+    const mesBtn = document.querySelector('.slaPresetBtn[data-preset="month"]');
+    if (mesBtn) mesBtn.classList.add("active");
+  }
   renderSlaReport();
   showView("sla");
 });
