@@ -1587,6 +1587,12 @@ th.sortable {
 th.sortable:hover { color: var(--brand); }
 th.sorted { color: var(--brand); }
 
+tr.tableRowClickable {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+tr.tableRowClickable:hover td { background: var(--hover); }
+
 table {
   width: 100%;
   min-width: 760px;

@@ -1044,7 +1044,7 @@ function renderSlaTicketTable(tickets) {
           ${sorted.map((ticket) => {
             const slaCls = ticket.sla.paused ? "paused" : ticket.sla.breached ? "breached" : "";
             const slaText = ticket.sla.paused ? "Pausado" : ticket.sla.breached ? "Vencido" : `${ticket.sla.remainingHours}h`;
-            return `<tr>
+            return `<tr class="tableRowClickable" data-ticket-id="${escapeHtml(ticket.id)}" title="Abrir ticket ${escapeHtml(ticket.id)}">
               <td>${escapeHtml(ticket.id)}</td>
               <td>${formatDate.format(new Date(ticket.createdAt))}</td>
               <td>${escapeHtml(ticket.name)}</td>
@@ -1070,6 +1070,14 @@ function renderSlaTicketTable(tickets) {
         slaTableSort.dir = 1;
       }
       renderSlaTicketTable(tickets);
+    });
+  });
+
+  // Click en fila → abrir ticket
+  slaTicketTable.querySelectorAll("tr.tableRowClickable").forEach((tr) => {
+    tr.addEventListener("click", () => {
+      const ticket = cachedTickets.find((t) => t.id === tr.dataset.ticketId);
+      if (ticket) openTicketDetail(ticket);
     });
   });
 }
