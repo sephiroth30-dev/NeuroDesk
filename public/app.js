@@ -987,41 +987,91 @@ function renderSlaReport() {
   renderSlaTicketTable(filtered);
 }
 
+let slaTableSort = { col: null, dir: 1 };
+
+const SLA_COLS = [
+  { key: "id",      label: "Ticket" },
+  { key: "date",    label: "Fecha" },
+  { key: "name",    label: "Solicitante" },
+  { key: "contact", label: "Contacto" },
+  { key: "area",    label: "Área" },
+  { key: "urgency", label: "Urgencia" },
+  { key: "status",  label: "Estado" },
+  { key: "sla",     label: "SLA" },
+];
+
+const URGENCY_ORDER = { baja: 1, media: 2, alta: 3, critica: 4 };
+const STATUS_ORDER  = { abierto: 1, en_proceso: 2, en_espera: 3, resuelto: 4, cerrado: 5 };
+
+function sortSlaTickets(tickets) {
+  if (!slaTableSort.col) return tickets;
+  return [...tickets].sort((a, b) => {
+    let va, vb;
+    switch (slaTableSort.col) {
+      case "id":      va = a.id; vb = b.id; break;
+      case "date":    va = a.createdAt; vb = b.createdAt; break;
+      case "name":    va = (a.name || "").toLowerCase(); vb = (b.name || "").toLowerCase(); break;
+      case "contact": va = (a.contact || "").toLowerCase(); vb = (b.contact || "").toLowerCase(); break;
+      case "area":    va = (a.area || "").toLowerCase(); vb = (b.area || "").toLowerCase(); break;
+      case "urgency": va = URGENCY_ORDER[a.urgency] || 0; vb = URGENCY_ORDER[b.urgency] || 0; break;
+      case "status":  va = STATUS_ORDER[a.status] || 0; vb = STATUS_ORDER[b.status] || 0; break;
+      case "sla":     va = a.sla.breached ? -1 : a.sla.remainingHours; vb = b.sla.breached ? -1 : b.sla.remainingHours; break;
+      default: return 0;
+    }
+    if (va < vb) return -1 * slaTableSort.dir;
+    if (va > vb) return 1 * slaTableSort.dir;
+    return 0;
+  });
+}
+
 function renderSlaTicketTable(tickets) {
   if (tickets.length === 0) {
-    slaTicketTable.innerHTML =
-      '<p class="empty">No hay tickets para los filtros seleccionados.</p>';
+    slaTicketTable.innerHTML = '<p class="empty">No hay tickets para los filtros seleccionados.</p>';
     return;
   }
+  const sorted = sortSlaTickets(tickets);
+  const headers = SLA_COLS.map(({ key, label }) => {
+    const active = slaTableSort.col === key;
+    const arrow = active ? (slaTableSort.dir === 1 ? " ↑" : " ↓") : "";
+    return `<th class="sortable${active ? " sorted" : ""}" data-sla-col="${key}">${label}${arrow}</th>`;
+  }).join("");
+
   slaTicketTable.innerHTML = `
     <div class="tableWrap">
       <table>
-        <thead>
-          <tr><th>Ticket</th><th>Fecha</th><th>Solicitante</th><th>Contacto</th><th>Área</th><th>Urgencia</th><th>Estado</th><th>SLA</th></tr>
-        </thead>
+        <thead><tr>${headers}</tr></thead>
         <tbody>
-          ${tickets
-            .map((ticket) => {
-              const slaCls = ticket.sla.paused ? "paused" : ticket.sla.breached ? "breached" : "";
-              const slaText = ticket.sla.paused ? "Pausado" : ticket.sla.breached ? "Vencido" : `${ticket.sla.remainingHours}h`;
-              return `
-              <tr>
-                <td>${escapeHtml(ticket.id)}</td>
-                <td>${formatDate.format(new Date(ticket.createdAt))}</td>
-                <td>${escapeHtml(ticket.name)}</td>
-                <td>${escapeHtml(ticket.contact)}</td>
-                <td>${escapeHtml(ticket.area)}</td>
-                <td><span class="badge ${escapeHtml(ticket.urgency)}">${escapeHtml(ticket.urgency)}</span></td>
-                <td>${escapeHtml(getLabel(statuses, ticket.status))}</td>
-                <td><span class="sla ${slaCls}">${slaText}</span></td>
-              </tr>
-            `;
-            })
-            .join("")}
+          ${sorted.map((ticket) => {
+            const slaCls = ticket.sla.paused ? "paused" : ticket.sla.breached ? "breached" : "";
+            const slaText = ticket.sla.paused ? "Pausado" : ticket.sla.breached ? "Vencido" : `${ticket.sla.remainingHours}h`;
+            return `<tr>
+              <td>${escapeHtml(ticket.id)}</td>
+              <td>${formatDate.format(new Date(ticket.createdAt))}</td>
+              <td>${escapeHtml(ticket.name)}</td>
+              <td>${escapeHtml(ticket.contact)}</td>
+              <td>${escapeHtml(ticket.area)}</td>
+              <td><span class="badge ${escapeHtml(ticket.urgency)}">${escapeHtml(ticket.urgency)}</span></td>
+              <td>${escapeHtml(getLabel(statuses, ticket.status))}</td>
+              <td><span class="sla ${slaCls}">${slaText}</span></td>
+            </tr>`;
+          }).join("")}
         </tbody>
       </table>
-    </div>
-  `;
+    </div>`;
+
+  // Click en encabezado para ordenar
+  slaTicketTable.querySelectorAll("th[data-sla-col]").forEach((th) => {
+    th.addEventListener("click", () => {
+      const col = th.dataset.slaCol;
+      if (slaTableSort.col === col) {
+        slaTableSort.dir *= -1;
+      } else {
+        slaTableSort.col = col;
+        slaTableSort.dir = 1;
+      }
+      renderSlaTicketTable(tickets);
+    });
+  });
 }
 
 // ── Edit modal ────────────────────────────────────────────────────────────────

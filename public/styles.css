@@ -1579,6 +1579,14 @@ select:focus {
   border-radius: 10px;
 }
 
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+th.sortable:hover { color: var(--brand); }
+th.sorted { color: var(--brand); }
+
 table {
   width: 100%;
   min-width: 760px;
