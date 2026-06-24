@@ -934,10 +934,10 @@ function updateTicketStatus(id, status) {
   const updated = store.tickets.find((t) => t.id === id);
   if (updated) {
     applySlaTransition(updated, oldStatus, status);
-    if (status === "resuelto" && !updated.resolvedAt) {
+    if ((status === "resuelto" || status === "cerrado") && !updated.resolvedAt) {
       updated.resolvedAt = new Date().toISOString();
       saveStore();
-    } else if (status !== "resuelto" && updated.resolvedAt) {
+    } else if (status !== "resuelto" && status !== "cerrado" && updated.resolvedAt) {
       updated.resolvedAt = null;
       saveStore();
     }
@@ -1003,10 +1003,10 @@ function updateTicketFull(id, data) {
   const updatedRaw = store.tickets.find((t) => t.id === id);
   if (updatedRaw) {
     applySlaTransition(updatedRaw, oldStatus, status);
-    if (status === "resuelto" && !updatedRaw.resolvedAt) {
+    if ((status === "resuelto" || status === "cerrado") && !updatedRaw.resolvedAt) {
       updatedRaw.resolvedAt = new Date().toISOString();
       saveStore();
-    } else if (status !== "resuelto" && updatedRaw.resolvedAt) {
+    } else if (status !== "resuelto" && status !== "cerrado" && updatedRaw.resolvedAt) {
       updatedRaw.resolvedAt = null;
       saveStore();
     }
@@ -1037,10 +1037,10 @@ function updateTicketPosition(id, status, orderedIds) {
     });
   if (rawTicket) {
     applySlaTransition(rawTicket, oldStatus, status);
-    if (status === "resuelto" && !rawTicket.resolvedAt) {
+    if ((status === "resuelto" || status === "cerrado") && !rawTicket.resolvedAt) {
       rawTicket.resolvedAt = new Date().toISOString();
       saveStore();
-    } else if (status !== "resuelto" && rawTicket.resolvedAt) {
+    } else if (status !== "resuelto" && status !== "cerrado" && rawTicket.resolvedAt) {
       rawTicket.resolvedAt = null;
       saveStore();
     }
@@ -1079,8 +1079,16 @@ function getSlaState(ticket) {
   const pausedMs = ticket.slaPausedMs || 0;
 
   let endMs;
-  if (isFinished && ticket.resolvedAt) {
-    endMs = new Date(ticket.resolvedAt).getTime();
+  if (isFinished) {
+    // Prefer resolvedAt; fall back to history timestamp for legacy tickets without resolvedAt
+    let closedTs = ticket.resolvedAt;
+    if (!closedTs && Array.isArray(ticket.history)) {
+      const entry = ticket.history.find(
+        (h) => h.status === "resuelto" || h.status === "cerrado"
+      );
+      if (entry) closedTs = entry.createdAt;
+    }
+    endMs = closedTs ? new Date(closedTs).getTime() : Date.now();
   } else if (isPaused && ticket.slaFrozenAt) {
     endMs = new Date(ticket.slaFrozenAt).getTime();
   } else {
