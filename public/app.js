@@ -652,13 +652,15 @@ function sentimentIcon(s) {
   return "";
 }
 
+function slaLabel(sla) {
+  if (sla.paused) return { cls: "paused", text: "SLA pausado" };
+  if (sla.breached) return { cls: "breached", text: "SLA vencido" };
+  if (sla.outsideBusinessHours) return { cls: "off-hours", text: `⏸ ${sla.remainingHours}h` };
+  return { cls: "", text: `SLA ${sla.remainingHours}h` };
+}
+
 function renderTicketCard(ticket) {
-  const slaCls = ticket.sla.paused ? "paused" : ticket.sla.breached ? "breached" : "";
-  const slaText = ticket.sla.paused
-    ? "SLA pausado"
-    : ticket.sla.breached
-      ? "SLA vencido"
-      : `SLA ${ticket.sla.remainingHours}h`;
+  const { cls: slaCls, text: slaText } = slaLabel(ticket.sla);
   const createdAt = formatDate.format(new Date(ticket.createdAt));
   const isNew = ticket.createdAt > lastVisitTs;
   const reopenedBadge = ticket.reopenedByClient
@@ -706,8 +708,7 @@ function renderTicketList(tickets) {
         <tbody>
           ${visible
             .map((ticket) => {
-              const slaCls = ticket.sla.paused ? "paused" : ticket.sla.breached ? "breached" : "";
-              const slaText = ticket.sla.paused ? "Pausado" : ticket.sla.breached ? "Vencido" : `${ticket.sla.remainingHours}h`;
+              const { cls: slaCls, text: slaText } = slaLabel(ticket.sla);
               const isNew = ticket.createdAt > lastVisitTs;
               return `
               <tr class="ticketRow${isNew ? " ticketRow--new" : ""}" data-ticket-id="${escapeHtml(ticket.id)}">
@@ -1152,8 +1153,7 @@ function renderSlaTicketTable(tickets) {
         <thead><tr>${headers}</tr></thead>
         <tbody>
           ${sorted.map((ticket) => {
-            const slaCls = ticket.sla.paused ? "paused" : ticket.sla.breached ? "breached" : "";
-            const slaText = ticket.sla.paused ? "Pausado" : ticket.sla.breached ? "Vencido" : `${ticket.sla.remainingHours}h`;
+            const { cls: slaCls, text: slaText } = slaLabel(ticket.sla);
             return `<tr class="tableRowClickable" data-ticket-id="${escapeHtml(ticket.id)}" title="Abrir ticket ${escapeHtml(ticket.id)}">
               <td>${escapeHtml(ticket.id)}</td>
               <td>${formatDate.format(new Date(ticket.createdAt))}</td>

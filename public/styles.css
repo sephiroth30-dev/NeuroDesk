@@ -1556,6 +1556,12 @@ select:focus {
   color: var(--graphite);
   opacity: 0.55;
 }
+.sla.off-hours {
+  background: none;
+  color: var(--muted);
+  opacity: 0.75;
+  font-style: italic;
+}
 .slaDot {
   width: 7px;
   height: 7px;

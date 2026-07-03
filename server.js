@@ -1117,6 +1117,22 @@ function applySlaTransition(rawTicket, oldStatus, newStatus) {
   }
 }
 
+// Returns true if the current moment is inside business hours.
+function isInsideBusinessHours(bh) {
+  if (!bh || !bh.enabled) return true; // no BH config = always running
+  const now = new Date();
+  const dow = now.getDay();
+  const sched = bh.schedule || {};
+  const day = sched[String(dow)];
+  if (!day || !day.enabled) return false;
+  const [sh, sm] = String(day.start || "00:00").split(":").map(Number);
+  const [eh, em] = String(day.end || "00:00").split(":").map(Number);
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const startMins = (sh || 0) * 60 + (sm || 0);
+  const endMins = (eh || 0) * 60 + (em || 0);
+  return nowMins >= startMins && nowMins < endMins;
+}
+
 // Returns how many milliseconds of "business time" elapsed between fromMs and toMs.
 // Non-business hours and non-working days are excluded from the count.
 function calcBusinessMs(fromMs, toMs, bh) {
@@ -1184,6 +1200,8 @@ function getSlaState(ticket) {
   }
 
   const limitHours = appConfig.sla[ticket.urgency] || 8;
+  const bhEnabled = !!(bh && bh.enabled);
+  const outsideBusinessHours = bhEnabled && !isFinished && !isPaused && !isInsideBusinessHours(bh);
   return {
     limitHours,
     remainingHours: Number(Math.max(limitHours - elapsedHours, 0).toFixed(1)),
@@ -1191,7 +1209,8 @@ function getSlaState(ticket) {
     breached: elapsedHours > limitHours,
     paused: isPaused,
     finished: isFinished,
-    businessHours: !!(bh && bh.enabled),
+    businessHours: bhEnabled,
+    outsideBusinessHours,
   };
 }
 
