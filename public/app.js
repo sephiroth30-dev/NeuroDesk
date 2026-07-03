@@ -353,24 +353,26 @@ function populateSettingsPanel() {
   document.querySelector("#slaAlta").value = appConfig.sla.alta;
   document.querySelector("#slaCritica").value = appConfig.sla.critica;
 
-  // Business hours
+  // Business hours per-day
   const bh = appConfig.businessHours || {};
-  const bhBtn = document.querySelector("#bhEnabled");
-  const bhOptions = document.querySelector("#bhOptions");
-  const isEnabled = bh.enabled !== false;
-  if (bhBtn) {
-    bhBtn.setAttribute("aria-pressed", String(isEnabled));
-    bhBtn.querySelector(".bhToggleLabel").textContent = isEnabled ? "Activo" : "Inactivo";
-    if (bhOptions) bhOptions.hidden = !isEnabled;
+  const bhEnabled = document.querySelector("#bhEnabled");
+  const bhSched = bh.schedule || {};
+  if (bhEnabled) {
+    bhEnabled.setAttribute("aria-pressed", bh.enabled ? "true" : "false");
+    bhEnabled.querySelector(".bhToggleLabel").textContent = bh.enabled ? "Activo" : "Inactivo";
+    document.getElementById("bhOptions").style.display = bh.enabled ? "" : "none";
   }
-  const bhStart = document.querySelector("#bhStart");
-  const bhEnd = document.querySelector("#bhEnd");
-  if (bhStart) bhStart.value = bh.start || "07:00";
-  if (bhEnd) bhEnd.value = bh.end || "17:00";
-  const activeDays = new Set(Array.isArray(bh.days) ? bh.days.map(Number) : [1,2,3,4,5]);
-  document.querySelectorAll(".bhDayPill").forEach((btn) => {
-    const day = Number(btn.dataset.day);
-    btn.classList.toggle("active", activeDays.has(day));
+  document.querySelectorAll(".bhDayEntry").forEach(entry => {
+    const day = String(entry.dataset.day);
+    const dayConf = bhSched[day] || { enabled: [1,2,3,4,5].includes(Number(day)), start: "07:00", end: "17:00" };
+    const check = entry.querySelector(".bhDayCheck");
+    const startInput = entry.querySelector(".bhDayStart");
+    const endInput = entry.querySelector(".bhDayEnd");
+    const timesDiv = entry.querySelector(".bhDayTimes");
+    if (check) check.checked = dayConf.enabled;
+    if (startInput) startInput.value = dayConf.start || "07:00";
+    if (endInput) endInput.value = dayConf.end || "17:00";
+    if (timesDiv) timesDiv.style.opacity = dayConf.enabled ? "1" : "0.35";
   });
 
   document.querySelector("#fieldContactEnabled").checked = appConfig.fields.contact.enabled;
@@ -391,13 +393,15 @@ document.querySelector("#bhEnabled")?.addEventListener("click", function () {
   this.setAttribute("aria-pressed", String(next));
   this.querySelector(".bhToggleLabel").textContent = next ? "Activo" : "Inactivo";
   const bhOptions = document.querySelector("#bhOptions");
-  if (bhOptions) bhOptions.hidden = !next;
+  if (bhOptions) bhOptions.style.display = next ? "" : "none";
 });
 
-// Day pill toggle
-document.querySelectorAll(".bhDayPill").forEach((btn) => {
-  btn.addEventListener("click", function () {
-    this.classList.toggle("active");
+// Per-day checkbox toggle — dim/undim times
+document.querySelectorAll(".bhDayCheck").forEach(check => {
+  check.addEventListener("change", () => {
+    const entry = check.closest(".bhDayEntry");
+    const timesDiv = entry && entry.querySelector(".bhDayTimes");
+    if (timesDiv) timesDiv.style.opacity = check.checked ? "1" : "0.35";
   });
 });
 
@@ -2148,12 +2152,24 @@ saveSettingsButton.addEventListener("click", async () => {
       },
     },
     customFields: collectCustomFieldsConfig(),
-    businessHours: {
-      enabled: document.querySelector("#bhEnabled")?.getAttribute("aria-pressed") === "true",
-      start: document.querySelector("#bhStart")?.value || "07:00",
-      end: document.querySelector("#bhEnd")?.value || "17:00",
-      days: [...document.querySelectorAll(".bhDayPill.active")].map((btn) => Number(btn.dataset.day)),
-    },
+    businessHours: (() => {
+      const schedule = {};
+      document.querySelectorAll(".bhDayEntry").forEach(entry => {
+        const day = String(entry.dataset.day);
+        const check = entry.querySelector(".bhDayCheck");
+        const startInput = entry.querySelector(".bhDayStart");
+        const endInput = entry.querySelector(".bhDayEnd");
+        schedule[day] = {
+          enabled: check ? check.checked : false,
+          start: startInput ? startInput.value : "07:00",
+          end: endInput ? endInput.value : "17:00",
+        };
+      });
+      return {
+        enabled: document.querySelector("#bhEnabled")?.getAttribute("aria-pressed") === "true",
+        schedule,
+      };
+    })(),
   };
   try {
     appConfig = await requestJson("/api/config", {

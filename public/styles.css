@@ -3901,41 +3901,92 @@ label .fieldLabel {
   gap: 16px;
 }
 
-/* Day pills */
-.bhDayRow {
+/* Per-day business hours list */
+.bhDayList {
+  display: grid;
+  gap: 2px;
+}
+
+.bhDayEntry {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  transition: background 0.13s;
 }
-.bhDayPill {
-  padding: 6px 13px;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  border: 1.5px solid var(--line);
-  background: var(--panel);
-  color: var(--muted);
+
+.bhDayEntry:hover {
+  background: rgba(60, 60, 67, 0.04);
+}
+
+.bhDayEntryLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  user-select: none;
+  min-width: 110px;
+  flex-shrink: 0;
 }
-.bhDayPill.active {
+
+.bhDayName {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--graphite);
+}
+
+.bhDayTimes {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  transition: opacity 0.2s;
+}
+
+.bhDayTimes .bhTimeField {
+  gap: 3px;
+}
+
+.bhDayTimes .bhTimeField input[type="time"] {
+  width: 120px;
+  font-size: 0.875rem;
+  padding: 6px 10px;
+}
+
+/* Toggle for .bhDayCheck — iOS style */
+.bhDayCheck {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 40px;
+  height: 22px;
+  min-height: unset;
+  border-radius: 22px;
+  background: rgba(120,120,128,0.22);
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.2s;
+}
+.bhDayCheck::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.22);
+}
+.bhDayCheck:checked {
   background: var(--brand);
-  color: #fff;
-  border-color: var(--brand);
 }
-.bhDayPill:hover:not(.active) {
-  border-color: var(--brand);
-  color: var(--brand);
+.bhDayCheck:checked::after {
+  transform: translateX(18px);
 }
 
 /* Time range */
-.bhTimeRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
 .bhTimeField {
   display: flex;
   flex-direction: column;

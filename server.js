@@ -528,9 +528,15 @@ const DEFAULT_CONFIG = {
   customFields: [],
   businessHours: {
     enabled: true,
-    start: "07:00",
-    end: "17:00",
-    days: [1, 2, 3, 4, 5], // 0=Dom, 1=Lun, ..., 6=Sáb
+    schedule: {
+      "0": { enabled: false, start: "07:00", end: "17:00" },
+      "1": { enabled: true,  start: "07:00", end: "17:00" },
+      "2": { enabled: true,  start: "07:00", end: "17:00" },
+      "3": { enabled: true,  start: "07:00", end: "17:00" },
+      "4": { enabled: true,  start: "07:00", end: "17:00" },
+      "5": { enabled: true,  start: "07:00", end: "17:00" },
+      "6": { enabled: false, start: "07:00", end: "17:00" },
+    },
   },
 };
 
@@ -788,13 +794,24 @@ function saveConfig(incoming) {
   });
 
   const bh = incoming.businessHours || {};
+  const defaultSchedule = { "0":{enabled:false,start:"07:00",end:"17:00"},"1":{enabled:true,start:"07:00",end:"17:00"},"2":{enabled:true,start:"07:00",end:"17:00"},"3":{enabled:true,start:"07:00",end:"17:00"},"4":{enabled:true,start:"07:00",end:"17:00"},"5":{enabled:true,start:"07:00",end:"17:00"},"6":{enabled:false,start:"07:00",end:"17:00"} };
+  const inSched = bh.schedule && typeof bh.schedule === 'object' ? bh.schedule : {};
+  // backward compat: if old format (has bh.days array), convert it
+  const oldDays = Array.isArray(bh.days) ? new Set(bh.days.map(Number)) : null;
+  const oldStart = /^\d{2}:\d{2}$/.test(bh.start) ? bh.start : "07:00";
+  const oldEnd = /^\d{2}:\d{2}$/.test(bh.end) ? bh.end : "17:00";
+  const validatedSchedule = {};
+  for (let d = 0; d <= 6; d++) {
+    const key = String(d);
+    const src = inSched[key] || {};
+    const dayEnabled = oldDays ? oldDays.has(d) : (src.enabled === true || src.enabled === "true");
+    const dayStart = /^\d{2}:\d{2}$/.test(src.start) ? src.start : (oldDays ? oldStart : "07:00");
+    const dayEnd = /^\d{2}:\d{2}$/.test(src.end) ? src.end : (oldDays ? oldEnd : "17:00");
+    validatedSchedule[key] = { enabled: dayEnabled, start: dayStart, end: dayEnd };
+  }
   const validatedBh = {
     enabled: bh.enabled === true || bh.enabled === "true",
-    start: /^\d{2}:\d{2}$/.test(bh.start) ? bh.start : "07:00",
-    end: /^\d{2}:\d{2}$/.test(bh.end) ? bh.end : "17:00",
-    days: Array.isArray(bh.days)
-      ? bh.days.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6)
-      : [1, 2, 3, 4, 5],
+    schedule: validatedSchedule,
   };
 
   appConfig = { sla: validatedSla, fields: validatedFields, customFields: validatedCustomFields, businessHours: validatedBh };
@@ -1098,31 +1115,30 @@ function applySlaTransition(rawTicket, oldStatus, newStatus) {
 // Non-business hours and non-working days are excluded from the count.
 function calcBusinessMs(fromMs, toMs, bh) {
   if (!bh || !bh.enabled || fromMs >= toMs) return Math.max(toMs - fromMs, 0);
-  const days = new Set(Array.isArray(bh.days) ? bh.days : [1, 2, 3, 4, 5]);
   const parseTime = (t) => {
     const [h, m] = String(t || "00:00").split(":").map(Number);
     return ((h || 0) * 60 + (m || 0)) * 60000;
   };
-  const dayStartMs = parseTime(bh.start);
-  const dayEndMs = parseTime(bh.end);
-  if (dayEndMs <= dayStartMs) return Math.max(toMs - fromMs, 0);
-
+  const sched = bh.schedule || {};
   let total = 0;
-  // Start at midnight of the day containing fromMs
   const anchor = new Date(fromMs);
   anchor.setHours(0, 0, 0, 0);
   let cursor = anchor.getTime();
-
   while (cursor < toMs) {
     const dow = new Date(cursor).getDay();
-    if (days.has(dow)) {
-      const segStart = cursor + dayStartMs;
-      const segEnd = cursor + dayEndMs;
-      const overlapStart = Math.max(segStart, fromMs);
-      const overlapEnd = Math.min(segEnd, toMs);
-      if (overlapEnd > overlapStart) total += overlapEnd - overlapStart;
+    const day = sched[String(dow)];
+    if (day && day.enabled) {
+      const dayStartMs = parseTime(day.start);
+      const dayEndMs = parseTime(day.end);
+      if (dayEndMs > dayStartMs) {
+        const segStart = cursor + dayStartMs;
+        const segEnd = cursor + dayEndMs;
+        const overlapStart = Math.max(segStart, fromMs);
+        const overlapEnd = Math.min(segEnd, toMs);
+        if (overlapEnd > overlapStart) total += overlapEnd - overlapStart;
+      }
     }
-    cursor += 86400000; // advance one day
+    cursor += 86400000;
   }
   return total;
 }

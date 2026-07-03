@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/tokens.css?v=14.20" />
-    <link rel="stylesheet" href="/styles.css?v=14.20" />
+    <link rel="stylesheet" href="/tokens.css?v=14.21" />
+    <link rel="stylesheet" href="/styles.css?v=14.21" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -740,24 +740,125 @@
               </button>
             </div>
             <div id="bhOptions" class="bhOptions">
-              <div class="bhDayRow">
-                <button type="button" class="bhDayPill active" data-day="1">Lun</button>
-                <button type="button" class="bhDayPill active" data-day="2">Mar</button>
-                <button type="button" class="bhDayPill active" data-day="3">Mié</button>
-                <button type="button" class="bhDayPill active" data-day="4">Jue</button>
-                <button type="button" class="bhDayPill active" data-day="5">Vie</button>
-                <button type="button" class="bhDayPill" data-day="6">Sáb</button>
-                <button type="button" class="bhDayPill" data-day="0">Dom</button>
-              </div>
-              <div class="bhTimeRow">
-                <div class="bhTimeField">
-                  <span class="bhTimeFieldLabel">Entrada</span>
-                  <input type="time" id="bhStart" value="07:00">
+              <div class="bhDayList">
+                <div class="bhDayEntry" data-day="1">
+                  <label class="bhDayEntryLabel">
+                    <input type="checkbox" class="bhDayCheck" data-day="1" checked>
+                    <span class="bhDayName">Lunes</span>
+                  </label>
+                  <div class="bhDayTimes">
+                    <div class="bhTimeField">
+                      <span class="bhTimeFieldLabel">Entrada</span>
+                      <input type="time" class="bhDayStart" data-day="1" value="07:00">
+                    </div>
+                    <span class="bhTimeSep">→</span>
+                    <div class="bhTimeField">
+                      <span class="bhTimeFieldLabel">Salida</span>
+                      <input type="time" class="bhDayEnd" data-day="1" value="17:00">
+                    </div>
+                  </div>
                 </div>
-                <span class="bhTimeSep">→</span>
-                <div class="bhTimeField">
-                  <span class="bhTimeFieldLabel">Salida</span>
-                  <input type="time" id="bhEnd" value="17:00">
+                <div class="bhDayEntry" data-day="2">
+                  <label class="bhDayEntryLabel">
+                    <input type="checkbox" class="bhDayCheck" data-day="2" checked>
+                    <span class="bhDayName">Martes</span>
+                  </label>
+                  <div class="bhDayTimes">
+                    <div class="bhTimeField">
+                      <span class="bhTimeFieldLabel">Entrada</span>
+                      <input type="time" class="bhDayStart" data-day="2" value="07:00">
+                    </div>
+                    <span class="bhTimeSep">→</span>
+                    <div class="bhTimeField">
+                      <span class="bhTimeFieldLabel">Salida</span>
+                      <input type="time" class="bhDayEnd" data-day="2" value="17:00">
+                    </div>
+                  </div>
+                </div>
+                <div class="bhDayEntry" data-day="3">
+                  <label class="bhDayEntryLabel">
+                    <input type="checkbox" class="bhDayCheck" data-day="3" checked>
+                    <span class="bhDayName">Miércoles</span>
+                  </label>
+                  <div class="bhDayTimes">
+                    <div class="bhTimeField">
+                      <span class="bhTimeFieldLabel">Entrada</span>
+                      <input type="time" class="bhDayStart" data-day="3" value="07:00">
+                    </div>
+                    <span class="bhTimeSep">→</span>
+                    <div class="bhTimeField">
+                      <span class="bhTimeFieldLabel">Salida</span>
+                      <input type="time" class="bhDayEnd" data-day="3" value="17:00">
+                    </div>
+                  </div>
+                </div>
+                <div class="bhDayEntry" data-day="4">
+                  <label class="bhDayEntryLabel">
+                    <input type="checkbox" class="bhDayCheck" data-day="4" checked>
+                    <span class="bhDayName">Jueves</span>
+                  </label>
+                  <div class="bhDayTimes">
+                    <div class="bhTimeField">
+                      <span class="bhTimeFieldLabel">Entrada</span>
+                      <input type="time" class="bhDayStart" data-day="4" value="07:00">
+                    </div>
+                    <span class="bhTimeSep">→</span>
+                    <div class="bhTimeField">
+                      <span class="bhTimeFieldLabel">Salida</span>
+                      <input type="time" class="bhDayEnd" data-day="4" value="17:00">
+                    </div>
+                  </div>
+                </div>
+                <div class="bhDayEntry" data-day="5">
+                  <label class="bhDayEntryLabel">
+                    <input type="checkbox" class="bhDayCheck" data-day="5" checked>
+                    <span class="bhDayName">Viernes</span>
+                  </label>
+                  <div class="bhDayTimes">
+                    <div class="bhTimeField">
+                      <span class="bhTimeFieldLabel">Entrada</span>
+                      <input type="time" class="bhDayStart" data-day="5" value="07:00">
+                    </div>
+                    <span class="bhTimeSep">→</span>
+                    <div class="bhTimeField">
+                      <span class="bhTimeFieldLabel">Salida</span>
+                      <input type="time" class="bhDayEnd" data-day="5" value="17:00">
+                    </div>
+                  </div>
+                </div>
+                <div class="bhDayEntry" data-day="6">
+                  <label class="bhDayEntryLabel">
+                    <input type="checkbox" class="bhDayCheck" data-day="6">
+                    <span class="bhDayName">Sábado</span>
+                  </label>
+                  <div class="bhDayTimes">
+                    <div class="bhTimeField">
+                      <span class="bhTimeFieldLabel">Entrada</span>
+                      <input type="time" class="bhDayStart" data-day="6" value="07:00">
+                    </div>
+                    <span class="bhTimeSep">→</span>
+                    <div class="bhTimeField">
+                      <span class="bhTimeFieldLabel">Salida</span>
+                      <input type="time" class="bhDayEnd" data-day="6" value="17:00">
+                    </div>
+                  </div>
+                </div>
+                <div class="bhDayEntry" data-day="0">
+                  <label class="bhDayEntryLabel">
+                    <input type="checkbox" class="bhDayCheck" data-day="0">
+                    <span class="bhDayName">Domingo</span>
+                  </label>
+                  <div class="bhDayTimes">
+                    <div class="bhTimeField">
+                      <span class="bhTimeFieldLabel">Entrada</span>
+                      <input type="time" class="bhDayStart" data-day="0" value="07:00">
+                    </div>
+                    <span class="bhTimeSep">→</span>
+                    <div class="bhTimeField">
+                      <span class="bhTimeFieldLabel">Salida</span>
+                      <input type="time" class="bhDayEnd" data-day="0" value="17:00">
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1602,7 +1703,7 @@
       </div>
     </div>
 
-    <script src="/app.js?v=14.20" defer></script>
+    <script src="/app.js?v=14.21" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {
