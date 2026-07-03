@@ -3,6 +3,8 @@
   --bg: #F5F5F2;
   --panel: #FFFFFF;
   --soft: #FAFAF9;
+  --surface: #FAFAF9;
+  --hover: rgba(60, 60, 67, 0.04);
   --text: #1C1C1E;
   --muted: #6E6E73;
   --graphite: #1C1C1E;
@@ -1187,7 +1189,13 @@ button[type="submit"]:active {
 }
 
 .statusFilterLabel {
-  display: none;
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .boardTools {
@@ -2594,7 +2602,7 @@ body.sidebarCollapsed .ticketDetailOverlay {
 
 .slaInputsGrid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
 }
 
@@ -2639,12 +2647,35 @@ body.sidebarCollapsed .ticketDetailOverlay {
 }
 
 .toggleLabel input[type="checkbox"] {
-  width: 17px;
-  height: 17px;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 40px;
+  height: 22px;
   min-height: unset;
-  accent-color: var(--brand);
+  border-radius: 22px;
+  background: rgba(120,120,128,0.22);
   cursor: pointer;
   flex-shrink: 0;
+  position: relative;
+  transition: background 0.2s;
+}
+.toggleLabel input[type="checkbox"]::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.22);
+}
+.toggleLabel input[type="checkbox"]:checked {
+  background: var(--brand);
+}
+.toggleLabel input[type="checkbox"]:checked::after {
+  transform: translateX(18px);
 }
 
 .fieldConfigDesc {
@@ -2958,10 +2989,35 @@ label .fieldLabel {
 }
 
 .closureNotifyToggle input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 36px;
+  height: 20px;
+  min-height: unset;
+  border-radius: 20px;
+  background: rgba(120,120,128,0.22);
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.2s;
+}
+.closureNotifyToggle input[type="checkbox"]::after {
+  content: '';
+  position: absolute;
   width: 16px;
   height: 16px;
-  accent-color: var(--brand);
-  cursor: pointer;
+  border-radius: 50%;
+  background: #fff;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.22);
+}
+.closureNotifyToggle input[type="checkbox"]:checked {
+  background: var(--ok);
+}
+.closureNotifyToggle input[type="checkbox"]:checked::after {
+  transform: translateX(16px);
 }
 
 .userArea {
@@ -3202,10 +3258,35 @@ label .fieldLabel {
 }
 
 .settingsForm .toggleRow input[type="checkbox"] {
-  width: 17px;
-  height: 17px;
-  accent-color: var(--brand);
+  appearance: none;
+  -webkit-appearance: none;
+  width: 44px;
+  height: 24px;
+  min-height: unset;
+  border-radius: 24px;
+  background: rgba(120,120,128,0.22);
   cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.2s;
+}
+.settingsForm .toggleRow input[type="checkbox"]::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.22);
+}
+.settingsForm .toggleRow input[type="checkbox"]:checked {
+  background: var(--brand);
+}
+.settingsForm .toggleRow input[type="checkbox"]:checked::after {
+  transform: translateX(20px);
 }
 
 .settingsForm .formGrid {
