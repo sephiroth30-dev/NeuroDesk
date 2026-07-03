@@ -355,19 +355,22 @@ function populateSettingsPanel() {
 
   // Business hours
   const bh = appConfig.businessHours || {};
-  const bhEnabled = document.querySelector("#bhEnabled");
+  const bhBtn = document.querySelector("#bhEnabled");
   const bhOptions = document.querySelector("#bhOptions");
-  if (bhEnabled) {
-    bhEnabled.checked = bh.enabled !== false;
-    if (bhOptions) bhOptions.hidden = !bhEnabled.checked;
+  const isEnabled = bh.enabled !== false;
+  if (bhBtn) {
+    bhBtn.setAttribute("aria-pressed", String(isEnabled));
+    bhBtn.querySelector(".bhToggleLabel").textContent = isEnabled ? "Activo" : "Inactivo";
+    if (bhOptions) bhOptions.hidden = !isEnabled;
   }
   const bhStart = document.querySelector("#bhStart");
   const bhEnd = document.querySelector("#bhEnd");
   if (bhStart) bhStart.value = bh.start || "07:00";
   if (bhEnd) bhEnd.value = bh.end || "17:00";
   const activeDays = new Set(Array.isArray(bh.days) ? bh.days.map(Number) : [1,2,3,4,5]);
-  document.querySelectorAll("input[name='bhDay']").forEach((cb) => {
-    cb.checked = activeDays.has(Number(cb.value));
+  document.querySelectorAll(".bhDayPill").forEach((btn) => {
+    const day = Number(btn.dataset.day);
+    btn.classList.toggle("active", activeDays.has(day));
   });
 
   document.querySelector("#fieldContactEnabled").checked = appConfig.fields.contact.enabled;
@@ -381,10 +384,21 @@ function populateSettingsPanel() {
   document.querySelector("#openPortalLink").href = "/portal";
 }
 
-// Toggle business hours options visibility
-document.querySelector("#bhEnabled")?.addEventListener("change", function () {
+// Business hours toggle
+document.querySelector("#bhEnabled")?.addEventListener("click", function () {
+  const pressed = this.getAttribute("aria-pressed") === "true";
+  const next = !pressed;
+  this.setAttribute("aria-pressed", String(next));
+  this.querySelector(".bhToggleLabel").textContent = next ? "Activo" : "Inactivo";
   const bhOptions = document.querySelector("#bhOptions");
-  if (bhOptions) bhOptions.hidden = !this.checked;
+  if (bhOptions) bhOptions.hidden = !next;
+});
+
+// Day pill toggle
+document.querySelectorAll(".bhDayPill").forEach((btn) => {
+  btn.addEventListener("click", function () {
+    this.classList.toggle("active");
+  });
 });
 
 function renderCustomFieldsBuilder() {
@@ -2135,10 +2149,10 @@ saveSettingsButton.addEventListener("click", async () => {
     },
     customFields: collectCustomFieldsConfig(),
     businessHours: {
-      enabled: document.querySelector("#bhEnabled")?.checked ?? true,
+      enabled: document.querySelector("#bhEnabled")?.getAttribute("aria-pressed") === "true",
       start: document.querySelector("#bhStart")?.value || "07:00",
       end: document.querySelector("#bhEnd")?.value || "17:00",
-      days: [...document.querySelectorAll("input[name='bhDay']:checked")].map((cb) => Number(cb.value)),
+      days: [...document.querySelectorAll(".bhDayPill.active")].map((btn) => Number(btn.dataset.day)),
     },
   };
   try {

@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/tokens.css?v=14.14" />
-    <link rel="stylesheet" href="/styles.css?v=14.14" />
+    <link rel="stylesheet" href="/tokens.css?v=14.18" />
+    <link rel="stylesheet" href="/styles.css?v=14.18" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -732,33 +732,32 @@
             <div class="bhHeader">
               <div>
                 <strong>Horario laboral</strong>
-                <p class="bhSubtitle">El SLA solo corre durante el horario configurado. Fuera de él, el tiempo se pausa automáticamente.</p>
+                <p class="bhSubtitle">El SLA solo corre durante días y horas laborales. Fuera de ese horario el tiempo se pausa automáticamente.</p>
               </div>
-              <label class="toggleSwitch" title="Activar horario laboral">
-                <input type="checkbox" id="bhEnabled">
-                <span class="toggleSlider"></span>
-              </label>
+              <button type="button" id="bhEnabled" class="bhToggle" aria-pressed="true" title="Activar/desactivar horario laboral">
+                <span class="bhToggleTrack"><span class="bhToggleThumb"></span></span>
+                <span class="bhToggleLabel">Activo</span>
+              </button>
             </div>
             <div id="bhOptions" class="bhOptions">
-              <div class="bhTimeRow">
-                <label>Entrada
-                  <input type="time" id="bhStart" value="07:00">
-                </label>
-                <span class="bhTimeSep">—</span>
-                <label>Salida
-                  <input type="time" id="bhEnd" value="17:00">
-                </label>
+              <div class="bhDayRow">
+                <button type="button" class="bhDayPill active" data-day="1">Lun</button>
+                <button type="button" class="bhDayPill active" data-day="2">Mar</button>
+                <button type="button" class="bhDayPill active" data-day="3">Mié</button>
+                <button type="button" class="bhDayPill active" data-day="4">Jue</button>
+                <button type="button" class="bhDayPill active" data-day="5">Vie</button>
+                <button type="button" class="bhDayPill" data-day="6">Sáb</button>
+                <button type="button" class="bhDayPill" data-day="0">Dom</button>
               </div>
-              <div class="bhDays">
-                <span class="bhDaysLabel">Días laborales:</span>
-                <div class="bhDayBtns">
-                  <label class="bhDay"><input type="checkbox" name="bhDay" value="1" checked><span>Lun</span></label>
-                  <label class="bhDay"><input type="checkbox" name="bhDay" value="2" checked><span>Mar</span></label>
-                  <label class="bhDay"><input type="checkbox" name="bhDay" value="3" checked><span>Mié</span></label>
-                  <label class="bhDay"><input type="checkbox" name="bhDay" value="4" checked><span>Jue</span></label>
-                  <label class="bhDay"><input type="checkbox" name="bhDay" value="5" checked><span>Vie</span></label>
-                  <label class="bhDay"><input type="checkbox" name="bhDay" value="6"><span>Sáb</span></label>
-                  <label class="bhDay"><input type="checkbox" name="bhDay" value="0"><span>Dom</span></label>
+              <div class="bhTimeRow">
+                <div class="bhTimeField">
+                  <span class="bhTimeFieldLabel">Entrada</span>
+                  <input type="time" id="bhStart" value="07:00">
+                </div>
+                <span class="bhTimeSep">→</span>
+                <div class="bhTimeField">
+                  <span class="bhTimeFieldLabel">Salida</span>
+                  <input type="time" id="bhEnd" value="17:00">
                 </div>
               </div>
             </div>
@@ -1603,7 +1602,7 @@
       </div>
     </div>
 
-    <script src="/app.js?v=14.14" defer></script>
+    <script src="/app.js?v=14.18" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {

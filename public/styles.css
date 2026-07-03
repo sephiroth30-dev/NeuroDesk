@@ -3791,128 +3791,139 @@ label .fieldLabel {
 .bhSection {
   margin-top: 24px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 16px 20px;
+  border-radius: 14px;
+  padding: 18px 20px 20px;
   background: var(--soft);
 }
 .bhHeader {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
+.bhHeader strong { font-size: 0.95rem; }
 .bhSubtitle {
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   color: var(--muted);
-  margin: 2px 0 0;
-  max-width: 440px;
+  margin: 3px 0 0;
+  max-width: 380px;
+  line-height: 1.4;
 }
 .bhOptions {
-  margin-top: 16px;
+  margin-top: 18px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
-.bhTimeRow {
+
+/* Day pills */
+.bhDayRow {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  gap: 6px;
   flex-wrap: wrap;
 }
-.bhTimeRow label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.82rem;
-  color: var(--muted);
-  font-weight: 500;
-}
-.bhTimeRow input[type="time"] {
-  padding: 6px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+.bhDayPill {
+  padding: 6px 13px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1.5px solid var(--line);
   background: var(--panel);
-  color: var(--text);
-  font-size: 0.9rem;
-  width: 120px;
-}
-.bhTimeSep {
   color: var(--muted);
-  margin-top: 18px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  user-select: none;
 }
-.bhDays {
+.bhDayPill.active {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+.bhDayPill:hover:not(.active) {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+/* Time range */
+.bhTimeRow {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
-.bhDaysLabel {
-  font-size: 0.82rem;
-  color: var(--muted);
-  font-weight: 500;
-  white-space: nowrap;
-}
-.bhDayBtns {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.bhDay {
+.bhTimeField {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  cursor: pointer;
+  gap: 5px;
 }
-.bhDay input { display: none; }
-.bhDay span {
-  display: inline-block;
-  padding: 5px 10px;
-  border-radius: 8px;
-  font-size: 0.78rem;
+.bhTimeFieldLabel {
+  font-size: 0.72rem;
   font-weight: 600;
-  border: 1.5px solid var(--line);
-  background: var(--panel);
   color: var(--muted);
-  transition: all 0.15s;
-  user-select: none;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
-.bhDay input:checked + span {
-  background: var(--brand);
-  color: #fff;
+.bhTimeField input[type="time"] {
+  padding: 8px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 500;
+  width: 130px;
+  transition: border-color 0.15s;
+}
+.bhTimeField input[type="time"]:focus {
+  outline: none;
   border-color: var(--brand);
 }
+.bhTimeSep {
+  color: var(--muted);
+  font-size: 1rem;
+  margin-top: 22px;
+}
 
-/* Toggle switch */
-.toggleSwitch {
+/* Toggle button */
+.bhToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+.bhToggleTrack {
   position: relative;
-  display: inline-block;
   width: 44px;
   height: 24px;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-.toggleSwitch input { display: none; }
-.toggleSlider {
-  position: absolute;
-  inset: 0;
-  background: var(--line);
   border-radius: 24px;
+  background: rgba(120,120,128,0.25);
   transition: background 0.2s;
+  flex-shrink: 0;
 }
-.toggleSlider::before {
-  content: "";
+.bhToggleThumb {
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: #fff;
-  top: 3px;
-  left: 3px;
+  top: 2px;
+  left: 2px;
   transition: transform 0.2s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
 }
-.toggleSwitch input:checked + .toggleSlider { background: var(--brand); }
-.toggleSwitch input:checked + .toggleSlider::before { transform: translateX(20px); }
+.bhToggle[aria-pressed="true"] .bhToggleTrack { background: var(--brand); }
+.bhToggle[aria-pressed="true"] .bhToggleThumb { transform: translateX(20px); }
+.bhToggleLabel {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  min-width: 36px;
+}
+.bhToggle[aria-pressed="true"] .bhToggleLabel { color: var(--brand); }
 
 /* ── Reopened by client ── */
 .reopenedBanner {
