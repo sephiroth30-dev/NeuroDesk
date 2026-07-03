@@ -1291,25 +1291,22 @@ sentimentScore: 0-100 (0=muy satisfecho, 100=muy frustrado)`;
 async function aiSuggestReply(ticket) {
   const urgencyLabel = { baja: "Baja", media: "Media", alta: "Alta", critica: "Crítica" }[ticket.urgency] || ticket.urgency || "Media";
   const history = (ticket.history || [])
-    .slice(-8)
+    .slice(-5)
     .map((h) => `[${h.status || "nota"}] ${h.note}`)
-    .join("\n---\n");
-  const system = `Eres un agente de soporte de Neurofic. Redacta una respuesta profesional, empática y concisa en español para el siguiente ticket de soporte.
+    .join("\n");
+  const system = `Eres un agente de soporte de Neurofic. Redacta una respuesta CORTA y directa en español.
 
-Reglas:
-- Máximo 4 párrafos
-- Tono profesional pero humano, sin frases genéricas vacías
-- No uses placeholders como [NOMBRE]; dirígete directamente al cliente usando su nombre si está disponible
-- Menciona explícitamente la prioridad asignada al ticket (usa el campo Prioridad del contexto)
-- Basándote en la descripción e historial, sugiere 1-3 posibles soluciones o pasos concretos a seguir. Si el problema ya fue resuelto, describe qué se hizo.
-- Firma como: "El equipo de soporte · Neurofic"
-- Solo texto plano, sin markdown`;
-  const content = `Ticket: ${ticket.id}
-Cliente: ${ticket.name || "Cliente"}
-Prioridad asignada: ${urgencyLabel}
+Reglas estrictas:
+- Máximo 2 párrafos breves
+- Usa SOLO información que está en el ticket — no inventes pasos, fechas ni detalles que no aparecen
+- Si no hay solución clara en el historial, indica que se está revisando el caso
+- Menciona la prioridad (${urgencyLabel}) en la primera línea
+- Firma: "Equipo de soporte · Neurofic"
+- Sin markdown, sin placeholders como [NOMBRE]`;
+  const content = `Ticket ${ticket.id} | Cliente: ${ticket.name || "Cliente"} | Prioridad: ${urgencyLabel}
 Asunto: ${ticket.subject || "(sin asunto)"}
-Descripción del problema: ${String(ticket.description || "").slice(0, 1800)}${history ? `\n\nHistorial de gestión:\n${history.slice(0, 1000)}` : ""}`;
-  return await anthropicRequest([{ role: "user", content }], system, 900);
+Descripción: ${String(ticket.description || "").slice(0, 800)}${history ? `\nHistorial:\n${history.slice(0, 500)}` : ""}`;
+  return await anthropicRequest([{ role: "user", content }], system, 400);
 }
 
 // ── Email config & poller ─────────────────────────────────────────────────────
@@ -1725,28 +1722,30 @@ async function pollEmails(options = {}) {
           if (ticketIdInSubject) {
             // Subject contains a ticket ID — find that ticket
             const found = store.tickets.find((t) => t.id.toLowerCase() === ticketIdInSubject.toLowerCase());
-            if (found && (found.contact || "").toLowerCase() === fromEmail.toLowerCase()) {
-              matchedTicket = found;
-            } else if (found) {
-              // Accept even if contact doesn't match (forwarded emails etc.)
+            // Never reopen permanently closed tickets via email
+            if (found && found.status !== "cerrado") {
               matchedTicket = found;
             }
           }
           if (!matchedTicket && (inReplyTo || references)) {
-            // Look for stored threadId on tickets (set when we send outgoing email)
+            // Thread match: only consider tickets resolved within last 14 days
+            const threadCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
             const threadMatch = store.tickets.find((t) => {
               if (!t.emailThreadId) return false;
-              return inReplyTo.includes(t.emailThreadId) || references.includes(t.emailThreadId);
+              if (!(inReplyTo.includes(t.emailThreadId) || references.includes(t.emailThreadId))) return false;
+              // Only match open/in-progress tickets, or recently resolved ones
+              if (t.status === "cerrado") return false;
+              if ((t.status === "resuelto") && t.resolvedAt && t.resolvedAt < threadCutoff) return false;
+              return true;
             });
             if (threadMatch) matchedTicket = threadMatch;
           }
-          // NOTE: intentionally no "last resort" email-only match.
-          // A new email from the same address with a different subject = new ticket.
-          // Only reopen when: subject has ticket ID, or reply headers match a known thread.
+          // NOTE: no "last resort" email-only match — new email from same address = new ticket.
 
           if (matchedTicket) {
             // This email is a reply to an existing ticket
-            const wasFinished = matchedTicket.status === "resuelto" || matchedTicket.status === "cerrado";
+            // Never reopen permanently closed tickets
+            const wasFinished = matchedTicket.status === "resuelto";
             const replyNote = `Respuesta del cliente:\n${bodyText}`;
             addTicketHistory(matchedTicket.id, replyNote, wasFinished ? "abierto" : matchedTicket.status);
             if (wasFinished) {

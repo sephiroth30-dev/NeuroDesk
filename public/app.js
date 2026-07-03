@@ -2263,6 +2263,8 @@ saveSettingsButton.addEventListener("click", async () => {
       },
     },
     customFields: collectCustomFieldsConfig(),
+    // Always pass the existing aiConfig so the key is never lost on save
+    aiConfig: appConfig?.aiConfig || { apiKey: "" },
     businessHours: (() => {
       const schedule = {};
       document.querySelectorAll(".bhDayEntry").forEach(entry => {
