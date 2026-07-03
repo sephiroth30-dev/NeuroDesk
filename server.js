@@ -815,10 +815,8 @@ function saveConfig(incoming) {
     schedule: validatedSchedule,
   };
 
-  const inAi = incoming.aiConfig && typeof incoming.aiConfig === "object" ? incoming.aiConfig : {};
-  // Preserve existing key if incoming is empty — never overwrite with blank
-  const incomingKey = typeof inAi.apiKey === "string" ? inAi.apiKey.trim() : "";
-  const validatedAi = { apiKey: incomingKey || appConfig.aiConfig?.apiKey || "" };
+  // aiConfig is NEVER touched by saveConfig — it has its own dedicated endpoint
+  const validatedAi = { apiKey: appConfig.aiConfig?.apiKey || "" };
 
   appConfig = { sla: validatedSla, fields: validatedFields, customFields: validatedCustomFields, aiConfig: validatedAi, businessHours: validatedBh };
   upsertConfigStmt.run("app_config", JSON.stringify(appConfig));
@@ -1766,24 +1764,25 @@ async function pollEmails(options = {}) {
             ? parsed.references.join(" ")
             : String(parsed.references || "");
 
+          const recentCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
           let matchedTicket = null;
-          let matchedClosed = null; // cerrado ticket that got a reply — attach as note only
+          let matchedClosed = null; // cerrado/old ticket — attach as note only, never reopen
           if (ticketIdInSubject) {
             const found = store.tickets.find((t) => t.id.toLowerCase() === ticketIdInSubject.toLowerCase());
             if (found) {
               if (found.status === "cerrado") matchedClosed = found;
+              else if (found.status === "resuelto" && found.resolvedAt && found.resolvedAt < recentCutoff) matchedClosed = found;
               else matchedTicket = found;
             }
           }
           if (!matchedTicket && !matchedClosed && (inReplyTo || references)) {
-            const threadCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
             const threadMatch = store.tickets.find((t) => {
               if (!t.emailThreadId) return false;
               return inReplyTo.includes(t.emailThreadId) || references.includes(t.emailThreadId);
             });
             if (threadMatch) {
               if (threadMatch.status === "cerrado") matchedClosed = threadMatch;
-              else if (threadMatch.status === "resuelto" && threadMatch.resolvedAt && threadMatch.resolvedAt < threadCutoff) matchedClosed = threadMatch;
+              else if (threadMatch.status === "resuelto" && threadMatch.resolvedAt && threadMatch.resolvedAt < recentCutoff) matchedClosed = threadMatch;
               else matchedTicket = threadMatch;
             }
           }
@@ -2239,6 +2238,28 @@ async function handleApi(req, res) {
   }
 
   // GET /api/config/ai — return masked key status
+  // PUT /api/config/ai — dedicated endpoint, only touches apiKey, never the rest of config
+  if (req.method === "PUT" && req.url === "/api/config/ai") {
+    try {
+      const body = await readBody(req);
+      const key = typeof body.apiKey === "string" ? body.apiKey.trim() : null;
+      if (key === null) { sendJson(res, 400, { error: "apiKey requerida." }); return; }
+      if (key === "") {
+        // Explicit clear requested
+        appConfig.aiConfig = { apiKey: "" };
+      } else {
+        appConfig.aiConfig = { apiKey: key };
+      }
+      upsertConfigStmt.run("app_config", JSON.stringify(appConfig));
+      const stored = appConfig.aiConfig.apiKey;
+      const masked = stored ? stored.slice(0, 7) + "••••••••••••••••" + stored.slice(-4) : "";
+      sendJson(res, 200, { ok: true, active: !!stored, masked });
+    } catch {
+      sendJson(res, 400, { error: "No se pudo guardar la API Key." });
+    }
+    return;
+  }
+
   if (req.method === "GET" && req.url === "/api/config/ai") {
     const key = appConfig.aiConfig?.apiKey || "";
     const envKey = process.env.ANTHROPIC_API_KEY || "";

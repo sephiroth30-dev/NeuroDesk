@@ -2054,7 +2054,7 @@ document.getElementById("toggleAiApiKey")?.addEventListener("click", function ()
   this.textContent = show ? "🙈" : "";
 });
 
-// Guardar API Key IA
+// Guardar API Key IA — endpoint dedicado, nunca toca el resto del config
 document.getElementById("aiConfigForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const keyInput = document.getElementById("aiApiKey");
@@ -2068,11 +2068,7 @@ document.getElementById("aiConfigForm")?.addEventListener("submit", async (e) =>
   }
   resultEl.textContent = "Guardando…";
   try {
-    const cfg = await requestJson("/api/config");
-    await requestJson("/api/config", {
-      method: "PUT",
-      body: JSON.stringify({ ...cfg, aiConfig: { apiKey: key } }),
-    });
+    await requestJson("/api/config/ai", { method: "PUT", body: JSON.stringify({ apiKey: key }) });
     resultEl.style.color = "var(--ok)";
     resultEl.textContent = "✓ API Key guardada correctamente.";
     if (keyInput) keyInput.value = "";
@@ -2083,17 +2079,13 @@ document.getElementById("aiConfigForm")?.addEventListener("submit", async (e) =>
   }
 });
 
-// Borrar API Key IA
+// Borrar API Key IA — endpoint dedicado
 document.getElementById("clearAiKeyBtn")?.addEventListener("click", async () => {
   const resultEl = document.getElementById("aiConfigResult");
   resultEl.style.display = "block";
   resultEl.textContent = "Borrando…";
   try {
-    const cfg = await requestJson("/api/config");
-    await requestJson("/api/config", {
-      method: "PUT",
-      body: JSON.stringify({ ...cfg, aiConfig: { apiKey: "" } }),
-    });
+    await requestJson("/api/config/ai", { method: "PUT", body: JSON.stringify({ apiKey: "" }) });
     resultEl.style.color = "var(--ok)";
     resultEl.textContent = "Clave borrada.";
     loadAiSettings();
@@ -2280,8 +2272,6 @@ saveSettingsButton.addEventListener("click", async () => {
       },
     },
     customFields: collectCustomFieldsConfig(),
-    // Always pass the existing aiConfig so the key is never lost on save
-    aiConfig: appConfig?.aiConfig || { apiKey: "" },
     businessHours: (() => {
       const schedule = {};
       document.querySelectorAll(".bhDayEntry").forEach(entry => {
