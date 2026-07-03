@@ -171,6 +171,7 @@ let liveEvents = null;
 let activeTicketId = null;
 let pendingClosureStatus = null;
 let pendingClosureSilent = false;
+let pendingReplyFiles = []; // {file: safeName, name: origName} — files uploaded while composing
 let showClosedTickets = false;
 let listPage = 1;
 const LIST_PAGE_SIZE = 50;
@@ -1240,6 +1241,8 @@ function openTicketDetail(ticket) {
     .join("");
   detailArea.value = ticket.area || "";
   detailResolution.value = "";
+  pendingReplyFiles = [];
+  updateReplyBtnLabel();
   detailWorkedHours.value = ticket.workedHours != null ? ticket.workedHours : "";
   detailMessage.textContent = "";
   if (detailAssignedTo) {
@@ -1469,6 +1472,12 @@ saveTicketDetail.addEventListener("click", () =>
   })
 );
 
+function updateReplyBtnLabel() {
+  if (!sendReplyBtn) return;
+  const n = pendingReplyFiles.length;
+  sendReplyBtn.textContent = n > 0 ? `Enviar al cliente (${n} archivo${n > 1 ? "s" : ""})` : "Enviar al cliente";
+}
+
 sendReplyBtn?.addEventListener("click", async () => {
   if (!activeTicketId) return;
   const textarea = document.querySelector("#detailResolution");
@@ -1478,12 +1487,20 @@ sendReplyBtn?.addEventListener("click", async () => {
   sendReplyBtn.disabled = true;
   if (msgEl) msgEl.textContent = "Enviando…";
   try {
+    const attachmentFiles = pendingReplyFiles.map((f) => f.file);
     await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}/reply`, {
       method: "POST",
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, attachmentFiles }),
     });
     if (textarea) textarea.value = "";
-    if (msgEl) { msgEl.textContent = "Respuesta enviada al cliente."; msgEl.style.color = "var(--ok)"; }
+    pendingReplyFiles = [];
+    updateReplyBtnLabel();
+    if (msgEl) {
+      msgEl.textContent = attachmentFiles.length > 0
+        ? `Respuesta enviada con ${attachmentFiles.length} archivo(s).`
+        : "Respuesta enviada al cliente.";
+      msgEl.style.color = "var(--ok)";
+    }
     setTimeout(() => { if (msgEl) { msgEl.textContent = ""; msgEl.style.color = ""; } }, 4000);
     await refresh();
     const updated = cachedTickets.find((t) => t.id === activeTicketId);
@@ -1517,10 +1534,14 @@ async function uploadFile(file) {
       const name = file.name && file.name !== "image.png" ? file.name
         : `captura-${new Date().toISOString().slice(0,19).replace(/[:T]/g,"-")}.png`;
       try {
-        await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}/attachments`, {
+        const saved = await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}/attachments`, {
           method: "POST",
           body: JSON.stringify({ name, type: file.type || "image/png", data: b64 }),
         });
+        if (saved && saved.file) {
+          pendingReplyFiles.push({ file: saved.file, name: saved.name || name });
+          updateReplyBtnLabel();
+        }
         setUploadStatus(`✓ ${name} adjuntado`, true);
         const updated = (await requestJson("/api/tickets")).find((t) => t.id === activeTicketId);
         if (updated) { Object.assign(cachedTickets.find((t) => t.id === activeTicketId) || {}, updated); renderAttachments(updated); }
@@ -1595,6 +1616,8 @@ document.addEventListener("click", async (e) => {
       body: JSON.stringify({ note }),
     });
     if (textarea) textarea.value = "";
+    pendingReplyFiles = [];
+    updateReplyBtnLabel();
     await refresh();
     const updated = cachedTickets.find((t) => t.id === activeTicketId);
     if (updated) renderTicketHistory(updated);

@@ -2431,6 +2431,19 @@ body.sidebarCollapsed .ticketDetailOverlay {
   gap: 12px;
 }
 
+.saveTicketHint {
+  margin-top: -8px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.detailDivider {
+  height: 1px;
+  background: var(--line);
+  margin: 2px 0;
+}
+
 .linkButton {
   border: 0;
   background: transparent;

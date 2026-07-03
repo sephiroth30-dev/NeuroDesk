@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/tokens.css?v=14.10" />
-    <link rel="stylesheet" href="/styles.css?v=14.10" />
+    <link rel="stylesheet" href="/tokens.css?v=14.11" />
+    <link rel="stylesheet" href="/styles.css?v=14.11" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -1474,9 +1474,11 @@
                 placeholder="ej. 1.5"
               />
             </label>
-            <button id="saveTicketDetail" class="primaryAction" type="button">
-              Guardar ticket
+            <button id="saveTicketDetail" class="primaryAction" type="button" title="Guarda cambios de estado, urgencia, área, agente y horas">
+              Guardar cambios
             </button>
+            <p class="saveTicketHint">Estado · Urgencia · Área · Agente · Horas</p>
+            <div class="detailDivider"></div>
             <button id="resolveTicketDetail" class="secondaryAction" type="button">
               Marcar resuelto
             </button>
@@ -1557,7 +1559,7 @@
       </div>
     </div>
 
-    <script src="/app.js?v=14.10" defer></script>
+    <script src="/app.js?v=14.11" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {

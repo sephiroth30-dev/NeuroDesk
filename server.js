@@ -1333,7 +1333,7 @@ function getSmtpTransporter() {
   return smtpTransporter;
 }
 
-async function sendEmail(to, subject, text) {
+async function sendEmail(to, subject, text, attachments = []) {
   const transporter = getSmtpTransporter();
   if (!transporter) return;
   const cfg = notificationsConfig.smtp;
@@ -1341,7 +1341,7 @@ async function sendEmail(to, subject, text) {
   const fromDefault = `NeuroDesk <${cfg.user}>`;
   const from = cfg.from && !cfg.from.includes("example.com") ? cfg.from : fromDefault;
   try {
-    await transporter.sendMail({ from, to, subject, text, html: textToHtml(text) });
+    await transporter.sendMail({ from, to, subject, text, html: textToHtml(text), attachments });
   } catch (err) {
     console.error("[NeuroDesk] SMTP error:", err.message);
     smtpTransporter = null;
@@ -1983,8 +1983,20 @@ async function handleApi(req, res) {
       const body = await readBody(req);
       const message = String(body.message || "").trim().slice(0, 4000);
       if (!message) { sendJson(res, 400, { error: "El mensaje no puede estar vacío." }); return; }
-      await sendEmail(rawTicket.contact, `Re: ${rawTicket.subject || rawTicket.id}`, message);
-      addTicketHistory(id, `Respuesta enviada al cliente:\n${message}`, rawTicket.status);
+      // Build nodemailer attachments from already-uploaded files on disk
+      const savedAtts = (() => { try { return JSON.parse(rawTicket.attachments || "[]"); } catch (_) { return []; } })();
+      const requestedFiles = Array.isArray(body.attachmentFiles) ? body.attachmentFiles : [];
+      const emailAttachments = requestedFiles.map((fname) => {
+        const meta = savedAtts.find((a) => a.file === fname);
+        const filePath = path.join(ATTACH_DIR, id, fname);
+        if (!meta || !fs.existsSync(filePath)) return null;
+        return { filename: meta.name, path: filePath };
+      }).filter(Boolean);
+      await sendEmail(rawTicket.contact, `Re: ${rawTicket.subject || rawTicket.id}`, message, emailAttachments);
+      const attNote = emailAttachments.length > 0
+        ? `\n[${emailAttachments.length} archivo(s) adjunto(s): ${emailAttachments.map(a => a.filename).join(", ")}]`
+        : "";
+      addTicketHistory(id, `Respuesta enviada al cliente:\n${message}${attNote}`, rawTicket.status);
       notifyClients("ticketsChanged", { action: "updated", id });
       sendJson(res, 200, { ok: true });
     } catch (err) {
