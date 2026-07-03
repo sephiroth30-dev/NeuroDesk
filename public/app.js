@@ -84,6 +84,9 @@ const boardDateTo = document.querySelector("#boardDateTo");
 const attachFileInput = document.querySelector("#attachFileInput");
 const uploadStatus = document.querySelector("#uploadStatus");
 const saveQuickNote = document.querySelector("#saveQuickNote");
+const globalSearch = document.querySelector("#globalSearch");
+const notifPermBtn = document.querySelector("#notifPermBtn");
+const closureNotifyClient = document.querySelector("#closureNotifyClient");
 
 // Edit modal
 const editModal = document.querySelector("#editModal");
@@ -1420,17 +1423,16 @@ document.addEventListener("click", (e) => {
   if (ticket) openTicketDetail(ticket);
 });
 
-function showClosureModal(statusOverride, silent = false) {
+function showClosureModal(statusOverride) {
   pendingClosureStatus = statusOverride;
-  pendingClosureSilent = silent;
   const isResolve = statusOverride === "resuelto";
-  closureReasonTitle.textContent = silent
-    ? "Cerrar sin notificar"
-    : isResolve ? "Marcar como resuelto" : "Cerrar ticket";
-  closureReasonLabel.textContent = isResolve ? "Motivo de resolución" : "Motivo de cierre";
-  confirmClosureBtn.textContent = silent
-    ? "Cerrar sin notificar"
-    : isResolve ? "Marcar resuelto" : "Cerrar ticket";
+  closureReasonTitle.textContent = isResolve ? "Marcar como resuelto" : "Cerrar ticket";
+  document.getElementById("closureReasonLabel").textContent = isResolve ? "Motivo de resolución" : "Motivo de cierre";
+  confirmClosureBtn.textContent = isResolve ? "Marcar resuelto" : "Cerrar ticket";
+  // Mostrar checkbox de notificación solo para cerrar (resolver siempre notifica)
+  const notifyRow = closureNotifyClient?.closest(".closureNotifyToggle");
+  if (notifyRow) notifyRow.hidden = false;
+  if (closureNotifyClient) closureNotifyClient.checked = true;
   closureReasonText.value = detailResolution.value.trim();
   closureReasonError.textContent = "";
   closureReasonModal.hidden = false;
@@ -1455,9 +1457,26 @@ confirmClosureBtn.addEventListener("click", async () => {
     return;
   }
   const status = pendingClosureStatus;
-  const silent = pendingClosureSilent;
+  const silent = closureNotifyClient ? !closureNotifyClient.checked : false;
   hideClosureModal();
   detailResolution.value = reason;
+  // Auto-guardar cambios de campos antes de resolver/cerrar
+  const currentTicket = cachedTickets.find((t) => t.id === activeTicketId);
+  if (currentTicket) {
+    const payload = {
+      status: currentTicket.status,
+      urgency: detailUrgency?.value || currentTicket.urgency,
+      area: detailArea?.value?.trim() || currentTicket.area,
+      assignedTo: detailAssignedTo?.value?.trim() || currentTicket.assignedTo,
+      workedHours: detailWorkedHours?.value !== "" ? Number(detailWorkedHours?.value) : currentTicket.workedHours,
+    };
+    try {
+      await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+    } catch (_) {}
+  }
   try {
     await saveDetail(status, silent);
   } catch (err) {
@@ -1630,7 +1649,6 @@ document.addEventListener("click", async (e) => {
 
 resolveTicketDetail.addEventListener("click", () => showClosureModal("resuelto"));
 closeTicketDetailStatus.addEventListener("click", () => showClosureModal("cerrado"));
-document.querySelector("#silentCloseBtn")?.addEventListener("click", () => showClosureModal("cerrado", true));
 detailDeleteButton.addEventListener("click", async () => {
   if (!activeTicketId) return;
   await deleteTicket(activeTicketId);
@@ -2816,6 +2834,7 @@ async function init() {
   try {
     await Promise.all([refresh(), loadConfig()]);
     connectLiveUpdates();
+    initBrowserNotifications();
     setInterval(() => refresh().catch(() => {}), 15000);
     setInterval(() => loadEmailStatus().catch(() => {}), 30000);
     const deepTicket = new URLSearchParams(location.search).get("ticket");
@@ -2827,6 +2846,142 @@ async function init() {
   } catch (error) {
     kanbanBoard.innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
   }
+}
+
+// ── Global search ─────────────────────────────────────────────────────────────
+
+let globalSearchResults = null; // div overlay
+let globalSearchTimeout = null;
+
+function buildGlobalSearchOverlay() {
+  if (globalSearchResults) return;
+  globalSearchResults = document.createElement("div");
+  globalSearchResults.className = "globalSearchResults";
+  globalSearchResults.setAttribute("role", "listbox");
+  document.querySelector(".topBarRight")?.appendChild(globalSearchResults);
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".globalSearchWrap") && !e.target.closest(".globalSearchResults")) {
+      closeGlobalSearch();
+    }
+  }, true);
+}
+
+function closeGlobalSearch() {
+  if (globalSearchResults) globalSearchResults.innerHTML = "";
+  globalSearchResults?.classList.remove("open");
+}
+
+globalSearch?.addEventListener("input", () => {
+  clearTimeout(globalSearchTimeout);
+  globalSearchTimeout = setTimeout(() => runGlobalSearch(), 200);
+});
+
+globalSearch?.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { closeGlobalSearch(); globalSearch.blur(); }
+});
+
+function runGlobalSearch() {
+  const q = globalSearch?.value.trim().toLowerCase();
+  if (!q || q.length < 2) { closeGlobalSearch(); return; }
+  buildGlobalSearchOverlay();
+  const matches = cachedTickets.filter((t) => {
+    return (
+      (t.id || "").toLowerCase().includes(q) ||
+      (t.subject || "").toLowerCase().includes(q) ||
+      (t.name || "").toLowerCase().includes(q) ||
+      (t.contact || "").toLowerCase().includes(q) ||
+      (t.area || "").toLowerCase().includes(q) ||
+      (t.description || "").toLowerCase().includes(q)
+    );
+  }).slice(0, 8);
+
+  if (!matches.length) {
+    globalSearchResults.innerHTML = `<div class="globalSearchEmpty">Sin resultados para "${escapeHtml(q)}"</div>`;
+    globalSearchResults.classList.add("open");
+    return;
+  }
+
+  globalSearchResults.innerHTML = matches.map((t) => {
+    const slaState = t.sla || {};
+    const badge = slaState.breached ? `<span class="gsrBadge gsrBadge--danger">Vencido</span>` : "";
+    const statusLabel = statuses.find((s) => s.key === t.status)?.label || t.status;
+    return `<div class="globalSearchItem" role="option" data-ticket-id="${escapeHtml(t.id)}">
+      <div class="gsrMain">
+        <span class="gsrId">${escapeHtml(t.id)}</span>
+        <span class="gsrSubject">${escapeHtml(t.subject || "(sin asunto)")}</span>
+        ${badge}
+      </div>
+      <div class="gsrMeta">${escapeHtml(t.name || t.contact || "")} · ${escapeHtml(statusLabel)}</div>
+    </div>`;
+  }).join("");
+  globalSearchResults.classList.add("open");
+
+  globalSearchResults.querySelectorAll(".globalSearchItem").forEach((el) => {
+    el.addEventListener("click", () => {
+      const ticket = cachedTickets.find((t) => t.id === el.dataset.ticketId);
+      if (ticket) {
+        openTicketDetail(ticket);
+        closeGlobalSearch();
+        if (globalSearch) globalSearch.value = "";
+      }
+    });
+  });
+}
+
+// ── Browser notifications ─────────────────────────────────────────────────────
+
+let knownTicketIds = new Set();
+
+function initBrowserNotifications() {
+  if (!("Notification" in window)) return;
+  // Show enable button if not yet granted
+  if (Notification.permission === "default" && notifPermBtn) {
+    notifPermBtn.hidden = false;
+    notifPermBtn.title = "Activar notificaciones del navegador para tickets nuevos";
+  } else if (Notification.permission === "granted") {
+    setupNotifOnNewTickets();
+  }
+}
+
+notifPermBtn?.addEventListener("click", async () => {
+  const perm = await Notification.requestPermission();
+  if (perm === "granted") {
+    notifPermBtn.hidden = true;
+    setupNotifOnNewTickets();
+  }
+});
+
+function setupNotifOnNewTickets() {
+  // Seed knownTicketIds with current tickets (no notification for existing ones)
+  cachedTickets.forEach((t) => knownTicketIds.add(t.id));
+  // Override the SSE event to also trigger notifications
+  if (liveEvents) {
+    liveEvents.addEventListener("ticketsChanged", handleTicketsChangedForNotif);
+  }
+}
+
+async function handleTicketsChangedForNotif() {
+  try {
+    const freshTickets = await requestJson("/api/tickets");
+    freshTickets.forEach((t) => {
+      if (!knownTicketIds.has(t.id)) {
+        knownTicketIds.add(t.id);
+        if (Notification.permission === "granted") {
+          const n = new Notification(`Nuevo ticket — ${t.id}`, {
+            body: `${t.subject || "(sin asunto)"}\n${t.name || t.contact || ""}`,
+            icon: "/favicon.ico",
+            tag: t.id,
+          });
+          n.onclick = () => {
+            window.focus();
+            const ticket = cachedTickets.find((x) => x.id === t.id);
+            if (ticket) openTicketDetail(ticket);
+            n.close();
+          };
+        }
+      }
+    });
+  } catch (_) {}
 }
 
 init();

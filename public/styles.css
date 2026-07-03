@@ -2849,6 +2849,129 @@ label .fieldLabel {
   justify-content: flex-end;
 }
 
+.globalSearchWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.globalSearchIcon {
+  position: absolute;
+  left: 10px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.globalSearchInput {
+  padding: 6px 12px 6px 30px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--text);
+  font-size: 0.82rem;
+  width: 220px;
+  transition: width 0.2s, border-color 0.15s;
+}
+
+.globalSearchInput:focus {
+  width: 300px;
+  border-color: var(--brand);
+  outline: none;
+}
+
+.globalSearchInput::placeholder { color: var(--muted); }
+
+.globalSearchResults {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 340px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  z-index: 300;
+  overflow: hidden;
+}
+
+.globalSearchResults.open { display: block; }
+
+.globalSearchItem {
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--line);
+  transition: background 0.1s;
+}
+
+.globalSearchItem:last-child { border-bottom: none; }
+.globalSearchItem:hover { background: var(--hover); }
+
+.gsrMain {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+.gsrId {
+  color: var(--muted);
+  font-size: 0.76rem;
+  flex-shrink: 0;
+}
+
+.gsrSubject {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gsrBadge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.gsrBadge--danger { background: var(--danger); color: #fff; }
+
+.gsrMeta {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.globalSearchEmpty {
+  padding: 14px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.closureNotifyToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.closureNotifyToggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
 .userArea {
   display: flex;
   align-items: center;

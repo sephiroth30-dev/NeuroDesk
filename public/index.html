@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/tokens.css?v=14.11" />
-    <link rel="stylesheet" href="/styles.css?v=14.11" />
+    <link rel="stylesheet" href="/tokens.css?v=14.12" />
+    <link rel="stylesheet" href="/styles.css?v=14.12" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -41,7 +41,7 @@
           ></span>
           <b>Panel</b>
         </button>
-        <button class="sidebarItem" id="adminButton" type="button" title="Tickets">
+        <button class="sidebarItem" id="adminButton" type="button" title="Lista de todos los tickets">
           <span
             ><svg
               width="18"
@@ -56,7 +56,7 @@
             >
               <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2z" /></svg
           ></span>
-          <b>Tickets</b>
+          <b>Lista</b>
           <span class="sidebarBadge" id="sidebarTicketCount"></span>
         </button>
         <button class="sidebarItem" id="slaButton" type="button" title="Indicadores">
@@ -183,6 +183,13 @@
           <h1 id="topbarTitle">Resumen</h1>
         </div>
         <div class="topBarRight">
+          <div class="globalSearchWrap">
+            <svg class="globalSearchIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="globalSearch" class="globalSearchInput" type="search" placeholder="Buscar ticket, contacto…" autocomplete="off" aria-label="Buscar tickets">
+          </div>
+          <button id="notifPermBtn" class="ghostButton iconButton" type="button" title="Activar notificaciones del navegador" aria-label="Notificaciones" hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </button>
           <button id="createTicketButton" class="primaryAction" type="button">+ Nuevo ticket</button>
         </div>
       </section>
@@ -1485,9 +1492,6 @@
             <button id="closeTicketDetailStatus" class="secondaryAction" type="button">
               Cerrar ticket
             </button>
-            <button id="silentCloseBtn" class="ghostButton" type="button" title="Cierra el ticket sin enviar correo al usuario">
-              Cerrar sin notificar
-            </button>
           </aside>
         </div>
       </div>
@@ -1552,6 +1556,10 @@
           ></textarea>
         </label>
         <p id="closureReasonError" class="message" style="color: var(--danger)" role="alert"></p>
+        <label class="closureNotifyToggle">
+          <input type="checkbox" id="closureNotifyClient" checked>
+          <span>Notificar al cliente por correo</span>
+        </label>
         <div class="formActions">
           <button id="confirmClosureBtn" class="primaryAction" type="button">Cerrar ticket</button>
           <button id="cancelClosureBtn" class="ghostButton" type="button">Cancelar</button>
@@ -1559,7 +1567,7 @@
       </div>
     </div>
 
-    <script src="/app.js?v=14.11" defer></script>
+    <script src="/app.js?v=14.12" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {
