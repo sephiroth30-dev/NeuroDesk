@@ -1740,19 +1740,9 @@ async function pollEmails(options = {}) {
             });
             if (threadMatch) matchedTicket = threadMatch;
           }
-          if (!matchedTicket && fromEmail) {
-            // Last resort: most recent resolved/closed ticket from this sender
-            const recentCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-            matchedTicket = store.tickets
-              .filter(
-                (t) =>
-                  (t.contact || "").toLowerCase() === fromEmail.toLowerCase() &&
-                  (t.status === "resuelto" || t.status === "cerrado") &&
-                  t.resolvedAt &&
-                  t.resolvedAt > recentCutoff
-              )
-              .sort((a, b) => new Date(b.resolvedAt) - new Date(a.resolvedAt))[0] || null;
-          }
+          // NOTE: intentionally no "last resort" email-only match.
+          // A new email from the same address with a different subject = new ticket.
+          // Only reopen when: subject has ticket ID, or reply headers match a known thread.
 
           if (matchedTicket) {
             // This email is a reply to an existing ticket
