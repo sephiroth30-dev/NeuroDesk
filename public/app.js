@@ -2044,6 +2044,11 @@ document.getElementById("aiConfigForm")?.addEventListener("submit", async (e) =>
   const resultEl = document.getElementById("aiConfigResult");
   const key = keyInput?.value.trim() || "";
   resultEl.style.display = "block";
+  if (!key) {
+    resultEl.style.color = "var(--muted)";
+    resultEl.textContent = "Ingresa una API Key para guardar.";
+    return;
+  }
   resultEl.textContent = "Guardando…";
   try {
     const cfg = await requestJson("/api/config");

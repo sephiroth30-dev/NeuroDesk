@@ -816,7 +816,9 @@ function saveConfig(incoming) {
   };
 
   const inAi = incoming.aiConfig && typeof incoming.aiConfig === "object" ? incoming.aiConfig : {};
-  const validatedAi = { apiKey: typeof inAi.apiKey === "string" ? inAi.apiKey.trim() : (appConfig.aiConfig?.apiKey || "") };
+  // Preserve existing key if incoming is empty — never overwrite with blank
+  const incomingKey = typeof inAi.apiKey === "string" ? inAi.apiKey.trim() : "";
+  const validatedAi = { apiKey: incomingKey || appConfig.aiConfig?.apiKey || "" };
 
   appConfig = { sla: validatedSla, fields: validatedFields, customFields: validatedCustomFields, aiConfig: validatedAi, businessHours: validatedBh };
   upsertConfigStmt.run("app_config", JSON.stringify(appConfig));
