@@ -583,6 +583,13 @@ function renderKanban(tickets) {
     .join("");
 }
 
+function sentimentIcon(s) {
+  if (s === "muy_negativo") return '<span class="sentimentIcon sentimentIcon--muy_negativo" title="Cliente muy frustrado">😤</span>';
+  if (s === "negativo") return '<span class="sentimentIcon sentimentIcon--negativo" title="Cliente insatisfecho">😟</span>';
+  if (s === "positivo") return '<span class="sentimentIcon sentimentIcon--positivo" title="Cliente satisfecho">😊</span>';
+  return "";
+}
+
 function renderTicketCard(ticket) {
   const slaCls = ticket.sla.paused ? "paused" : ticket.sla.breached ? "breached" : "";
   const slaText = ticket.sla.paused
@@ -592,15 +599,22 @@ function renderTicketCard(ticket) {
       : `SLA ${ticket.sla.remainingHours}h`;
   const createdAt = formatDate.format(new Date(ticket.createdAt));
   const isNew = ticket.createdAt > lastVisitTs;
+  const reopenedBadge = ticket.reopenedByClient
+    ? '<span class="badge badge--reopened" title="Cliente insatisfecho — reabrió el ticket">🔄 Reabierto</span>'
+    : "";
+  const categoryBadge = ticket.aiCategory
+    ? `<span class="badge badge--ai-category">${escapeHtml(ticket.aiCategory)}</span>`
+    : "";
   return `
-    <article class="ticketCard urgency-${escapeHtml(ticket.urgency)}${isNew ? " ticketCard--new" : ""}" draggable="true" data-ticket-id="${escapeHtml(ticket.id)}">
+    <article class="ticketCard urgency-${escapeHtml(ticket.urgency)}${isNew ? " ticketCard--new" : ""}${ticket.reopenedByClient ? " ticketCard--reopened" : ""}" draggable="true" data-ticket-id="${escapeHtml(ticket.id)}">
       <div class="ticketTitle">
-        <span>${escapeHtml(ticket.id)}${isNew ? '<span class="newBadge">Nuevo</span>' : ""}</span>
-        <span class="badge ${escapeHtml(ticket.urgency)}">${escapeHtml(ticket.urgency)}</span>
+        <span>${escapeHtml(ticket.id)}${isNew ? '<span class="newBadge">Nuevo</span>' : ""}${reopenedBadge}</span>
+        <span style="display:flex;align-items:center;gap:4px">${sentimentIcon(ticket.aiSentiment)}<span class="badge ${escapeHtml(ticket.urgency)}">${escapeHtml(ticket.urgency)}</span></span>
       </div>
       <p class="ticketName">${escapeHtml(ticket.name)}</p>
       ${ticket.subject ? `<p class="ticketSubject">${escapeHtml(ticket.subject)}</p>` : ""}
       <p class="ticketMeta">${escapeHtml(ticket.contact)}</p>
+      ${categoryBadge}
       ${ticket.assignedTo ? `<p class="ticketAssigned">👤 ${escapeHtml(ticket.assignedTo)}</p>` : ""}
       <div class="cardFooter">
         <span class="sla ${slaCls}"><span class="slaDot"></span>${slaText}</span>
@@ -1256,6 +1270,23 @@ function openTicketDetail(ticket) {
   }
   // Show "Enviar al cliente" only for email-sourced tickets with a contact address
   if (sendReplyBtn) sendReplyBtn.hidden = !(ticket.source === "email" && ticket.contact);
+  // Reopened by client — show alert banner
+  const reopenedBanner = document.getElementById("detailReopenedBanner");
+  if (reopenedBanner) {
+    reopenedBanner.hidden = !ticket.reopenedByClient;
+  }
+  // AI category/sentiment badges
+  const aiInfoEl = document.getElementById("detailAiInfo");
+  if (aiInfoEl) {
+    const parts = [];
+    if (ticket.aiCategory) parts.push(`<span class="badge badge--ai-category">🏷️ ${escapeHtml(ticket.aiCategory)}</span>`);
+    if (ticket.aiSentiment && ticket.aiSentiment !== "neutro") parts.push(sentimentIcon(ticket.aiSentiment));
+    aiInfoEl.innerHTML = parts.join(" ");
+    aiInfoEl.hidden = parts.length === 0;
+  }
+  // AI suggest button — show only for email tickets
+  const aiSuggestBtn = document.getElementById("aiSuggestBtn");
+  if (aiSuggestBtn) aiSuggestBtn.hidden = !(ticket.source === "email" && ticket.contact);
   renderTicketHistory(ticket);
   renderCustomFieldInputs(ticket);
   showDetailView();
@@ -1515,6 +1546,31 @@ function updateReplyBtnLabel() {
   const n = pendingReplyFiles.length;
   sendReplyBtn.textContent = n > 0 ? `Enviar al cliente (${n} archivo${n > 1 ? "s" : ""})` : "Enviar al cliente";
 }
+
+document.getElementById("aiSuggestBtn")?.addEventListener("click", async function () {
+  if (!activeTicketId) return;
+  const btn = this;
+  const textarea = document.querySelector("#detailResolution");
+  const msgEl = document.querySelector("#detailMessage");
+  btn.disabled = true;
+  btn.textContent = "✨ Generando...";
+  if (msgEl) { msgEl.textContent = ""; msgEl.style.color = ""; }
+  try {
+    const data = await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}/ai-suggest`);
+    if (data.suggestion && textarea) {
+      textarea.value = data.suggestion;
+      textarea.focus();
+      if (msgEl) { msgEl.textContent = "✓ Sugerencia IA lista — revísala antes de enviar."; msgEl.style.color = "var(--color-success, #16a34a)"; }
+    } else {
+      if (msgEl) { msgEl.textContent = "No se pudo generar una sugerencia."; }
+    }
+  } catch (err) {
+    if (msgEl) { msgEl.textContent = err.message || "Error al generar sugerencia."; }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "✨ Sugerir respuesta IA";
+  }
+});
 
 sendReplyBtn?.addEventListener("click", async () => {
   if (!activeTicketId) return;

@@ -1,4 +1,5 @@
 const http = require("http");
+const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -1141,6 +1142,82 @@ function getStats() {
   };
 }
 
+// ── AI (Anthropic Claude Haiku) ───────────────────────────────────────────────
+
+function anthropicRequest(messages, systemPrompt, maxTokens = 512) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return Promise.resolve(null);
+  const body = JSON.stringify({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: maxTokens,
+    system: systemPrompt,
+    messages,
+  });
+  return new Promise((resolve) => {
+    const req = https.request(
+      {
+        hostname: "api.anthropic.com",
+        path: "/v1/messages",
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+          "content-length": Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          try {
+            const parsed = JSON.parse(data);
+            resolve(parsed.content?.[0]?.text || null);
+          } catch { resolve(null); }
+        });
+      }
+    );
+    req.on("error", () => resolve(null));
+    req.setTimeout(15000, () => { req.destroy(); resolve(null); });
+    req.write(body);
+    req.end();
+  });
+}
+
+async function aiTriageTicket(subject, body) {
+  const system = `Eres un clasificador de tickets de soporte técnico para Neurofic. Analiza el asunto y cuerpo y responde SOLO con JSON válido sin markdown.
+Formato: {"urgency":"media","category":"Error técnico","sentiment":"neutro","sentimentScore":40}
+urgency: "baja"|"media"|"alta"|"critica"
+category: categoría corta en español (máx 25 chars). Ejemplos: "Facturación","Acceso","Error técnico","Consulta","Instalación","Rendimiento"
+sentiment: "positivo"|"neutro"|"negativo"|"muy_negativo"
+sentimentScore: 0-100 (0=muy satisfecho, 100=muy frustrado)`;
+  const text = await anthropicRequest(
+    [{ role: "user", content: `Asunto: ${subject}\n\nCuerpo: ${String(body || "").slice(0, 1500)}` }],
+    system
+  );
+  if (!text) return null;
+  try {
+    return JSON.parse(text.replace(/```json\n?|\n?```/g, "").trim());
+  } catch { return null; }
+}
+
+async function aiSuggestReply(ticket) {
+  const history = (ticket.history || [])
+    .slice(-5)
+    .map((h) => h.note)
+    .join("\n---\n");
+  const system = `Eres un agente de soporte de Neurofic. Redacta una respuesta profesional, empática y concisa en español para el siguiente ticket de soporte.
+- Máximo 3 párrafos
+- Tono profesional pero humano, sin frases genéricas vacías
+- No uses placeholders como [NOMBRE]
+- Firma como: "El equipo de soporte · Neurofic"
+- Solo texto plano, sin markdown`;
+  const content = `Ticket: ${ticket.id}
+Asunto: ${ticket.subject || "(sin asunto)"}
+Descripción: ${String(ticket.description || "").slice(0, 1500)}${history ? `\n\nHistorial reciente:\n${history.slice(0, 800)}` : ""}`;
+  return await anthropicRequest([{ role: "user", content }], system, 600);
+}
+
 // ── Email config & poller ─────────────────────────────────────────────────────
 
 function loadEmailConfig() {
@@ -1584,16 +1661,28 @@ async function pollEmails(options = {}) {
             const replyNote = `Respuesta del cliente:\n${bodyText}`;
             addTicketHistory(matchedTicket.id, replyNote, wasFinished ? "abierto" : matchedTicket.status);
             if (wasFinished) {
-              // Reopen the ticket
+              // Bump urgency one level — dissatisfied client deserves higher priority
+              const urgencyLevels = ["baja", "media", "alta", "critica"];
+              const curIdx = urgencyLevels.indexOf(matchedTicket.urgency || "media");
+              const newUrgency = urgencyLevels[Math.min(curIdx + 1, urgencyLevels.length - 1)];
+              const prevUrgency = matchedTicket.urgency;
+              // Reopen with escalated priority
               matchedTicket.status = "abierto";
+              matchedTicket.urgency = newUrgency;
               matchedTicket.resolvedAt = null;
+              matchedTicket.reopenedByClient = true;
+              matchedTicket.reopenedAt = new Date().toISOString();
               saveStore();
+              const escalationMsg = newUrgency !== prevUrgency
+                ? `⚠️ Ticket reabierto por el cliente — prioridad escalada de "${prevUrgency}" a "${newUrgency}". Cliente insatisfecho con la solución entregada.`
+                : `⚠️ Ticket reabierto por el cliente. Cliente insatisfecho con la solución entregada.`;
+              addTicketHistory(matchedTicket.id, escalationMsg, "abierto");
               notifyClients("ticketsChanged", { action: "updated", id: matchedTicket.id });
               const reopened = getTickets().find((t) => t.id === matchedTicket.id);
               if (reopened) {
                 sendTicketNotification("status_changed", reopened, { oldStatus: "resuelto" }).catch(() => {});
               }
-              console.log(`[NeuroDesk] Ticket ${matchedTicket.id} reabierto por respuesta del cliente (${fromEmail}).`);
+              console.log(`[NeuroDesk] Ticket ${matchedTicket.id} reabierto por respuesta del cliente (${fromEmail}). Urgencia: ${prevUrgency} → ${newUrgency}.`);
             } else {
               notifyClients("ticketsChanged", { action: "updated", id: matchedTicket.id });
             }
@@ -1633,8 +1722,16 @@ async function pollEmails(options = {}) {
               } catch (_) {}
             }
           }
-          const ticket = ticketBase ? { ...ticketBase, attachments: savedAttachments } : null;
+          let ticket = ticketBase ? { ...ticketBase, attachments: savedAttachments } : null;
           if (ticket) {
+            // Run AI triage — override keyword-based urgency with Claude's analysis
+            const triage = await aiTriageTicket(subject, bodyText);
+            if (triage) {
+              if (triage.urgency && appConfig.sla[triage.urgency]) ticket.urgency = triage.urgency;
+              ticket.aiCategory = triage.category || null;
+              ticket.aiSentiment = triage.sentiment || null;
+              ticket.aiSentimentScore = triage.sentimentScore ?? null;
+            }
             insertTicket(ticket);
             markEmailProcessedStmt.run(messageId, new Date().toISOString());
             try {
@@ -1963,15 +2060,42 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && req.url === "/api/tickets") {
     try {
-      const ticket = normalizeTicket(await readBody(req), "web");
+      const body = await readBody(req);
+      const ticket = normalizeTicket(body, "web");
       if (!ticket) {
         sendJson(res, 400, { error: "Nombre y urgencia válida son obligatorios." });
         return;
       }
+      // Run AI triage async — don't block the response
+      aiTriageTicket(ticket.subject || "", ticket.description || "").then((triage) => {
+        if (!triage) return;
+        const raw = store.tickets.find((t) => t.id === ticket.id);
+        if (!raw) return;
+        if (triage.urgency && appConfig.sla[triage.urgency]) raw.urgency = triage.urgency;
+        raw.aiCategory = triage.category || null;
+        raw.aiSentiment = triage.sentiment || null;
+        raw.aiSentimentScore = triage.sentimentScore ?? null;
+        saveStore();
+        notifyClients("ticketsChanged", { action: "updated", id: ticket.id });
+      }).catch(() => {});
       sendJson(res, 201, insertTicket(ticket));
     } catch {
       sendJson(res, 400, { error: "No se pudo leer la solicitud." });
     }
+    return;
+  }
+
+  // GET /api/tickets/:id/ai-suggest — generate a suggested reply
+  if (req.method === "GET" && /^\/api\/tickets\/[^/]+\/ai-suggest$/.test(req.url)) {
+    const id = decodeURIComponent(req.url.split("/")[3] || "");
+    const ticket = getTickets().find((t) => t.id === id);
+    if (!ticket) { sendJson(res, 404, { error: "Ticket no encontrado." }); return; }
+    if (!process.env.ANTHROPIC_API_KEY) {
+      sendJson(res, 503, { error: "ANTHROPIC_API_KEY no configurada en el servidor." });
+      return;
+    }
+    const suggestion = await aiSuggestReply(ticket);
+    sendJson(res, 200, { suggestion });
     return;
   }
 

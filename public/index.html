@@ -1418,6 +1418,10 @@
         </header>
         <div class="ticketDetailLayout">
           <section class="ticketConversation">
+            <div id="detailReopenedBanner" class="reopenedBanner" hidden>
+              ⚠️ <strong>Cliente insatisfecho</strong> — Reabrió el ticket. Requiere atención prioritaria.
+            </div>
+            <div id="detailAiInfo" class="detailAiInfo" hidden></div>
             <h3 id="detailSubject"></h3>
             <div id="detailDescription" class="detailDescription"></div>
             <div id="detailAttachments" class="detailAttachments" hidden></div>
@@ -1442,6 +1446,7 @@
               <div id="agentAttachments" class="agentAttachments" hidden></div>
               <div class="resolutionActions">
                 <button id="saveQuickNote" class="primaryAction" type="button" title="Guarda una nota interna visible solo en el historial. No notifica al cliente.">+ Nota rápida</button>
+                <button id="aiSuggestBtn" class="primaryAction primaryAction--ai" type="button" title="Claude analiza el ticket y redacta una respuesta sugerida" hidden>✨ Sugerir respuesta IA</button>
                 <button id="sendReplyBtn" class="primaryAction" type="button" title="Envía el texto al correo del cliente que abrió este ticket." hidden>Enviar al cliente</button>
                 <p id="detailMessage" class="message"></p>
                 <span id="uploadStatus" class="attachStatus"></span>
