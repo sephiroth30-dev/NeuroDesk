@@ -1530,7 +1530,12 @@ function shouldIgnoreEmail(fromEmail) {
     .split(",")
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
-  return ignored.includes(String(fromEmail || "").toLowerCase());
+  const from = String(fromEmail || "").toLowerCase();
+  if (ignored.includes(from)) return true;
+  // Always ignore emails sent FROM the outgoing SMTP account (our own notifications)
+  const smtpUser = (notificationsConfig?.smtp?.user || "").toLowerCase();
+  if (smtpUser && from === smtpUser) return true;
+  return false;
 }
 
 function getEmailPollBlocker(config, force = false) {
@@ -1691,6 +1696,13 @@ async function pollEmails(options = {}) {
             continue; // Do NOT create a new ticket
           }
           // ── End reply detection ─────────────────────────────────────────────
+
+          // If the subject looks like an internal notification or reply to one, skip silently
+          if (/^\[Admin\]/i.test(subject) || /^re:\s*\[Admin\]/i.test(subject) || /^fwd?:\s*\[Admin\]/i.test(subject)) {
+            markEmailProcessedStmt.run(messageId, new Date().toISOString());
+            try { await client.messageFlagsAdd(uid, ["\\Seen"]); } catch (_) {}
+            continue;
+          }
 
           const urgency = detectUrgency(subject, bodyText);
           const ticketBase = normalizeTicket(
