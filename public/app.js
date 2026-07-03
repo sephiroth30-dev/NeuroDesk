@@ -71,7 +71,7 @@ const detailWorkedHours = document.querySelector("#detailWorkedHours");
 const detailMessage = document.querySelector("#detailMessage");
 const detailCustomFields = document.querySelector("#detailCustomFields");
 const detailHistory = document.querySelector("#detailHistory");
-const saveTicketDetail = document.querySelector("#saveTicketDetail");
+const saveTicketDetail = null; // button removed — fields auto-save on change
 const resolveTicketDetail = document.querySelector("#resolveTicketDetail");
 const closeTicketDetailStatus = document.querySelector("#closeTicketDetailStatus");
 const detailDeleteButton = document.querySelector("#detailDeleteButton");
@@ -1558,11 +1558,43 @@ confirmClosureBtn.addEventListener("click", async () => {
 });
 
 closeTicketDetail.addEventListener("click", closeTicketDetailModal);
-saveTicketDetail.addEventListener("click", () =>
-  saveDetail().catch((err) => {
-    detailMessage.textContent = err.message;
-  })
-);
+
+// Auto-save when the agent changes a field in the right panel
+async function autoSaveField() {
+  if (!activeTicketId) return;
+  const ticket = cachedTickets.find((t) => t.id === activeTicketId);
+  if (!ticket) return;
+  const newStatus = detailStatus.value;
+  // Terminal states go through their dedicated modals
+  if (newStatus === "resuelto") { detailStatus.value = ticket.status; resolveTicketDetail.click(); return; }
+  if (newStatus === "cerrado") { detailStatus.value = ticket.status; closeTicketDetailStatus.click(); return; }
+  try {
+    await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: ticket.name,
+        contact: ticket.contact || "",
+        subject: ticket.subject || "",
+        description: ticket.description || "",
+        resolution: ticket.resolution || "",
+        urgency: detailUrgency.value,
+        status: newStatus,
+        area: detailArea.value || ticket.area,
+        assignedTo: detailAssignedTo?.value || ticket.assignedTo || "",
+        workedHours: detailWorkedHours?.value ?? ticket.workedHours ?? "",
+        customFields: ticket.customFields || {},
+        silent: true,
+      }),
+    });
+    await refresh();
+  } catch (_) {}
+}
+
+detailStatus?.addEventListener("change", autoSaveField);
+detailUrgency?.addEventListener("change", autoSaveField);
+detailArea?.addEventListener("change", autoSaveField);
+detailAssignedTo?.addEventListener("change", autoSaveField);
+detailWorkedHours?.addEventListener("blur", autoSaveField);
 
 function updateReplyBtnLabel() {
   if (!sendReplyBtn) return;
