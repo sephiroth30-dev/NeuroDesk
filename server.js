@@ -1287,20 +1287,27 @@ sentimentScore: 0-100 (0=muy satisfecho, 100=muy frustrado)`;
 }
 
 async function aiSuggestReply(ticket) {
+  const urgencyLabel = { baja: "Baja", media: "Media", alta: "Alta", critica: "Crítica" }[ticket.urgency] || ticket.urgency || "Media";
   const history = (ticket.history || [])
-    .slice(-5)
-    .map((h) => h.note)
+    .slice(-8)
+    .map((h) => `[${h.status || "nota"}] ${h.note}`)
     .join("\n---\n");
   const system = `Eres un agente de soporte de Neurofic. Redacta una respuesta profesional, empática y concisa en español para el siguiente ticket de soporte.
-- Máximo 3 párrafos
+
+Reglas:
+- Máximo 4 párrafos
 - Tono profesional pero humano, sin frases genéricas vacías
-- No uses placeholders como [NOMBRE]
+- No uses placeholders como [NOMBRE]; dirígete directamente al cliente usando su nombre si está disponible
+- Menciona explícitamente la prioridad asignada al ticket (usa el campo Prioridad del contexto)
+- Basándote en la descripción e historial, sugiere 1-3 posibles soluciones o pasos concretos a seguir. Si el problema ya fue resuelto, describe qué se hizo.
 - Firma como: "El equipo de soporte · Neurofic"
 - Solo texto plano, sin markdown`;
   const content = `Ticket: ${ticket.id}
+Cliente: ${ticket.name || "Cliente"}
+Prioridad asignada: ${urgencyLabel}
 Asunto: ${ticket.subject || "(sin asunto)"}
-Descripción: ${String(ticket.description || "").slice(0, 1500)}${history ? `\n\nHistorial reciente:\n${history.slice(0, 800)}` : ""}`;
-  return await anthropicRequest([{ role: "user", content }], system, 600);
+Descripción del problema: ${String(ticket.description || "").slice(0, 1800)}${history ? `\n\nHistorial de gestión:\n${history.slice(0, 1000)}` : ""}`;
+  return await anthropicRequest([{ role: "user", content }], system, 900);
 }
 
 // ── Email config & poller ─────────────────────────────────────────────────────

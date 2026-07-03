@@ -368,11 +368,13 @@ function populateSettingsPanel() {
     const check = entry.querySelector(".bhDayCheck");
     const startInput = entry.querySelector(".bhDayStart");
     const endInput = entry.querySelector(".bhDayEnd");
-    const timesDiv = entry.querySelector(".bhDayTimes");
     if (check) check.checked = dayConf.enabled;
     if (startInput) startInput.value = dayConf.start || "07:00";
     if (endInput) endInput.value = dayConf.end || "17:00";
-    if (timesDiv) timesDiv.style.opacity = dayConf.enabled ? "1" : "0.35";
+    entry.querySelectorAll(".bhTimeInput").forEach(inp => {
+      inp.disabled = !dayConf.enabled;
+      inp.style.opacity = dayConf.enabled ? "1" : "0.35";
+    });
   });
 
   document.querySelector("#fieldContactEnabled").checked = appConfig.fields.contact.enabled;
@@ -396,12 +398,30 @@ document.querySelector("#bhEnabled")?.addEventListener("click", function () {
   if (bhOptions) bhOptions.style.display = next ? "" : "none";
 });
 
-// Per-day checkbox toggle — dim/undim times
+// Per-day checkbox toggle — dim/undim time inputs
 document.querySelectorAll(".bhDayCheck").forEach(check => {
   check.addEventListener("change", () => {
     const entry = check.closest(".bhDayEntry");
-    const timesDiv = entry && entry.querySelector(".bhDayTimes");
-    if (timesDiv) timesDiv.style.opacity = check.checked ? "1" : "0.35";
+    entry && entry.querySelectorAll(".bhTimeInput").forEach(inp => {
+      inp.disabled = !check.checked;
+      inp.style.opacity = check.checked ? "1" : "0.35";
+    });
+  });
+});
+
+// Validate and auto-correct HH:MM format on blur
+document.querySelectorAll(".bhTimeInput").forEach(inp => {
+  inp.addEventListener("blur", () => {
+    const v = inp.value.trim();
+    const m = v.match(/^(\d{1,2}):?(\d{2})$/);
+    if (m) {
+      const h = Math.min(23, parseInt(m[1], 10));
+      const min = Math.min(59, parseInt(m[2], 10));
+      inp.value = String(h).padStart(2, "0") + ":" + String(min).padStart(2, "0");
+      inp.style.borderColor = "";
+    } else if (v) {
+      inp.style.borderColor = "var(--danger, #ff3b30)";
+    }
   });
 });
 
