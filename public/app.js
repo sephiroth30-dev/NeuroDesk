@@ -353,6 +353,23 @@ function populateSettingsPanel() {
   document.querySelector("#slaAlta").value = appConfig.sla.alta;
   document.querySelector("#slaCritica").value = appConfig.sla.critica;
 
+  // Business hours
+  const bh = appConfig.businessHours || {};
+  const bhEnabled = document.querySelector("#bhEnabled");
+  const bhOptions = document.querySelector("#bhOptions");
+  if (bhEnabled) {
+    bhEnabled.checked = bh.enabled !== false;
+    if (bhOptions) bhOptions.hidden = !bhEnabled.checked;
+  }
+  const bhStart = document.querySelector("#bhStart");
+  const bhEnd = document.querySelector("#bhEnd");
+  if (bhStart) bhStart.value = bh.start || "07:00";
+  if (bhEnd) bhEnd.value = bh.end || "17:00";
+  const activeDays = new Set(Array.isArray(bh.days) ? bh.days.map(Number) : [1,2,3,4,5]);
+  document.querySelectorAll("input[name='bhDay']").forEach((cb) => {
+    cb.checked = activeDays.has(Number(cb.value));
+  });
+
   document.querySelector("#fieldContactEnabled").checked = appConfig.fields.contact.enabled;
   document.querySelector("#fieldContactLabel").value = appConfig.fields.contact.label;
   document.querySelector("#fieldAreaEnabled").checked = appConfig.fields.area.enabled;
@@ -363,6 +380,12 @@ function populateSettingsPanel() {
   document.querySelector("#portalUrlDisplay").textContent = portalUrl;
   document.querySelector("#openPortalLink").href = "/portal";
 }
+
+// Toggle business hours options visibility
+document.querySelector("#bhEnabled")?.addEventListener("change", function () {
+  const bhOptions = document.querySelector("#bhOptions");
+  if (bhOptions) bhOptions.hidden = !this.checked;
+});
 
 function renderCustomFieldsBuilder() {
   if (!customFieldsList) return;
@@ -2079,6 +2102,12 @@ saveSettingsButton.addEventListener("click", async () => {
       },
     },
     customFields: collectCustomFieldsConfig(),
+    businessHours: {
+      enabled: document.querySelector("#bhEnabled")?.checked ?? true,
+      start: document.querySelector("#bhStart")?.value || "07:00",
+      end: document.querySelector("#bhEnd")?.value || "17:00",
+      days: [...document.querySelectorAll("input[name='bhDay']:checked")].map((cb) => Number(cb.value)),
+    },
   };
   try {
     appConfig = await requestJson("/api/config", {

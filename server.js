@@ -526,6 +526,12 @@ const DEFAULT_CONFIG = {
     area: { enabled: true, label: "Área" },
   },
   customFields: [],
+  businessHours: {
+    enabled: true,
+    start: "07:00",
+    end: "17:00",
+    days: [1, 2, 3, 4, 5], // 0=Dom, 1=Lun, ..., 6=Sáb
+  },
 };
 
 let appConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
@@ -781,7 +787,17 @@ function saveConfig(incoming) {
     };
   });
 
-  appConfig = { sla: validatedSla, fields: validatedFields, customFields: validatedCustomFields };
+  const bh = incoming.businessHours || {};
+  const validatedBh = {
+    enabled: bh.enabled === true || bh.enabled === "true",
+    start: /^\d{2}:\d{2}$/.test(bh.start) ? bh.start : "07:00",
+    end: /^\d{2}:\d{2}$/.test(bh.end) ? bh.end : "17:00",
+    days: Array.isArray(bh.days)
+      ? bh.days.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6)
+      : [1, 2, 3, 4, 5],
+  };
+
+  appConfig = { sla: validatedSla, fields: validatedFields, customFields: validatedCustomFields, businessHours: validatedBh };
   upsertConfigStmt.run("app_config", JSON.stringify(appConfig));
   return appConfig;
 }
@@ -1064,12 +1080,51 @@ function applySlaTransition(rawTicket, oldStatus, newStatus) {
     saveStore();
   } else if (oldStatus === "en_espera" && newStatus !== "en_espera") {
     if (rawTicket.slaFrozenAt) {
-      rawTicket.slaPausedMs =
-        (rawTicket.slaPausedMs || 0) + (Date.now() - new Date(rawTicket.slaFrozenAt).getTime());
+      const frozenMs = new Date(rawTicket.slaFrozenAt).getTime();
+      const nowMs = Date.now();
+      const bh = appConfig.businessHours;
+      if (bh && bh.enabled) {
+        rawTicket.slaBusinessPausedMs = (rawTicket.slaBusinessPausedMs || 0) + calcBusinessMs(frozenMs, nowMs, bh);
+      } else {
+        rawTicket.slaPausedMs = (rawTicket.slaPausedMs || 0) + (nowMs - frozenMs);
+      }
       rawTicket.slaFrozenAt = null;
       saveStore();
     }
   }
+}
+
+// Returns how many milliseconds of "business time" elapsed between fromMs and toMs.
+// Non-business hours and non-working days are excluded from the count.
+function calcBusinessMs(fromMs, toMs, bh) {
+  if (!bh || !bh.enabled || fromMs >= toMs) return Math.max(toMs - fromMs, 0);
+  const days = new Set(Array.isArray(bh.days) ? bh.days : [1, 2, 3, 4, 5]);
+  const parseTime = (t) => {
+    const [h, m] = String(t || "00:00").split(":").map(Number);
+    return ((h || 0) * 60 + (m || 0)) * 60000;
+  };
+  const dayStartMs = parseTime(bh.start);
+  const dayEndMs = parseTime(bh.end);
+  if (dayEndMs <= dayStartMs) return Math.max(toMs - fromMs, 0);
+
+  let total = 0;
+  // Start at midnight of the day containing fromMs
+  const anchor = new Date(fromMs);
+  anchor.setHours(0, 0, 0, 0);
+  let cursor = anchor.getTime();
+
+  while (cursor < toMs) {
+    const dow = new Date(cursor).getDay();
+    if (days.has(dow)) {
+      const segStart = cursor + dayStartMs;
+      const segEnd = cursor + dayEndMs;
+      const overlapStart = Math.max(segStart, fromMs);
+      const overlapEnd = Math.min(segEnd, toMs);
+      if (overlapEnd > overlapStart) total += overlapEnd - overlapStart;
+    }
+    cursor += 86400000; // advance one day
+  }
+  return total;
 }
 
 function getSlaState(ticket) {
@@ -1077,11 +1132,10 @@ function getSlaState(ticket) {
   const isFinished = status === "resuelto" || status === "cerrado";
   const isPaused = status === "en_espera";
   const createdMs = new Date(ticket.createdAt).getTime();
-  const pausedMs = ticket.slaPausedMs || 0;
+  const bh = appConfig.businessHours;
 
   let endMs;
   if (isFinished) {
-    // Prefer resolvedAt; fall back to history timestamp for legacy tickets without resolvedAt
     let closedTs = ticket.resolvedAt;
     if (!closedTs && Array.isArray(ticket.history)) {
       const entry = ticket.history.find(
@@ -1096,7 +1150,17 @@ function getSlaState(ticket) {
     endMs = Date.now();
   }
 
-  const elapsedHours = Math.max((endMs - createdMs - pausedMs) / 36e5, 0);
+  let elapsedHours;
+  if (bh && bh.enabled) {
+    // Business-hours mode: only count time within working hours/days
+    const businessPausedMs = ticket.slaBusinessPausedMs || 0;
+    const businessElapsed = Math.max(calcBusinessMs(createdMs, endMs, bh) - businessPausedMs, 0);
+    elapsedHours = businessElapsed / 3.6e6;
+  } else {
+    const pausedMs = ticket.slaPausedMs || 0;
+    elapsedHours = Math.max((endMs - createdMs - pausedMs) / 3.6e6, 0);
+  }
+
   const limitHours = appConfig.sla[ticket.urgency] || 8;
   return {
     limitHours,
@@ -1105,6 +1169,7 @@ function getSlaState(ticket) {
     breached: elapsedHours > limitHours,
     paused: isPaused,
     finished: isFinished,
+    businessHours: !!(bh && bh.enabled),
   };
 }
 
