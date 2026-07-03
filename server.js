@@ -493,7 +493,7 @@ const DEFAULT_NOTIFICATIONS_CONFIG = {
     },
     resolved: {
       subject: "Tu ticket #{{ticket_id}} fue resuelto — NeuroDesk",
-      body: 'Hola {{user_name}},\n\nNos complace informarte que tu ticket #{{ticket_id}} "{{ticket_title}}" ha sido resuelto.\n\nResumen de la atención:\n{{resolution_notes}}\n\nSi surge alguna novedad puedes continuar la gestión desde:\n{{ticket_url}}\n\nGracias por tu confianza en Neurofic.\n\nNeurofic · NeuroDesk',
+      body: 'Hola {{user_name}},\n\nNos complace informarte que tu ticket #{{ticket_id}} "{{ticket_title}}" ha sido resuelto.\n\nResumen de la atención:\n{{resolution_notes}}\n\n¿No estás de acuerdo con la solución? Simplemente responde este correo con tus comentarios y tu ticket será reabierto automáticamente para que un agente te vuelva a atender.\n\nGracias por tu confianza en Neurofic.\n\nNeurofic · NeuroDesk',
     },
   },
 };
@@ -1227,10 +1227,27 @@ function loadNotificationsConfig() {
   } catch (_) {}
 }
 
-// Appends {{ticket_url}} to any saved template body that is missing it
+// Appends {{ticket_url}} to any saved template body that is missing it;
+// also adds the reopen-on-reply notice to resolved templates if missing.
 function migrateTemplate(tpl) {
   if (!tpl.body.includes("{{ticket_url}}")) {
     tpl.body = tpl.body.trimEnd() + "\n\n{{ticket_url}}";
+  }
+  // Add reopen-on-reply notice to resolved template if not present
+  const REOPEN_NOTICE = "¿No estás de acuerdo con la solución? Simplemente responde este correo";
+  if (
+    tpl.subject &&
+    tpl.subject.includes("resuelto") &&
+    !tpl.body.includes(REOPEN_NOTICE)
+  ) {
+    tpl.body = tpl.body.replace(
+      /\n*Gracias por tu confianza/,
+      "\n\n¿No estás de acuerdo con la solución? Simplemente responde este correo con tus comentarios y tu ticket será reabierto automáticamente para que un agente te vuelva a atender.\n\nGracias por tu confianza"
+    );
+    // fallback: append at end if pattern not found
+    if (!tpl.body.includes(REOPEN_NOTICE)) {
+      tpl.body = tpl.body.trimEnd() + "\n\n" + REOPEN_NOTICE + " con tus comentarios y tu ticket será reabierto automáticamente para que un agente te vuelva a atender.";
+    }
   }
   return tpl;
 }
@@ -1335,16 +1352,18 @@ function getSmtpTransporter() {
 
 async function sendEmail(to, subject, text, attachments = []) {
   const transporter = getSmtpTransporter();
-  if (!transporter) return;
+  if (!transporter) return null;
   const cfg = notificationsConfig.smtp;
   // el remitente debe coincidir con la cuenta autenticada en Gmail
   const fromDefault = `NeuroDesk <${cfg.user}>`;
   const from = cfg.from && !cfg.from.includes("example.com") ? cfg.from : fromDefault;
   try {
-    await transporter.sendMail({ from, to, subject, text, html: textToHtml(text), attachments });
+    const info = await transporter.sendMail({ from, to, subject, text, html: textToHtml(text), attachments });
+    return info?.messageId || null;
   } catch (err) {
     console.error("[NeuroDesk] SMTP error:", err.message);
     smtpTransporter = null;
+    return null;
   }
 }
 
@@ -1392,7 +1411,14 @@ async function sendTicketNotification(type, ticket, opts = {}) {
 
   // Only send client email if the contact is NOT already in the admin list (avoids duplicates)
   if (ticket.contact && ticket.contact.includes("@") && !adminEmailSet.has(ticket.contact.toLowerCase())) {
-    promises.push(sendEmail(ticket.contact, subject, bodyText));
+    const clientEmailPromise = sendEmail(ticket.contact, subject, bodyText).then((msgId) => {
+      // Store message ID on the ticket so we can match future replies via In-Reply-To header
+      if (msgId && type === "resolved") {
+        const raw = store.tickets.find((t) => t.id === ticket.id);
+        if (raw) { raw.emailThreadId = msgId; saveStore(); }
+      }
+    });
+    promises.push(clientEmailPromise);
   }
 
   if (adminEmails.length > 0) {
@@ -1509,6 +1535,74 @@ async function pollEmails(options = {}) {
           const subject = (parsed.subject || "(sin asunto)").slice(0, 200);
           const rawText = (parsed.text || (parsed.html || "").replace(/<[^>]+>/g, "")).trim();
           const bodyText = stripEmailSignature(rawText).slice(0, 4000);
+
+          // ── Detect reply to existing ticket ────────────────────────────────
+          // 1. Try to extract ticket ID from subject: "Re: ... #ND-1234 ..."
+          const ticketIdInSubject = (subject.match(/#(ND-\d+)/i) || [])[1];
+          // 2. Try In-Reply-To / References headers for threadId matching
+          const inReplyTo = parsed.inReplyTo || "";
+          const references = Array.isArray(parsed.references)
+            ? parsed.references.join(" ")
+            : String(parsed.references || "");
+
+          let matchedTicket = null;
+          if (ticketIdInSubject) {
+            // Subject contains a ticket ID — find that ticket
+            const found = store.tickets.find((t) => t.id.toLowerCase() === ticketIdInSubject.toLowerCase());
+            if (found && (found.contact || "").toLowerCase() === fromEmail.toLowerCase()) {
+              matchedTicket = found;
+            } else if (found) {
+              // Accept even if contact doesn't match (forwarded emails etc.)
+              matchedTicket = found;
+            }
+          }
+          if (!matchedTicket && (inReplyTo || references)) {
+            // Look for stored threadId on tickets (set when we send outgoing email)
+            const threadMatch = store.tickets.find((t) => {
+              if (!t.emailThreadId) return false;
+              return inReplyTo.includes(t.emailThreadId) || references.includes(t.emailThreadId);
+            });
+            if (threadMatch) matchedTicket = threadMatch;
+          }
+          if (!matchedTicket && fromEmail) {
+            // Last resort: most recent resolved/closed ticket from this sender
+            const recentCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+            matchedTicket = store.tickets
+              .filter(
+                (t) =>
+                  (t.contact || "").toLowerCase() === fromEmail.toLowerCase() &&
+                  (t.status === "resuelto" || t.status === "cerrado") &&
+                  t.resolvedAt &&
+                  t.resolvedAt > recentCutoff
+              )
+              .sort((a, b) => new Date(b.resolvedAt) - new Date(a.resolvedAt))[0] || null;
+          }
+
+          if (matchedTicket) {
+            // This email is a reply to an existing ticket
+            const wasFinished = matchedTicket.status === "resuelto" || matchedTicket.status === "cerrado";
+            const replyNote = `Respuesta del cliente:\n${bodyText}`;
+            addTicketHistory(matchedTicket.id, replyNote, wasFinished ? "abierto" : matchedTicket.status);
+            if (wasFinished) {
+              // Reopen the ticket
+              matchedTicket.status = "abierto";
+              matchedTicket.resolvedAt = null;
+              saveStore();
+              notifyClients("ticketsChanged", { action: "updated", id: matchedTicket.id });
+              const reopened = getTickets().find((t) => t.id === matchedTicket.id);
+              if (reopened) {
+                sendTicketNotification("status_changed", reopened, { oldStatus: "resuelto" }).catch(() => {});
+              }
+              console.log(`[NeuroDesk] Ticket ${matchedTicket.id} reabierto por respuesta del cliente (${fromEmail}).`);
+            } else {
+              notifyClients("ticketsChanged", { action: "updated", id: matchedTicket.id });
+            }
+            markEmailProcessedStmt.run(messageId, new Date().toISOString());
+            try { await client.messageFlagsAdd(uid, ["\\Seen"]); } catch (_) {}
+            continue; // Do NOT create a new ticket
+          }
+          // ── End reply detection ─────────────────────────────────────────────
+
           const urgency = detectUrgency(subject, bodyText);
           const ticketBase = normalizeTicket(
             {
