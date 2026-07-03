@@ -526,6 +526,7 @@ const DEFAULT_CONFIG = {
     area: { enabled: true, label: "Área" },
   },
   customFields: [],
+  aiConfig: { apiKey: "" },
   businessHours: {
     enabled: true,
     schedule: {
@@ -814,7 +815,10 @@ function saveConfig(incoming) {
     schedule: validatedSchedule,
   };
 
-  appConfig = { sla: validatedSla, fields: validatedFields, customFields: validatedCustomFields, businessHours: validatedBh };
+  const inAi = incoming.aiConfig && typeof incoming.aiConfig === "object" ? incoming.aiConfig : {};
+  const validatedAi = { apiKey: typeof inAi.apiKey === "string" ? inAi.apiKey.trim() : (appConfig.aiConfig?.apiKey || "") };
+
+  appConfig = { sla: validatedSla, fields: validatedFields, customFields: validatedCustomFields, aiConfig: validatedAi, businessHours: validatedBh };
   upsertConfigStmt.run("app_config", JSON.stringify(appConfig));
   return appConfig;
 }
@@ -1226,7 +1230,7 @@ function getStats() {
 // ── AI (Anthropic Claude Haiku) ───────────────────────────────────────────────
 
 function anthropicRequest(messages, systemPrompt, maxTokens = 512) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY || appConfig.aiConfig?.apiKey || "";
   if (!apiKey) return Promise.resolve(null);
   const body = JSON.stringify({
     model: "claude-haiku-4-5-20251001",
@@ -2178,13 +2182,24 @@ async function handleApi(req, res) {
     return;
   }
 
+  // GET /api/config/ai — return masked key status
+  if (req.method === "GET" && req.url === "/api/config/ai") {
+    const key = appConfig.aiConfig?.apiKey || "";
+    const envKey = process.env.ANTHROPIC_API_KEY || "";
+    const active = !!(key || envKey);
+    const source = envKey ? "env" : key ? "config" : "none";
+    const masked = key ? key.slice(0, 7) + "••••••••••••••••" + key.slice(-4) : "";
+    sendJson(res, 200, { active, source, masked });
+    return;
+  }
+
   // GET /api/tickets/:id/ai-suggest — generate a suggested reply
   if (req.method === "GET" && /^\/api\/tickets\/[^/]+\/ai-suggest$/.test(req.url)) {
     const id = decodeURIComponent(req.url.split("/")[3] || "");
     const ticket = getTickets().find((t) => t.id === id);
     if (!ticket) { sendJson(res, 404, { error: "Ticket no encontrado." }); return; }
-    if (!process.env.ANTHROPIC_API_KEY) {
-      sendJson(res, 503, { error: "ANTHROPIC_API_KEY no configurada en el servidor." });
+    if (!process.env.ANTHROPIC_API_KEY && !appConfig.aiConfig?.apiKey) {
+      sendJson(res, 503, { error: "API key de Anthropic no configurada. Ve a Configuración → IA para agregarla." });
       return;
     }
     const suggestion = await aiSuggestReply(ticket);

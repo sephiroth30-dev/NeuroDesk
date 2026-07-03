@@ -1519,13 +1519,21 @@ function showClosureModal(statusOverride) {
   const isResolve = statusOverride === "resuelto";
   closureReasonTitle.textContent = isResolve ? "Marcar como resuelto" : "Cerrar ticket";
   document.getElementById("closureReasonLabel").textContent = isResolve ? "Motivo de resolución" : "Motivo de cierre";
-  confirmClosureBtn.textContent = isResolve ? "Marcar resuelto" : "Cerrar ticket";
+  confirmClosureBtn.textContent = isResolve ? "✓ Marcar resuelto" : "Cerrar ticket";
   // Mostrar checkbox de notificación solo para cerrar (resolver siempre notifica)
   const notifyRow = closureNotifyClient?.closest(".closureNotifyToggle");
   if (notifyRow) notifyRow.hidden = false;
   if (closureNotifyClient) closureNotifyClient.checked = true;
   closureReasonText.value = detailResolution.value.trim();
   closureReasonError.textContent = "";
+  // Pre-rellenar horas trabajadas si ya tienen valor
+  const hoursRow = document.getElementById("closureWorkedHoursRow");
+  const hoursInput = document.getElementById("closureWorkedHours");
+  if (hoursRow) hoursRow.hidden = !isResolve;
+  if (hoursInput) {
+    const currentTicket = cachedTickets.find(t => t.id === activeTicketId);
+    hoursInput.value = (isResolve && currentTicket?.workedHours != null) ? currentTicket.workedHours : "";
+  }
   closureReasonModal.hidden = false;
   setTimeout(() => closureReasonText.focus(), 50);
 }
@@ -1549,17 +1557,21 @@ confirmClosureBtn.addEventListener("click", async () => {
   }
   const status = pendingClosureStatus;
   const silent = closureNotifyClient ? !closureNotifyClient.checked : false;
+  const closureHoursInput = document.getElementById("closureWorkedHours");
+  const closureHoursVal = closureHoursInput && closureHoursInput.value !== "" ? Number(closureHoursInput.value) : null;
   hideClosureModal();
   detailResolution.value = reason;
   // Auto-guardar cambios de campos antes de resolver/cerrar
   const currentTicket = cachedTickets.find((t) => t.id === activeTicketId);
   if (currentTicket) {
+    const resolvedHours = closureHoursVal !== null ? closureHoursVal :
+      (detailWorkedHours?.value !== "" ? Number(detailWorkedHours?.value) : currentTicket.workedHours);
     const payload = {
       status: currentTicket.status,
       urgency: detailUrgency?.value || currentTicket.urgency,
       area: detailArea?.value?.trim() || currentTicket.area,
       assignedTo: detailAssignedTo?.value?.trim() || currentTicket.assignedTo,
-      workedHours: detailWorkedHours?.value !== "" ? Number(detailWorkedHours?.value) : currentTicket.workedHours,
+      workedHours: resolvedHours,
     };
     try {
       await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}`, {
@@ -1973,6 +1985,80 @@ document.querySelector("#copyPortalUrl").addEventListener("click", () => {
       btn.textContent = orig;
     }, 1800);
   });
+});
+
+// ── AI settings ───────────────────────────────────────────────────────────────
+
+async function loadAiSettings() {
+  try {
+    const data = await requestJson("/api/config/ai");
+    const statusEl = document.getElementById("aiKeyStatus");
+    if (statusEl) {
+      if (data.source === "env") {
+        statusEl.innerHTML = `<div class="aiKeyStatusBadge aiKeyStatusBadge--ok">✓ API Key activa — configurada vía variable de entorno del servidor (ENV). No es necesario agregarla aquí.</div>`;
+      } else if (data.source === "config" && data.masked) {
+        statusEl.innerHTML = `<div class="aiKeyStatusBadge aiKeyStatusBadge--ok">✓ API Key guardada: <code>${data.masked}</code></div>`;
+      } else {
+        statusEl.innerHTML = `<div class="aiKeyStatusBadge aiKeyStatusBadge--warn">⚠ Sin API Key — el triaje automático y las sugerencias IA están desactivados.</div>`;
+      }
+    }
+    // No pre-llenamos el input con la clave real por seguridad
+    const keyInput = document.getElementById("aiApiKey");
+    if (keyInput) keyInput.value = "";
+  } catch (_) {}
+}
+
+// Toggle show/hide de la clave IA
+document.getElementById("toggleAiApiKey")?.addEventListener("click", function () {
+  const input = document.getElementById("aiApiKey");
+  if (!input) return;
+  const show = input.type === "password";
+  input.type = show ? "text" : "password";
+  this.textContent = show ? "🙈" : "";
+});
+
+// Guardar API Key IA
+document.getElementById("aiConfigForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const keyInput = document.getElementById("aiApiKey");
+  const resultEl = document.getElementById("aiConfigResult");
+  const key = keyInput?.value.trim() || "";
+  resultEl.style.display = "block";
+  resultEl.textContent = "Guardando…";
+  try {
+    const cfg = await requestJson("/api/config");
+    await requestJson("/api/config", {
+      method: "PUT",
+      body: JSON.stringify({ ...cfg, aiConfig: { apiKey: key } }),
+    });
+    resultEl.style.color = "var(--ok)";
+    resultEl.textContent = "✓ API Key guardada correctamente.";
+    if (keyInput) keyInput.value = "";
+    loadAiSettings();
+  } catch (err) {
+    resultEl.style.color = "var(--danger)";
+    resultEl.textContent = err.message || "Error al guardar.";
+  }
+});
+
+// Borrar API Key IA
+document.getElementById("clearAiKeyBtn")?.addEventListener("click", async () => {
+  const resultEl = document.getElementById("aiConfigResult");
+  resultEl.style.display = "block";
+  resultEl.textContent = "Borrando…";
+  try {
+    const cfg = await requestJson("/api/config");
+    await requestJson("/api/config", {
+      method: "PUT",
+      body: JSON.stringify({ ...cfg, aiConfig: { apiKey: "" } }),
+    });
+    resultEl.style.color = "var(--ok)";
+    resultEl.textContent = "Clave borrada.";
+    loadAiSettings();
+  } catch (err) {
+    resultEl.style.color = "var(--danger)";
+    resultEl.textContent = err.message || "Error al borrar.";
+  }
 });
 
 // ── Email settings ────────────────────────────────────────────────────────────
@@ -2489,6 +2575,7 @@ settingsButton.addEventListener("click", () => {
   populateSettingsPanel();
   loadEmailSettings();
   loadNotificationsSettings();
+  loadAiSettings();
   showView("settings");
 });
 backFromSettings?.addEventListener("click", () => showView("overview"));

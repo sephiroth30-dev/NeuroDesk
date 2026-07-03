@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/tokens.css?v=14.21" />
-    <link rel="stylesheet" href="/styles.css?v=14.21" />
+    <link rel="stylesheet" href="/tokens.css?v=14.22" />
+    <link rel="stylesheet" href="/styles.css?v=14.22" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -648,6 +648,15 @@
             type="button"
           >
             Usuarios
+          </button>
+          <button
+            class="tabButton"
+            data-tab="aiTab"
+            role="tab"
+            aria-selected="false"
+            type="button"
+          >
+            ✨ IA
           </button>
         </div>
 
@@ -1377,6 +1386,49 @@
             </form>
           </div>
         </div>
+        <!-- Tab: IA -->
+        <div id="aiTab" class="tabPanel panel" role="tabpanel" hidden>
+          <div class="panelHeader" style="margin-bottom: 20px">
+            <h2>Inteligencia Artificial</h2>
+            <p>Configura la API key de Anthropic para activar el triaje automático y las sugerencias de respuesta.</p>
+          </div>
+
+          <div class="aiKeyStatus" id="aiKeyStatus"></div>
+
+          <form id="aiConfigForm" class="settingsForm" autocomplete="off">
+            <div class="formGrid" style="grid-template-columns: 1fr;">
+              <label>
+                API Key de Anthropic
+                <div class="passwordWrapper">
+                  <input
+                    id="aiApiKey"
+                    type="password"
+                    placeholder="sk-ant-api03-…"
+                    autocomplete="new-password"
+                  />
+                  <button type="button" class="eyeBtn" id="toggleAiApiKey" title="Mostrar/ocultar clave"></button>
+                </div>
+                <span style="font-size:0.75rem; color:var(--muted); font-weight:400; margin-top:2px; display:block;">
+                  Obtén tu clave en <strong>console.anthropic.com</strong> → API Keys. Se guarda cifrada en la base de datos local.
+                </span>
+              </label>
+            </div>
+            <div class="settingsActions">
+              <button type="submit" class="primaryAction">Guardar API Key</button>
+              <button type="button" id="clearAiKeyBtn" class="ghostButton">Borrar clave</button>
+            </div>
+            <p id="aiConfigResult" class="message" style="margin-top: 10px; display: none"></p>
+          </form>
+
+          <div style="margin-top: 24px; padding: 16px; background: var(--soft); border: 1px solid var(--line); border-radius: var(--radius-sm);">
+            <p style="font-size:0.82rem; color:var(--muted); line-height:1.6; margin:0;">
+              <strong style="color:var(--graphite);">¿Para qué se usa?</strong><br>
+              • <strong>Triaje automático</strong> — Al llegar un ticket por correo o web, Claude analiza el asunto y la descripción para sugerir urgencia, categoría y sentimiento del cliente.<br>
+              • <strong>Sugerir respuesta</strong> — En la vista de detalle del ticket, el botón ✨ genera un borrador de respuesta al cliente basado en el historial.
+            </p>
+          </div>
+        </div>
+
         <div class="settingsFooter panel">
           <button id="saveSettingsButton" class="primaryAction" type="button">
             Guardar cambios
@@ -1622,8 +1674,8 @@
                 placeholder="ej. 1.5"
               />
             </label>
-            <button id="resolveTicketDetail" class="secondaryAction" type="button">
-              Marcar resuelto
+            <button id="resolveTicketDetail" class="primaryAction" type="button">
+              ✓ Marcar resuelto
             </button>
             <button id="closeTicketDetailStatus" class="secondaryAction" type="button">
               Cerrar ticket
@@ -1692,6 +1744,16 @@
           ></textarea>
         </label>
         <p id="closureReasonError" class="message" style="color: var(--danger)" role="alert"></p>
+        <label id="closureWorkedHoursRow" style="margin-top: 4px;">
+          <span class="fieldLabel">Horas trabajadas en este ticket</span>
+          <input
+            id="closureWorkedHours"
+            type="number"
+            min="0"
+            step="0.5"
+            placeholder="ej. 1.5  (opcional)"
+          />
+        </label>
         <label class="closureNotifyToggle">
           <input type="checkbox" id="closureNotifyClient" checked>
           <span>Notificar al cliente por correo</span>
@@ -1703,7 +1765,7 @@
       </div>
     </div>
 
-    <script src="/app.js?v=14.21" defer></script>
+    <script src="/app.js?v=14.22" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {
