@@ -2050,7 +2050,7 @@ tbody tr:last-child td {
   border-radius: var(--radius);
   background: var(--bg);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  overflow: visible;
   transition: margin-left 0.18s ease;
 }
 
@@ -2077,6 +2077,10 @@ body.sidebarCollapsed .ticketDetailOverlay {
   padding: 14px 22px;
   background: #fff;
   border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-radius: var(--radius) var(--radius) 0 0;
 }
 
 .detailActions,
@@ -2094,7 +2098,7 @@ body.sidebarCollapsed .ticketDetailOverlay {
 
 .ticketConversation {
   padding: 30px 36px;
-  overflow: auto;
+  overflow: visible;
   background: #fff;
   border-right: 1px solid var(--line);
 }
@@ -2420,9 +2424,9 @@ body.sidebarCollapsed .ticketDetailOverlay {
   padding: 22px;
   background: var(--soft);
   position: sticky;
-  top: 0;
+  top: 16px;
   align-self: start;
-  max-height: 100vh;
+  max-height: calc(100vh - 32px);
   overflow-y: auto;
 }
 
