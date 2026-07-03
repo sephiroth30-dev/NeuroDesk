@@ -1,6 +1,6 @@
 {
   "name": "neurodesk",
-  "version": "14.12",
+  "version": "14.13",
   "description": "Mesa de soporte minimalista para Neurofic.",
   "main": "server.js",
   "scripts": {

@@ -3769,3 +3769,28 @@ label .fieldLabel {
     flex: 1;
   }
 }
+
+/* ── Toast ── */
+.appToast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  background: #1e293b;
+  color: #f8fafc;
+  padding: 11px 22px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0,0,0,.22);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s, transform 0.18s;
+  z-index: 9999;
+  white-space: nowrap;
+}
+
+.appToast--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}

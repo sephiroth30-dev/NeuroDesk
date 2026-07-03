@@ -1402,7 +1402,26 @@ async function saveDetail(statusOverride, silent = false) {
     body: JSON.stringify(payload),
   });
   await refresh();
+  const isStatusChange = statusOverride && statusOverride !== cachedTickets.find((t) => t.id === activeTicketId)?.status;
+  const toastMsg = statusOverride === "resuelto" ? "✓ Ticket marcado como resuelto"
+    : statusOverride === "cerrado" ? "✓ Ticket cerrado"
+    : "✓ Cambios guardados";
   closeTicketDetailModal();
+  showToast(toastMsg);
+}
+
+function showToast(msg) {
+  let toast = document.getElementById("appToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "appToast";
+    toast.className = "appToast";
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add("appToast--visible");
+  clearTimeout(toast._hideTimer);
+  toast._hideTimer = setTimeout(() => toast.classList.remove("appToast--visible"), 3000);
 }
 
 document.addEventListener("click", (e) => {
