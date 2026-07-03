@@ -1288,25 +1288,54 @@ sentimentScore: 0-100 (0=muy satisfecho, 100=muy frustrado)`;
   } catch { return null; }
 }
 
-async function aiSuggestReply(ticket) {
+async function aiSuggestReply(ticket, draft) {
   const urgencyLabel = { baja: "Baja", media: "Media", alta: "Alta", critica: "Crítica" }[ticket.urgency] || ticket.urgency || "Media";
+  // Collect past agent responses to infer writing style
+  const agentReplies = (ticket.history || [])
+    .filter((h) => h.status === "respuesta" || h.status === "nota")
+    .slice(-3)
+    .map((h) => h.note)
+    .join("\n---\n");
   const history = (ticket.history || [])
-    .slice(-5)
+    .slice(-4)
     .map((h) => `[${h.status || "nota"}] ${h.note}`)
     .join("\n");
-  const system = `Eres un agente de soporte de Neurofic. Redacta una respuesta CORTA y directa en español.
 
-Reglas estrictas:
+  if (draft && draft.trim()) {
+    // Co-pilot mode: polish the agent's draft, keep their style and intent
+    const system = `Eres un corrector de estilo para el equipo de soporte de Neurofic.
+Tienes UN borrador escrito por el agente. Mejóralo sin cambiar su intención ni agregar información que no está en el ticket.
+
+Reglas:
+- Mantén el tono y estilo del agente (no lo formalices en exceso)
+- Corrige ortografía y gramática
+- No inventes datos, pasos técnicos ni fechas que no estén en el texto
+- No alargas el mensaje — si está bien, lo devuelves casi igual
+- Firma con "Equipo de soporte · Neurofic" si no tiene firma
+- Solo texto plano, sin markdown`;
+    const content = `Ticket ${ticket.id} | Prioridad: ${urgencyLabel}
+Asunto: ${ticket.subject || "(sin asunto)"}
+Descripción: ${String(ticket.description || "").slice(0, 400)}
+
+BORRADOR DEL AGENTE:
+${draft.trim()}`;
+    return await anthropicRequest([{ role: "user", content }], system, 350);
+  }
+
+  // Generate mode: short reply based only on ticket info
+  const styleHint = agentReplies ? `\n\nEstilo de respuestas previas del agente (copia este tono):\n${agentReplies.slice(0, 400)}` : "";
+  const system = `Eres asistente del equipo de soporte de Neurofic. Redacta una respuesta CORTA en español.
+
+Reglas:
 - Máximo 2 párrafos breves
-- Usa SOLO información que está en el ticket — no inventes pasos, fechas ni detalles que no aparecen
-- Si no hay solución clara en el historial, indica que se está revisando el caso
-- Menciona la prioridad (${urgencyLabel}) en la primera línea
+- Usa SOLO lo que está escrito en el ticket — no inventes preguntas técnicas, pasos ni detalles
+- Si no hay suficiente información para dar una solución, di brevemente que se está revisando el caso y se responderá pronto
 - Firma: "Equipo de soporte · Neurofic"
-- Sin markdown, sin placeholders como [NOMBRE]`;
+- Sin markdown${styleHint}`;
   const content = `Ticket ${ticket.id} | Cliente: ${ticket.name || "Cliente"} | Prioridad: ${urgencyLabel}
 Asunto: ${ticket.subject || "(sin asunto)"}
-Descripción: ${String(ticket.description || "").slice(0, 800)}${history ? `\nHistorial:\n${history.slice(0, 500)}` : ""}`;
-  return await anthropicRequest([{ role: "user", content }], system, 400);
+Descripción: ${String(ticket.description || "").slice(0, 600)}${history ? `\nHistorial reciente:\n${history.slice(0, 400)}` : ""}`;
+  return await anthropicRequest([{ role: "user", content }], system, 350);
 }
 
 // ── Email config & poller ─────────────────────────────────────────────────────
@@ -1719,32 +1748,42 @@ async function pollEmails(options = {}) {
             : String(parsed.references || "");
 
           let matchedTicket = null;
+          let matchedClosed = null; // cerrado ticket that got a reply — attach as note only
           if (ticketIdInSubject) {
-            // Subject contains a ticket ID — find that ticket
             const found = store.tickets.find((t) => t.id.toLowerCase() === ticketIdInSubject.toLowerCase());
-            // Never reopen permanently closed tickets via email
-            if (found && found.status !== "cerrado") {
-              matchedTicket = found;
+            if (found) {
+              if (found.status === "cerrado") matchedClosed = found;
+              else matchedTicket = found;
             }
           }
-          if (!matchedTicket && (inReplyTo || references)) {
-            // Thread match: only consider tickets resolved within last 14 days
+          if (!matchedTicket && !matchedClosed && (inReplyTo || references)) {
             const threadCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
             const threadMatch = store.tickets.find((t) => {
               if (!t.emailThreadId) return false;
-              if (!(inReplyTo.includes(t.emailThreadId) || references.includes(t.emailThreadId))) return false;
-              // Only match open/in-progress tickets, or recently resolved ones
-              if (t.status === "cerrado") return false;
-              if ((t.status === "resuelto") && t.resolvedAt && t.resolvedAt < threadCutoff) return false;
-              return true;
+              return inReplyTo.includes(t.emailThreadId) || references.includes(t.emailThreadId);
             });
-            if (threadMatch) matchedTicket = threadMatch;
+            if (threadMatch) {
+              if (threadMatch.status === "cerrado") matchedClosed = threadMatch;
+              else if (threadMatch.status === "resuelto" && threadMatch.resolvedAt && threadMatch.resolvedAt < threadCutoff) matchedClosed = threadMatch;
+              else matchedTicket = threadMatch;
+            }
           }
+
+          // Reply to a permanently closed ticket — attach as note without reopening, no new ticket
+          if (matchedClosed && !matchedTicket) {
+            addTicketHistory(matchedClosed.id, `Mensaje del cliente (ticket cerrado):\n${bodyText}`, "cerrado");
+            saveStore();
+            notifyClients("ticketsChanged", { action: "updated", id: matchedClosed.id });
+            markEmailProcessedStmt.run(messageId, new Date().toISOString());
+            try { await client.messageFlagsAdd(uid, ["\\Seen"]); } catch (_) {}
+            console.log(`[NeuroDesk] Nota adjuntada a ticket cerrado ${matchedClosed.id} (${fromEmail}).`);
+            continue;
+          }
+
           // NOTE: no "last resort" email-only match — new email from same address = new ticket.
 
           if (matchedTicket) {
             // This email is a reply to an existing ticket
-            // Never reopen permanently closed tickets
             const wasFinished = matchedTicket.status === "resuelto";
             const replyNote = `Respuesta del cliente:\n${bodyText}`;
             addTicketHistory(matchedTicket.id, replyNote, wasFinished ? "abierto" : matchedTicket.status);
@@ -2191,8 +2230,8 @@ async function handleApi(req, res) {
     return;
   }
 
-  // GET /api/tickets/:id/ai-suggest — generate a suggested reply
-  if (req.method === "GET" && /^\/api\/tickets\/[^/]+\/ai-suggest$/.test(req.url)) {
+  // POST /api/tickets/:id/ai-suggest — generate or polish a reply
+  if (req.method === "POST" && /^\/api\/tickets\/[^/]+\/ai-suggest$/.test(req.url)) {
     const id = decodeURIComponent(req.url.split("/")[3] || "");
     const ticket = getTickets().find((t) => t.id === id);
     if (!ticket) { sendJson(res, 404, { error: "Ticket no encontrado." }); return; }
@@ -2200,7 +2239,9 @@ async function handleApi(req, res) {
       sendJson(res, 503, { error: "API key de Anthropic no configurada. Ve a Configuración → IA para agregarla." });
       return;
     }
-    const suggestion = await aiSuggestReply(ticket);
+    const body = await readBody(req);
+    const draft = typeof body.draft === "string" ? body.draft : "";
+    const suggestion = await aiSuggestReply(ticket, draft);
     sendJson(res, 200, { suggestion });
     return;
   }

@@ -67,6 +67,7 @@ const detailStatus = document.querySelector("#detailStatus");
 const detailUrgency = document.querySelector("#detailUrgency");
 const detailArea = document.querySelector("#detailArea");
 const detailResolution = document.querySelector("#detailResolution");
+detailResolution?.addEventListener("input", () => updateAiSuggestLabel());
 const detailWorkedHours = document.querySelector("#detailWorkedHours");
 const detailMessage = document.querySelector("#detailMessage");
 const detailCustomFields = document.querySelector("#detailCustomFields");
@@ -1321,6 +1322,7 @@ function openTicketDetail(ticket) {
   detailResolution.value = "";
   pendingReplyFiles = [];
   updateReplyBtnLabel();
+  updateAiSuggestLabel();
   detailWorkedHours.value = ticket.workedHours != null ? ticket.workedHours : "";
   detailMessage.textContent = "";
   if (detailAssignedTo) {
@@ -1657,15 +1659,23 @@ document.getElementById("aiSuggestBtn")?.addEventListener("click", async functio
   const btn = this;
   const textarea = document.querySelector("#detailResolution");
   const msgEl = document.querySelector("#detailMessage");
+  const draft = textarea?.value.trim() || "";
+  const isPilotMode = draft.length > 0;
   btn.disabled = true;
-  btn.textContent = "✨ Generando...";
+  btn.textContent = isPilotMode ? "✨ Mejorando..." : "✨ Generando...";
   if (msgEl) { msgEl.textContent = ""; msgEl.style.color = ""; }
   try {
-    const data = await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}/ai-suggest`);
+    const data = await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}/ai-suggest`, {
+      method: "POST",
+      body: JSON.stringify({ draft }),
+    });
     if (data.suggestion && textarea) {
       textarea.value = data.suggestion;
       textarea.focus();
-      if (msgEl) { msgEl.textContent = "✓ Sugerencia IA lista — revísala antes de enviar."; msgEl.style.color = "var(--color-success, #16a34a)"; }
+      if (msgEl) {
+        msgEl.textContent = isPilotMode ? "✓ Texto mejorado — revísalo antes de enviar." : "✓ Sugerencia IA lista — revísala antes de enviar.";
+        msgEl.style.color = "var(--color-success, #16a34a)";
+      }
     } else {
       if (msgEl) { msgEl.textContent = "No se pudo generar una sugerencia."; }
     }
@@ -1673,9 +1683,16 @@ document.getElementById("aiSuggestBtn")?.addEventListener("click", async functio
     if (msgEl) { msgEl.textContent = err.message || "Error al generar sugerencia."; }
   } finally {
     btn.disabled = false;
-    btn.textContent = "✨ Sugerir respuesta IA";
+    updateAiSuggestLabel();
   }
 });
+
+function updateAiSuggestLabel() {
+  const btn = document.getElementById("aiSuggestBtn");
+  const textarea = document.querySelector("#detailResolution");
+  if (!btn) return;
+  btn.textContent = textarea?.value.trim() ? "✨ Mejorar mi texto" : "✨ Sugerir respuesta IA";
+}
 
 sendReplyBtn?.addEventListener("click", async () => {
   if (!activeTicketId) return;
