@@ -6,9 +6,18 @@ Desplegado en **soporte.easystem.co** con datos reales. Cualquier cambio debe se
 
 ---
 
-## Almacenamiento de datos — NUNCA tocar `data/`
+## Almacenamiento de datos — NUNCA tocar `.neurodesk/data.json`
 
-El servidor usa **`data/neurodesk.json`** como base de datos (no SQLite). Este archivo contiene:
+**Verificado en el servidor (2026-07-06):** el store real vive en
+`/home/u532609482/domains/soporte.easystem.co/.neurodesk/data.json`
+(`~/.neurodesk/data.json`, donde `~` es el `HOME` del proceso lsnode = raíz del dominio).
+Esta ruta **ya está fuera de `nodejs/`** (el repo git), así que no requiere ninguna
+migración adicional: `git pull`, `git clean -fd` o un re-clone de `nodejs/` nunca la tocan.
+
+`STORE_PATH` en `server.js` es `process.env.ND_STORE_PATH || path.join(os.homedir(), ".neurodesk", "data.json")`.
+`ND_STORE_PATH` **no está seteado** en el proceso actual — corre con el default de arriba, que ya es seguro.
+
+Este archivo contiene:
 
 - Todos los tickets abiertos y cerrados
 - Configuración de correo entrante (SMTP/IMAP + App Password de Gmail)
@@ -18,12 +27,12 @@ El servidor usa **`data/neurodesk.json`** como base de datos (no SQLite). Este a
 
 **Reglas absolutas:**
 
-- **NO** borrar, sobreescribir ni reinicializar `data/neurodesk.json`
-- **NO** commitear archivos dentro de `data/` (está en `.gitignore` completo)
-- **NO** hacer `rm -rf data/` ni `git clean -fd` en el servidor de producción
-- **NO** cambiar `STORE_PATH` ni la ruta del archivo de datos sin migrar primero
+- **NO** borrar, sobreescribir ni reinicializar `.neurodesk/data.json`
+- **NO** commitear ese archivo (no vive dentro del repo, pero por si se cambia `ND_STORE_PATH` a una ruta interna)
+- **NO** hacer `rm -rf` sobre `.neurodesk/` en el servidor de producción
+- **NO** setear `ND_STORE_PATH` a una ruta dentro de `nodejs/` — eso reintroduciría el riesgo de pérdida por deploy
 
-Si el servidor arranca sin `data/neurodesk.json`, arranca **con cero datos** — todos los tickets y configuración se pierden.
+Si el servidor arranca sin `.neurodesk/data.json`, arranca **con cero datos** — todos los tickets y configuración se pierden.
 
 ---
 
@@ -41,11 +50,10 @@ Las siguientes claves en `store.config` contienen datos ingresados manualmente p
 
 ## Archivos protegidos — no modificar sin pedido explícito
 
-| Archivo/Carpeta           | Razón                                                     |
-| ------------------------- | --------------------------------------------------------- |
-| `data/neurodesk.json`     | Base de datos de producción (tickets + config + usuarios) |
-| `data/` (toda la carpeta) | Ignorada en git — nunca subir ni borrar                   |
-| `.env` (si existe)        | Variables de entorno con credenciales                     |
+| Archivo/Carpeta                                              | Razón                                                     |
+| ------------------------------------------------------------ | --------------------------------------------------------- |
+| `../.neurodesk/data.json` (fuera de `nodejs/`, ver arriba)   | Base de datos de producción (tickets + config + usuarios) |
+| `.env` (si existe)                                            | Variables de entorno con credenciales                     |
 
 ---
 
@@ -61,41 +69,51 @@ Las siguientes claves en `store.config` contienen datos ingresados manualmente p
 
 ## Deploy seguro en soporte.easystem.co
 
-### Causa raíz de pérdidas de datos
+### ⚠️ Este servidor NO usa pm2 — lo administra LiteSpeed (lsnode)
 
-`data/neurodesk.json` vive dentro del directorio del proyecto. Cualquier `git clean -fd`, re-clone o script de deploy que limpie la carpeta lo destruye.
+`ecosystem.config.js` existe en el repo pero **no se ejecuta**: `pm2` no está instalado
+en el servidor (ni global ni local — verificado con `which pm2` y `npm list -g`, 2026-07-06).
+El proceso real que sirve `soporte.easystem.co` corre como `lsnode` (el manejador de apps
+Node.js de LiteSpeed/hPanel), lanzado automáticamente al recibir tráfico.
 
-### Solución permanente: ND_STORE_PATH fuera del proyecto
+**Consecuencia práctica:** cualquier comando `pm2 ...` (`pm2 restart`, `pm2 logs`,
+`pm2 start ecosystem.config.js`) va a fallar con `command not found`. Si en algún momento
+se instala pm2 de verdad y se migra a él, actualizar esta sección — mientras tanto, usar
+el flujo de abajo.
 
-El archivo `ecosystem.config.js` apunta los datos a `/var/lib/neurodesk/data.json`.
-Esa ruta nunca es tocada por git ni por deploys.
-
-### Migración única (ejecutar en el servidor una sola vez)
+### Flujo de deploy correcto (código)
 
 ```bash
-# 1. Crear el directorio de datos fuera del proyecto
-sudo mkdir -p /var/lib/neurodesk
-sudo chown $USER:$USER /var/lib/neurodesk
-
-# 2. Si ya existe data/neurodesk.json con datos, moverlo
-cp data/neurodesk.json /var/lib/neurodesk/data.json 2>/dev/null || echo "no habia datos previos"
-
-# 3. Iniciar/reiniciar con PM2 usando el ecosystem
-pm2 start ecosystem.config.js
-# o si ya corre:
-pm2 restart neurodesk --update-env
-
-# 4. Verificar que arrancó con la ruta correcta (debe decir /var/lib/neurodesk/data.json)
-pm2 logs neurodesk --lines 10
+cd /home/u532609482/domains/soporte.easystem.co/nodejs
+git pull origin main         # trae el código nuevo
+npm install --omit=dev       # solo si package.json cambió
 ```
 
-### Flujo de deploy después de la migración
+### Cómo reiniciar la app (sin pm2)
+
+LiteSpeed relanza el proceso Node automáticamente en la siguiente petición HTTP en
+cuanto el proceso actual muere. Para forzar el reinicio tras un deploy:
 
 ```bash
-git pull origin main        # solo actualiza código
+pkill -f 'lsnode:/home/u532609482/domains/soporte.easystem.co/nodejs'
+# curl https://soporte.easystem.co para confirmar que respondió tras el respawn
+```
+
+No hace falta `sudo`, ni tocar hPanel — el pkill del propio usuario basta porque los
+procesos `lsnode` corren con ese mismo usuario.
+
+### Verificar dónde están los datos tras un restart
+
+```bash
+curl -s https://soporte.easystem.co/api/health   # o el endpoint que exponga STORE_PATH
+# debe apuntar a .../soporte.easystem.co/.neurodesk/data.json (fuera de nodejs/)
+```
+
+```bash
+git pull origin main
 npm install --omit=dev      # solo si package.json cambió
-pm2 restart neurodesk       # reinicia — datos en /var/lib/neurodesk/data.json intactos
-# NUNCA: rm -rf data/ | git clean -fd | npm run reset
+pkill -f 'lsnode:/home/u532609482/domains/soporte.easystem.co/nodejs'
+# NUNCA: rm -rf .neurodesk/ | git clean -fd | npm run reset
 ```
 
 ---
