@@ -109,6 +109,16 @@ textarea::placeholder {
   letter-spacing: -0.01em;
   color: var(--graphite);
 }
+.appVersion {
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: var(--muted);
+  opacity: 0.7;
+  letter-spacing: 0.02em;
+  margin-left: 2px;
+  align-self: flex-end;
+  padding-bottom: 1px;
+}
 
 .sidebarNav {
   display: flex;
@@ -321,7 +331,8 @@ body.sidebarCollapsed .sidebar {
 }
 
 body.sidebarCollapsed .sidebar b,
-body.sidebarCollapsed .sidebarBrand strong {
+body.sidebarCollapsed .sidebarBrand strong,
+body.sidebarCollapsed .appVersion {
   display: none;
 }
 
@@ -1789,6 +1800,9 @@ tbody tr:last-child td {
   body.sidebarCollapsed .sidebar:hover b,
   body.sidebarCollapsed .sidebar:hover .sidebarBrand strong {
     display: block !important;
+  }
+  body.sidebarCollapsed .sidebar:hover .appVersion {
+    display: inline !important;
   }
   body.sidebarCollapsed .sidebar:hover .sidebarItem {
     justify-content: flex-start !important;

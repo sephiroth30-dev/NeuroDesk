@@ -1043,9 +1043,15 @@ function updateTicketFull(id, data) {
     applySlaTransition(updatedRaw, oldStatus, status);
     if ((status === "resuelto" || status === "cerrado") && !updatedRaw.resolvedAt) {
       updatedRaw.resolvedAt = new Date().toISOString();
+      if (updatedRaw.reopenedByClient) { updatedRaw.reopenedByClient = false; }
       saveStore();
     } else if (status !== "resuelto" && status !== "cerrado" && updatedRaw.resolvedAt) {
       updatedRaw.resolvedAt = null;
+      saveStore();
+    }
+    // Clear reopened flag when agent moves ticket to en_proceso or any active handling state
+    if (updatedRaw.reopenedByClient && status === "en_proceso") {
+      updatedRaw.reopenedByClient = false;
       saveStore();
     }
   }
@@ -1077,9 +1083,14 @@ function updateTicketPosition(id, status, orderedIds) {
     applySlaTransition(rawTicket, oldStatus, status);
     if ((status === "resuelto" || status === "cerrado") && !rawTicket.resolvedAt) {
       rawTicket.resolvedAt = new Date().toISOString();
+      if (rawTicket.reopenedByClient) { rawTicket.reopenedByClient = false; }
       saveStore();
     } else if (status !== "resuelto" && status !== "cerrado" && rawTicket.resolvedAt) {
       rawTicket.resolvedAt = null;
+      saveStore();
+    }
+    if (rawTicket.reopenedByClient && status !== "abierto") {
+      rawTicket.reopenedByClient = false;
       saveStore();
     }
   }
@@ -1291,8 +1302,16 @@ function anthropicRequest(messages, systemPrompt, maxTokens = 512) {
 async function aiTriageTicket(subject, body) {
   const system = `Eres un clasificador de tickets de soporte técnico para Neurofic. Analiza el asunto y cuerpo y responde SOLO con JSON válido sin markdown.
 Formato: {"urgency":"media","category":"Error técnico","sentiment":"neutro","sentimentScore":40}
-urgency: "baja"|"media"|"alta"|"critica"
-category: categoría corta en español (máx 25 chars). Ejemplos: "Facturación","Acceso","Error técnico","Consulta","Instalación","Rendimiento"
+
+urgency — reglas estrictas:
+- "critica": sistema caído, pérdida de datos, acceso bloqueado para todos, incidente de seguridad, impacta operación crítica inmediatamente
+- "alta": funcionalidad importante no funciona, afecta a varios usuarios, bloquea trabajo parcialmente, errores que impiden procesar transacciones
+- "media": problema funcional que tiene alternativa, demora o fallo intermitente, un usuario afectado con workaround posible
+- "baja": solicitud cosmética, cambio de preferencia, pregunta de cómo hacer algo, actualizar datos menores (firma de correo, cambio de nombre, ajuste de perfil, consulta de procedimiento, solicitud de acceso no urgente)
+
+IMPORTANTE: si la solicitud NO bloquea trabajo ni afecta operaciones, es "baja" por defecto. Firma de correo, cambio de logo, preguntas de uso, solicitudes de licencias de software no crítico → siempre "baja".
+
+category: categoría corta en español (máx 25 chars). Ejemplos: "Facturación","Acceso","Error técnico","Consulta","Instalación","Rendimiento","Configuración","Solicitud"
 sentiment: "positivo"|"neutro"|"negativo"|"muy_negativo"
 sentimentScore: 0-100 (0=muy satisfecho, 100=muy frustrado)`;
   const text = await anthropicRequest(
