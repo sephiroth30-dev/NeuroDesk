@@ -1645,10 +1645,10 @@ async function sendTicketNotification(type, ticket, opts = {}) {
   // Only send client email if the contact is NOT already in the admin list (avoids duplicates)
   if (ticket.contact && ticket.contact.includes("@") && !adminEmailSet.has(ticket.contact.toLowerCase())) {
     const clientEmailPromise = sendEmail(ticket.contact, subject, bodyText).then((msgId) => {
-      // Store message ID on the ticket so we can match future replies via In-Reply-To header
-      if (msgId && type === "resolved") {
+      // Store message ID so future client replies thread back to this ticket
+      if (msgId) {
         const raw = store.tickets.find((t) => t.id === ticket.id);
-        if (raw) { raw.emailThreadId = msgId; saveStore(); }
+        if (raw && !raw.emailThreadId) { raw.emailThreadId = msgId; saveStore(); }
       }
     });
     promises.push(clientEmailPromise);
@@ -2416,7 +2416,13 @@ async function handleApi(req, res) {
         if (!meta || !fs.existsSync(filePath)) return null;
         return { filename: meta.name, path: filePath };
       }).filter(Boolean);
-      await sendEmail(rawTicket.contact, `Re: ${rawTicket.subject || rawTicket.id}`, message, emailAttachments);
+      const replyMsgId = await sendEmail(rawTicket.contact, `Re: ${rawTicket.subject || rawTicket.id}`, message, emailAttachments);
+      // Register thread ID so client replies come back to this ticket instead of creating a new one
+      let needsSave = false;
+      if (replyMsgId && !rawTicket.emailThreadId) { rawTicket.emailThreadId = replyMsgId; needsSave = true; }
+      // Agent replied → no longer an unattended reopened case
+      if (rawTicket.reopenedByClient) { rawTicket.reopenedByClient = false; needsSave = true; }
+      if (needsSave) saveStore();
       const attNote = emailAttachments.length > 0
         ? `\n[${emailAttachments.length} archivo(s) adjunto(s): ${emailAttachments.map(a => a.filename).join(", ")}]`
         : "";
@@ -2500,6 +2506,18 @@ async function handleApi(req, res) {
     } catch (err) {
       sendJson(res, 400, { error: err.message || "No se pudo guardar la nota." });
     }
+    return;
+  }
+
+  // POST /api/tickets/:id/dismiss-reopened — clear reopenedByClient flag without changing status
+  if (req.method === "POST" && /^\/api\/tickets\/[^/]+\/dismiss-reopened$/.test(req.url)) {
+    const id = decodeURIComponent(req.url.split("/")[3] || "");
+    const raw = store.tickets.find((t) => t.id === id);
+    if (!raw) { sendJson(res, 404, { error: "Ticket no encontrado." }); return; }
+    raw.reopenedByClient = false;
+    saveStore();
+    notifyClients("ticketsChanged", { action: "updated", id });
+    sendJson(res, 200, { ok: true });
     return;
   }
 

@@ -1,5 +1,7 @@
 # NeuroDesk — Reglas de Producción
 
+**Versión actual en producción: v14.31**
+
 ## ⚠️ ESTE PROYECTO ESTÁ EN PRODUCCIÓN
 
 Desplegado en **soporte.easystem.co** con datos reales. Cualquier cambio debe ser **no destructivo**.

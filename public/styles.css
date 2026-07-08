@@ -4145,6 +4145,20 @@ label .fieldLabel {
   color: var(--danger);
   margin-bottom: 12px;
 }
+.reopenedBanner span { flex: 1; }
+.reopenedBannerDismiss {
+  background: none;
+  border: none;
+  color: var(--danger);
+  opacity: 0.6;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.reopenedBannerDismiss:hover { opacity: 1; background: rgba(255,59,48,0.12); }
 
 .ticketCard--reopened {
   border-left: 3px solid var(--danger);

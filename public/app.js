@@ -1337,6 +1337,13 @@ function openTicketDetail(ticket) {
   const reopenedBanner = document.getElementById("detailReopenedBanner");
   if (reopenedBanner) {
     reopenedBanner.hidden = !ticket.reopenedByClient;
+    const dismissBtn = document.getElementById("dismissReopenedBanner");
+    if (dismissBtn) {
+      dismissBtn.onclick = async () => {
+        await requestJson(`/api/tickets/${encodeURIComponent(ticket.id)}/dismiss-reopened`, { method: "POST" });
+        reopenedBanner.hidden = true;
+      };
+    }
   }
   // AI category/sentiment badges
   const aiInfoEl = document.getElementById("detailAiInfo");
