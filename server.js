@@ -1,3 +1,7 @@
+// Force timezone before any date operations so business-hour checks use local time.
+// LiteSpeed/lsnode does not inherit TZ from ecosystem.config.js.
+process.env.TZ = process.env.TZ || "America/Bogota";
+
 const http = require("http");
 const https = require("https");
 const fs = require("fs");
@@ -30,6 +34,7 @@ const EMPTY_STORE = {
   users: [],
   processedEmails: [],
   ticketHistory: [],
+  sessions: [],
 };
 
 function loadStore() {
@@ -41,6 +46,7 @@ function loadStore() {
       users: Array.isArray(parsed.users) ? parsed.users : [],
       processedEmails: Array.isArray(parsed.processedEmails) ? parsed.processedEmails : [],
       ticketHistory: Array.isArray(parsed.ticketHistory) ? parsed.ticketHistory : [],
+      sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
     };
   } catch (_) {
     return JSON.parse(JSON.stringify(EMPTY_STORE));
@@ -375,10 +381,14 @@ const db = {
   );
 })();
 
-// ── Sessions (in-memory, 24 h) ────────────────────────────────────────────────
+// ── Sessions (persisted in store.sessions, survive restarts) ─────────────────
 
-const sessions = new Map();
 const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function pruneSessions() {
+  const now = Date.now();
+  store.sessions = store.sessions.filter((s) => s.expiresAt > now);
+}
 
 const resetTokens = new Map(); // token -> { username, expiresAt }
 const RESET_TOKEN_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
@@ -422,20 +432,28 @@ function hashPassword(password, salt) {
 }
 
 function createSession(username) {
+  pruneSessions();
   const token = crypto.randomBytes(32).toString("hex");
-  sessions.set(token, { username, expiresAt: Date.now() + SESSION_MAX_AGE_MS });
+  store.sessions.push({ token, username, expiresAt: Date.now() + SESSION_MAX_AGE_MS });
+  saveStore();
   return token;
 }
 
 function getSession(token) {
   if (!token) return null;
-  const session = sessions.get(token);
+  const session = store.sessions.find((s) => s.token === token);
   if (!session) return null;
   if (Date.now() > session.expiresAt) {
-    sessions.delete(token);
+    store.sessions = store.sessions.filter((s) => s.token !== token);
+    saveStore();
     return null;
   }
   return session;
+}
+
+function deleteSession(token) {
+  store.sessions = store.sessions.filter((s) => s.token !== token);
+  saveStore();
 }
 
 function parseCookies(req) {
@@ -2091,7 +2109,7 @@ async function handleAuth(req, res) {
 
   if (req.method === "POST" && req.url === "/api/auth/logout") {
     const cookies = parseCookies(req);
-    if (cookies.nd_session) sessions.delete(cookies.nd_session);
+    if (cookies.nd_session) deleteSession(cookies.nd_session);
     res.writeHead(200, {
       "Content-Type": "application/json; charset=utf-8",
       "Set-Cookie": "nd_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
