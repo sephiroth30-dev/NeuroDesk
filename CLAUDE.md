@@ -1,6 +1,6 @@
 # NeuroDesk — Reglas de Producción
 
-**Versión actual en producción: v14.32**
+**Versión actual en producción: v14.33**
 
 ## ⚠️ ESTE PROYECTO ESTÁ EN PRODUCCIÓN
 

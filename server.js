@@ -545,6 +545,7 @@ const DEFAULT_CONFIG = {
   },
   customFields: [],
   aiConfig: { apiKey: "" },
+  timezone: "America/Bogota",
   businessHours: {
     enabled: true,
     schedule: {
@@ -836,7 +837,14 @@ function saveConfig(incoming) {
   // aiConfig is NEVER touched by saveConfig — it has its own dedicated endpoint
   const validatedAi = { apiKey: appConfig.aiConfig?.apiKey || "" };
 
-  appConfig = { sla: validatedSla, fields: validatedFields, customFields: validatedCustomFields, aiConfig: validatedAi, businessHours: validatedBh };
+  // Validate IANA timezone string — must be accepted by Intl.DateTimeFormat
+  let validatedTimezone = appConfig.timezone || DEFAULT_CONFIG.timezone;
+  if (incoming.timezone) {
+    const tz = String(incoming.timezone).trim();
+    try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); validatedTimezone = tz; } catch { /* keep current */ }
+  }
+
+  appConfig = { sla: validatedSla, fields: validatedFields, customFields: validatedCustomFields, aiConfig: validatedAi, timezone: validatedTimezone, businessHours: validatedBh };
   upsertConfigStmt.run("app_config", JSON.stringify(appConfig));
   return appConfig;
 }
@@ -1144,17 +1152,42 @@ function applySlaTransition(rawTicket, oldStatus, newStatus) {
   }
 }
 
+// Returns { dow, hours, minutes } for the current moment in the configured timezone.
+// Uses Intl.DateTimeFormat — works in any Node.js environment regardless of process.env.TZ.
+function getNowInTz(tz) {
+  try {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz || "America/Bogota",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(now);
+    const get = (type) => parts.find((p) => p.type === type)?.value || "";
+    const dowMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    const dow = dowMap[get("weekday")] ?? now.getDay();
+    let hours = parseInt(get("hour"), 10);
+    if (hours === 24) hours = 0; // some impls return 24 for midnight
+    const minutes = parseInt(get("minute"), 10) || 0;
+    return { dow, hours, minutes };
+  } catch {
+    const now = new Date();
+    return { dow: now.getDay(), hours: now.getHours(), minutes: now.getMinutes() };
+  }
+}
+
 // Returns true if the current moment is inside business hours.
 function isInsideBusinessHours(bh) {
   if (!bh || !bh.enabled) return true; // no BH config = always running
-  const now = new Date();
-  const dow = now.getDay();
+  const tz = appConfig.timezone || "America/Bogota";
+  const { dow, hours, minutes } = getNowInTz(tz);
   const sched = bh.schedule || {};
   const day = sched[String(dow)];
   if (!day || !day.enabled) return false;
   const [sh, sm] = String(day.start || "00:00").split(":").map(Number);
   const [eh, em] = String(day.end || "00:00").split(":").map(Number);
-  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const nowMins = hours * 60 + minutes;
   const startMins = (sh || 0) * 60 + (sm || 0);
   const endMins = (eh || 0) * 60 + (em || 0);
   return nowMins >= startMins && nowMins < endMins;
@@ -1168,13 +1201,21 @@ function calcBusinessMs(fromMs, toMs, bh) {
     const [h, m] = String(t || "00:00").split(":").map(Number);
     return ((h || 0) * 60 + (m || 0)) * 60000;
   };
+  const tz = appConfig.timezone || "America/Bogota";
+  const dowMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const getDow = (ms) => {
+    try {
+      const s = new Date(ms).toLocaleDateString("en-US", { timeZone: tz, weekday: "short" });
+      return dowMap[s] ?? new Date(ms).getDay();
+    } catch { return new Date(ms).getDay(); }
+  };
   const sched = bh.schedule || {};
   let total = 0;
   const anchor = new Date(fromMs);
   anchor.setHours(0, 0, 0, 0);
   let cursor = anchor.getTime();
   while (cursor < toMs) {
-    const dow = new Date(cursor).getDay();
+    const dow = getDow(cursor);
     const day = sched[String(dow)];
     if (day && day.enabled) {
       const dayStartMs = parseTime(day.start);

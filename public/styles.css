@@ -3914,6 +3914,34 @@ label .fieldLabel {
   max-width: 380px;
   line-height: 1.4;
 }
+.bhTimezoneRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.bhTimezoneLabel {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--graphite);
+  white-space: nowrap;
+}
+.bhTimezoneInput {
+  font-size: 0.78rem;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--graphite);
+  width: 200px;
+  font-family: monospace;
+}
+.bhTimezoneHint {
+  font-size: 0.7rem;
+  color: var(--muted);
+  opacity: 0.75;
+}
 .bhOptions {
   margin-top: 18px;
   display: flex;

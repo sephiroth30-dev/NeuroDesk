@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
     <link rel="stylesheet" href="/tokens.css?v=14.29" />
-    <link rel="stylesheet" href="/styles.css?v=14.32" />
+    <link rel="stylesheet" href="/styles.css?v=14.33" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -743,6 +743,11 @@
               <div>
                 <strong>Horario laboral</strong>
                 <p class="bhSubtitle">El SLA solo corre durante días y horas laborales. Fuera de ese horario el tiempo se pausa automáticamente.</p>
+                <div class="bhTimezoneRow">
+                  <label for="appTimezone" class="bhTimezoneLabel">Zona horaria</label>
+                  <input type="text" id="appTimezone" class="bhTimezoneInput" value="America/Bogota" placeholder="America/Bogota" spellcheck="false">
+                  <span class="bhTimezoneHint">Ej: America/Bogota · America/New_York · Europe/Madrid</span>
+                </div>
               </div>
               <button type="button" id="bhEnabled" class="bhToggle" aria-pressed="true" title="Activar/desactivar horario laboral">
                 <span class="bhToggleTrack"><span class="bhToggleThumb"></span></span>

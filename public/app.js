@@ -378,6 +378,9 @@ function populateSettingsPanel() {
     });
   });
 
+  const tzInput = document.querySelector("#appTimezone");
+  if (tzInput) tzInput.value = appConfig.timezone || "America/Bogota";
+
   document.querySelector("#fieldContactEnabled").checked = appConfig.fields.contact.enabled;
   document.querySelector("#fieldContactLabel").value = appConfig.fields.contact.label;
   document.querySelector("#fieldAreaEnabled").checked = appConfig.fields.area.enabled;
@@ -2279,6 +2282,7 @@ saveSettingsButton.addEventListener("click", async () => {
       },
     },
     customFields: collectCustomFieldsConfig(),
+    timezone: (document.querySelector("#appTimezone")?.value || "America/Bogota").trim(),
     businessHours: (() => {
       const schedule = {};
       document.querySelectorAll(".bhDayEntry").forEach(entry => {
