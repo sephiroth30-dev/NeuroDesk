@@ -4242,3 +4242,161 @@ label .fieldLabel {
   opacity: 0.55;
   cursor: wait;
 }
+
+/* ── API tab ─────────────────────────────────────────────────────────────── */
+.apiSectionTitle {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--graphite);
+  margin: 0 0 4px;
+}
+.apiHint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+.apiKeyForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.apiKeyForm input[type="text"],
+.apiKeyForm input[type="url"] {
+  flex: 1 1 240px;
+  min-width: 200px;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--graphite);
+}
+.apiScopeGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.apiScopeGroup label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.76rem;
+  color: var(--graphite);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.apiKeyReveal {
+  background: rgba(10, 107, 255, 0.06);
+  border: 1px solid rgba(10, 107, 255, 0.22);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.apiKeyReveal p {
+  font-size: 0.78rem;
+  margin: 0 0 8px;
+  color: var(--graphite);
+}
+.apiCodeBlock {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.74rem;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--graphite);
+  overflow-x: auto;
+  white-space: pre;
+  line-height: 1.5;
+}
+.apiTokenReveal {
+  user-select: all;
+  font-weight: 600;
+  white-space: normal;
+  word-break: break-all;
+}
+.apiKeyList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.apiKeyRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.apiKeyRowMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.apiKeyRowMain strong { font-size: 0.82rem; }
+.apiKeyRowMain code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  background: var(--soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+  word-break: break-all;
+}
+.apiKeyScopes {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.apiKeyRowMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.apiRevokeBtn {
+  background: none;
+  border: 1px solid rgba(255, 59, 48, 0.3);
+  color: var(--danger);
+  font-size: 0.72rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.apiRevokeBtn:hover { background: rgba(255, 59, 48, 0.08); }
+.apiEmpty {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-style: italic;
+  margin: 0;
+}
+.apiDocsBox {
+  margin-top: 26px;
+  padding: 16px;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.apiDocsBox p {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0 0 8px;
+}
+.apiDocsBox strong { color: var(--graphite); }
+.apiDocsBox code:not(.apiCodeBlock) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.74rem;
+  background: var(--surface);
+  padding: 1px 5px;
+  border-radius: 4px;
+}

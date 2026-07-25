@@ -3282,4 +3282,158 @@ async function handleTicketsChangedForNotif() {
   } catch (_) {}
 }
 
+// ── API tab: keys and webhooks ───────────────────────────────────────────────
+
+const SCOPE_LABELS = {
+  "tickets:read": "Leer tickets",
+  "tickets:write": "Escribir tickets",
+  "stats:read": "Leer métricas",
+};
+
+function relativeDate(iso) {
+  if (!iso) return "nunca";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(diff / 60000);
+  if (mins < 1) return "hace instantes";
+  if (mins < 60) return `hace ${mins} min`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  return `hace ${Math.round(hours / 24)} d`;
+}
+
+async function renderApiKeys() {
+  const list = document.querySelector("#apiKeyList");
+  if (!list) return;
+  try {
+    const { keys } = await requestJson("/api/apikeys");
+    if (!keys.length) {
+      list.innerHTML = '<p class="apiEmpty">Aún no has creado ninguna llave.</p>';
+      return;
+    }
+    list.innerHTML = keys
+      .map(
+        (k) => `<div class="apiKeyRow">
+          <div class="apiKeyRowMain">
+            <strong>${escapeHtml(k.label)}</strong>
+            <code>${escapeHtml(k.prefix)}…</code>
+            <span class="apiKeyScopes">${k.scopes.map((s) => escapeHtml(SCOPE_LABELS[s] || s)).join(" · ")}</span>
+          </div>
+          <div class="apiKeyRowMeta">
+            <span>Usada ${escapeHtml(relativeDate(k.lastUsedAt))}</span>
+            <button type="button" class="apiRevokeBtn" data-key-id="${escapeHtml(k.id)}">Revocar</button>
+          </div>
+        </div>`
+      )
+      .join("");
+    list.querySelectorAll(".apiRevokeBtn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("¿Revocar esta llave? Las integraciones que la usen dejarán de funcionar.")) return;
+        await requestJson(`/api/apikeys/${encodeURIComponent(btn.dataset.keyId)}`, { method: "DELETE" });
+        renderApiKeys();
+      });
+    });
+  } catch (_) {
+    list.innerHTML = '<p class="apiEmpty">No se pudieron cargar las llaves.</p>';
+  }
+}
+
+document.querySelector("#apiKeyForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const label = document.querySelector("#apiKeyLabel").value.trim();
+  const scopes = [...document.querySelectorAll(".apiScopeCheck:checked")].map((c) => c.value);
+  if (!scopes.length) { alert("Selecciona al menos un permiso."); return; }
+  try {
+    const created = await requestJson("/api/apikeys", {
+      method: "POST",
+      body: JSON.stringify({ label, scopes }),
+    });
+    const reveal = document.querySelector("#apiKeyReveal");
+    // The token is only ever returned once, on creation.
+    reveal.innerHTML = `<p><strong>Copia esta llave ahora — no se vuelve a mostrar:</strong></p>
+      <code class="apiCodeBlock apiTokenReveal">${escapeHtml(created.token)}</code>`;
+    reveal.hidden = false;
+    document.querySelector("#apiKeyLabel").value = "";
+    renderApiKeys();
+  } catch (err) {
+    alert(err.message || "No se pudo crear la llave.");
+  }
+});
+
+async function renderWebhooks() {
+  const list = document.querySelector("#webhookList");
+  if (!list) return;
+  try {
+    const { webhooks } = await requestJson("/api/webhooks");
+    if (!webhooks.length) {
+      list.innerHTML = '<p class="apiEmpty">Sin webhooks registrados.</p>';
+      return;
+    }
+    list.innerHTML = webhooks
+      .map((w) => {
+        const status = w.lastStatus === null ? "sin entregas"
+          : w.lastStatus >= 200 && w.lastStatus < 300 ? `OK (${w.lastStatus})`
+          : `error ${w.lastStatus || "de red"}`;
+        return `<div class="apiKeyRow">
+          <div class="apiKeyRowMain">
+            <code>${escapeHtml(w.url)}</code>
+            <span class="apiKeyScopes">${w.events.map((e) => escapeHtml(e)).join(" · ")}</span>
+          </div>
+          <div class="apiKeyRowMeta">
+            <span>${escapeHtml(status)}${w.failCount ? ` · ${w.failCount} fallos` : ""}</span>
+            <button type="button" class="apiRevokeBtn" data-hook-id="${escapeHtml(w.id)}">Eliminar</button>
+          </div>
+        </div>`;
+      })
+      .join("");
+    list.querySelectorAll(".apiRevokeBtn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("¿Eliminar este webhook?")) return;
+        await requestJson(`/api/webhooks/${encodeURIComponent(btn.dataset.hookId)}`, { method: "DELETE" });
+        renderWebhooks();
+      });
+    });
+  } catch (_) {
+    list.innerHTML = '<p class="apiEmpty">No se pudieron cargar los webhooks.</p>';
+  }
+}
+
+document.querySelector("#webhookForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const url = document.querySelector("#webhookUrl").value.trim();
+  const events = [...document.querySelectorAll(".webhookEventCheck:checked")].map((c) => c.value);
+  if (!events.length) { alert("Selecciona al menos un evento."); return; }
+  try {
+    const created = await requestJson("/api/webhooks", {
+      method: "POST",
+      body: JSON.stringify({ url, events }),
+    });
+    const reveal = document.querySelector("#webhookReveal");
+    // The signing secret is only ever returned once, on creation.
+    reveal.innerHTML = `<p><strong>Secreto de firma — cópialo ahora, no se vuelve a mostrar:</strong></p>
+      <code class="apiCodeBlock apiTokenReveal">${escapeHtml(created.secret)}</code>
+      <p class="apiHint">Verifica cada entrega comparando el header
+      <code>X-NeuroDesk-Signature</code> con el HMAC-SHA256 del cuerpo usando este secreto.</p>`;
+    reveal.hidden = false;
+    document.querySelector("#webhookUrl").value = "";
+    renderWebhooks();
+  } catch (err) {
+    alert(err.message || "No se pudo registrar el webhook.");
+  }
+});
+
+// Load API tab data the first time it is opened.
+let apiTabLoaded = false;
+document.querySelectorAll('.tabButton[data-tab="apiTab"]').forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const host = document.querySelector("#apiExampleHost");
+    if (host) host.textContent = window.location.origin;
+    const specUrl = document.querySelector("#apiOpenApiUrl");
+    if (specUrl) specUrl.textContent = `${window.location.origin}/api/v1/openapi.json`;
+    if (apiTabLoaded) return;
+    apiTabLoaded = true;
+    renderApiKeys();
+    renderWebhooks();
+  });
+});
+
 init();

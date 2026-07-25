@@ -1,6 +1,6 @@
 # NeuroDesk — Reglas de Producción
 
-**Versión actual en producción: v14.33**
+**Versión actual en producción: v14.34**
 
 ## ⚠️ ESTE PROYECTO ESTÁ EN PRODUCCIÓN
 
@@ -117,6 +117,32 @@ npm install --omit=dev      # solo si package.json cambió
 pkill -f 'lsnode:/home/u532609482/domains/soporte.easystem.co/nodejs'
 # NUNCA: rm -rf .neurodesk/ | git clean -fd | npm run reset
 ```
+
+---
+
+## API pública v1 (desde v14.34)
+
+Documentación completa en **`API.md`**.
+
+- Superficie: `/api/v1/*`, autenticada con `Authorization: Bearer nd_live_…`
+- Los tokens se guardan **hasheados** (SHA-256) en `store.apiKeys`; el token en claro
+  se devuelve una única vez al crearlo y nunca se persiste
+- Scopes: `tickets:read`, `tickets:write`, `stats:read`
+- Límite: 120 req/min por llave
+- Gestión desde el panel: **Configuración → 🔌 API**
+- Webhooks firmados con HMAC-SHA256 en `store.webhooks` (secreto mostrado una sola vez)
+- Spec OpenAPI 3.1 pública en `/api/v1/openapi.json`
+
+**Reglas al tocar esta superficie:**
+
+- `/api/v1/*` se resuelve **antes** del guard de sesión en `createServer` — usa Bearer,
+  no cookies. No moverlo después del guard.
+- El panel web sigue usando las rutas viejas con cookie de sesión. Son superficies
+  paralelas: no unificar sin migrar el frontend.
+- `GET /api/config` **NO es público** y **nunca** debe devolver `aiConfig.apiKey`.
+  El formulario público usa `GET /api/portal/config`, que solo expone etiquetas de campos.
+- `sendStatic()` debe seguir descartando el query string, o los cache-busters
+  (`/app.js?v=…`) rompen el frontend cuando no hay proxy delante.
 
 ---
 

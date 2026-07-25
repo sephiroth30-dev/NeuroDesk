@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/tokens.css?v=14.29" />
-    <link rel="stylesheet" href="/styles.css?v=14.33" />
+    <link rel="stylesheet" href="/tokens.css?v=14.34" />
+    <link rel="stylesheet" href="/styles.css?v=14.34" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -658,6 +658,15 @@
             type="button"
           >
             ✨ IA
+          </button>
+          <button
+            class="tabButton"
+            data-tab="apiTab"
+            role="tab"
+            aria-selected="false"
+            type="button"
+          >
+            🔌 API
           </button>
         </div>
 
@@ -1371,6 +1380,57 @@
           </div>
         </div>
 
+        <!-- Tab: API -->
+        <div id="apiTab" class="tabPanel panel" role="tabpanel" hidden>
+          <div class="panelHeader" style="margin-bottom: 20px">
+            <h2>API y automatizaciones</h2>
+            <p>Crea llaves para conectar NeuroDesk con agentes de IA, Zapier, n8n o tus propios scripts.</p>
+          </div>
+
+          <h3 class="apiSectionTitle">Llaves de acceso</h3>
+          <form id="apiKeyForm" class="apiKeyForm" autocomplete="off">
+            <input type="text" id="apiKeyLabel" placeholder="Nombre (ej. Agente de correo)" maxlength="60" required>
+            <div class="apiScopeGroup">
+              <label><input type="checkbox" class="apiScopeCheck" value="tickets:read" checked> Leer tickets</label>
+              <label><input type="checkbox" class="apiScopeCheck" value="tickets:write"> Escribir tickets</label>
+              <label><input type="checkbox" class="apiScopeCheck" value="stats:read"> Leer métricas</label>
+            </div>
+            <button type="submit" class="primaryAction">Crear llave</button>
+          </form>
+          <div id="apiKeyReveal" class="apiKeyReveal" hidden></div>
+          <div id="apiKeyList" class="apiKeyList"></div>
+
+          <h3 class="apiSectionTitle" style="margin-top: 28px">Webhooks</h3>
+          <p class="apiHint">Recibe un POST firmado cuando algo cambia, en vez de consultar la API cada rato.</p>
+          <form id="webhookForm" class="apiKeyForm" autocomplete="off">
+            <input type="url" id="webhookUrl" placeholder="https://tu-servicio.com/webhook" required>
+            <div class="apiScopeGroup">
+              <label><input type="checkbox" class="webhookEventCheck" value="ticket.created" checked> Creado</label>
+              <label><input type="checkbox" class="webhookEventCheck" value="ticket.updated"> Actualizado</label>
+              <label><input type="checkbox" class="webhookEventCheck" value="ticket.resolved"> Resuelto</label>
+              <label><input type="checkbox" class="webhookEventCheck" value="ticket.reopened"> Reabierto</label>
+              <label><input type="checkbox" class="webhookEventCheck" value="ticket.sla_breached"> SLA vencido</label>
+            </div>
+            <button type="submit" class="primaryAction">Registrar webhook</button>
+          </form>
+          <div id="webhookReveal" class="apiKeyReveal" hidden></div>
+          <div id="webhookList" class="apiKeyList"></div>
+
+          <div class="apiDocsBox">
+            <p><strong>Documentación</strong></p>
+            <p>Spec OpenAPI para importar en Claude, ChatGPT, Zapier o n8n:</p>
+            <code class="apiCodeBlock" id="apiOpenApiUrl">/api/v1/openapi.json</code>
+            <p style="margin-top:12px"><strong>Ejemplo — consultar pendientes:</strong></p>
+            <code class="apiCodeBlock">curl -H "Authorization: Bearer TU_TOKEN" \
+  <span id="apiExampleHost"></span>/api/v1/inbox</code>
+            <p style="margin-top:12px">
+              <code>GET /api/v1/inbox</code> devuelve el trabajo ya clasificado en
+              <strong>vencidos</strong>, <strong>en riesgo</strong>, <strong>sin asignar</strong>,
+              <strong>reabiertos</strong> y <strong>esperando al cliente</strong> — así nunca se te pasa uno.
+            </p>
+          </div>
+        </div>
+
         <div class="settingsFooter panel">
           <button id="saveSettingsButton" class="primaryAction" type="button">
             Guardar cambios
@@ -1708,7 +1768,7 @@
       </div>
     </div>
 
-    <script src="/app.js?v=14.29" defer></script>
+    <script src="/app.js?v=14.34" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {

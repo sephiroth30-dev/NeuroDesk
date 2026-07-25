@@ -661,7 +661,7 @@
 
         // Apply field config from server
         try {
-          const cfg = await fetch("/api/config").then((r) => r.json());
+          const cfg = await fetch("/api/portal/config").then((r) => r.json());
 
           if (!cfg.fields.contact.enabled) {
             contactRow.hidden = true;

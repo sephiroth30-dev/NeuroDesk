@@ -35,6 +35,8 @@ const EMPTY_STORE = {
   processedEmails: [],
   ticketHistory: [],
   sessions: [],
+  apiKeys: [],
+  webhooks: [],
 };
 
 function loadStore() {
@@ -47,6 +49,8 @@ function loadStore() {
       processedEmails: Array.isArray(parsed.processedEmails) ? parsed.processedEmails : [],
       ticketHistory: Array.isArray(parsed.ticketHistory) ? parsed.ticketHistory : [],
       sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
+      apiKeys: Array.isArray(parsed.apiKeys) ? parsed.apiKeys : [],
+      webhooks: Array.isArray(parsed.webhooks) ? parsed.webhooks : [],
     };
   } catch (_) {
     return JSON.parse(JSON.stringify(EMPTY_STORE));
@@ -422,6 +426,20 @@ function checkLoginRateLimit(ip) {
 function resetLoginRateLimit(ip) {
   loginAttempts.delete(ip);
 }
+
+// ── Public ticket submission rate limiting (anti-spam on the open form) ───────
+const publicSubmits = new Map();
+const PUBLIC_SUBMIT_MAX = 10;
+const PUBLIC_SUBMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+function checkPublicSubmitRateLimit(ip) {
+  const now = Date.now();
+  let entry = publicSubmits.get(ip);
+  if (!entry || now > entry.resetAt) entry = { count: 0, resetAt: now + PUBLIC_SUBMIT_WINDOW_MS };
+  entry.count += 1;
+  publicSubmits.set(ip, entry);
+  return entry.count <= PUBLIC_SUBMIT_MAX;
+}
 const SESSION_COOKIE_MAX_AGE = 86400;
 
 function hashPassword(password, salt) {
@@ -470,6 +488,176 @@ function parseCookies(req) {
 
 function getAuthSession(req) {
   return getSession(parseCookies(req).nd_session || "");
+}
+
+// ── API keys (Bearer tokens for the public /api/v1 surface) ──────────────────
+
+const API_SCOPES = ["tickets:read", "tickets:write", "stats:read"];
+const API_RATE_LIMIT = 120; // requests per minute per key
+const apiRateBuckets = new Map(); // keyId -> { count, resetAt }
+
+function hashApiToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function createApiKey(label, scopes) {
+  const raw = `nd_live_${crypto.randomBytes(24).toString("hex")}`;
+  const entry = {
+    id: crypto.randomUUID(),
+    label: String(label || "Sin nombre").trim().slice(0, 60) || "Sin nombre",
+    hash: hashApiToken(raw),
+    prefix: raw.slice(0, 16),
+    scopes: (Array.isArray(scopes) ? scopes : []).filter((s) => API_SCOPES.includes(s)),
+    createdAt: new Date().toISOString(),
+    lastUsedAt: null,
+    revokedAt: null,
+  };
+  if (entry.scopes.length === 0) entry.scopes = ["tickets:read"];
+  store.apiKeys.push(entry);
+  saveStore();
+  // raw token is returned once and never stored in clear
+  return { ...publicApiKey(entry), token: raw };
+}
+
+function publicApiKey(entry) {
+  return {
+    id: entry.id,
+    label: entry.label,
+    prefix: entry.prefix,
+    scopes: entry.scopes,
+    createdAt: entry.createdAt,
+    lastUsedAt: entry.lastUsedAt,
+    revoked: !!entry.revokedAt,
+  };
+}
+
+function revokeApiKey(id) {
+  const entry = store.apiKeys.find((k) => k.id === id);
+  if (!entry || entry.revokedAt) return false;
+  entry.revokedAt = new Date().toISOString();
+  saveStore();
+  return true;
+}
+
+// Resolves an Authorization: Bearer <token> header to an active key entry.
+function getApiKeyFromRequest(req) {
+  const header = String(req.headers.authorization || "");
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match) return null;
+  const hash = hashApiToken(match[1].trim());
+  const entry = store.apiKeys.find((k) => k.hash === hash && !k.revokedAt);
+  if (!entry) return null;
+  // touch lastUsedAt at most once per minute to avoid a disk write per request
+  const now = Date.now();
+  const last = entry.lastUsedAt ? new Date(entry.lastUsedAt).getTime() : 0;
+  if (now - last > 60000) {
+    entry.lastUsedAt = new Date(now).toISOString();
+    saveStore();
+  }
+  return entry;
+}
+
+function checkApiRateLimit(keyId) {
+  const now = Date.now();
+  let bucket = apiRateBuckets.get(keyId);
+  if (!bucket || now > bucket.resetAt) bucket = { count: 0, resetAt: now + 60000 };
+  bucket.count += 1;
+  apiRateBuckets.set(keyId, bucket);
+  return {
+    allowed: bucket.count <= API_RATE_LIMIT,
+    remaining: Math.max(API_RATE_LIMIT - bucket.count, 0),
+    resetAt: bucket.resetAt,
+  };
+}
+
+function sendApiError(res, status, code, message, extraHeaders = {}) {
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", ...extraHeaders });
+  res.end(JSON.stringify({ error: { code, message } }));
+}
+
+// ── Webhooks ─────────────────────────────────────────────────────────────────
+
+const WEBHOOK_EVENTS = [
+  "ticket.created",
+  "ticket.updated",
+  "ticket.resolved",
+  "ticket.reopened",
+  "ticket.sla_breached",
+];
+
+function publicWebhook(w) {
+  return {
+    id: w.id,
+    url: w.url,
+    events: w.events,
+    enabled: w.enabled !== false,
+    createdAt: w.createdAt,
+    lastDeliveryAt: w.lastDeliveryAt || null,
+    lastStatus: w.lastStatus || null,
+    failCount: w.failCount || 0,
+    secretPrefix: String(w.secret || "").slice(0, 8),
+  };
+}
+
+function deliverWebhook(hook, event, payload) {
+  const body = JSON.stringify({ event, deliveredAt: new Date().toISOString(), data: payload });
+  const signature = crypto.createHmac("sha256", hook.secret).update(body).digest("hex");
+  let target;
+  try { target = new URL(hook.url); } catch { return; }
+  if (target.protocol !== "https:" && target.protocol !== "http:") return;
+  const client = target.protocol === "https:" ? https : http;
+  const attempt = (tryNum) => {
+    const request = client.request(
+      {
+        hostname: target.hostname,
+        port: target.port || (target.protocol === "https:" ? 443 : 80),
+        path: `${target.pathname}${target.search}`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+          "User-Agent": `NeuroDesk/${packageInfo.version}`,
+          "X-NeuroDesk-Event": event,
+          "X-NeuroDesk-Signature": `sha256=${signature}`,
+        },
+      },
+      (response) => {
+        response.resume();
+        hook.lastDeliveryAt = new Date().toISOString();
+        hook.lastStatus = response.statusCode;
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          hook.failCount = 0;
+        } else if (tryNum < 3) {
+          setTimeout(() => attempt(tryNum + 1), 2000 * tryNum);
+          return;
+        } else {
+          hook.failCount = (hook.failCount || 0) + 1;
+        }
+        saveStore();
+      }
+    );
+    request.on("error", () => {
+      if (tryNum < 3) { setTimeout(() => attempt(tryNum + 1), 2000 * tryNum); return; }
+      hook.lastDeliveryAt = new Date().toISOString();
+      hook.lastStatus = 0;
+      hook.failCount = (hook.failCount || 0) + 1;
+      saveStore();
+    });
+    request.setTimeout(10000, () => request.destroy());
+    request.write(body);
+    request.end();
+  };
+  attempt(1);
+}
+
+// Fire-and-forget: never blocks or throws into the caller's path.
+function emitWebhook(event, payload) {
+  try {
+    const hooks = store.webhooks.filter((w) => w.enabled !== false && (w.events || []).includes(event));
+    for (const hook of hooks) deliverWebhook(hook, event, payload);
+  } catch (err) {
+    console.error("[NeuroDesk] webhook emit error:", err.message);
+  }
 }
 
 // ── Config defaults ───────────────────────────────────────────────────────────
@@ -669,7 +857,11 @@ function handleEvents(req, res) {
 }
 
 function sendStatic(req, res) {
-  const requestedPath = req.url === "/" ? "/index.html" : req.url;
+  // Strip the query string — cache-busters like /app.js?v=14.33 must still
+  // resolve to app.js on disk. (In production LiteSpeed serves static assets
+  // before Node sees them, which is why this only shows up without a proxy.)
+  const urlPath = req.url.split("?")[0].split("#")[0];
+  const requestedPath = urlPath === "/" || urlPath === "" ? "/index.html" : urlPath;
   const safePath = path.normalize(decodeURIComponent(requestedPath)).replace(/^(\.\.[/\\])+/, "");
   const filePath = path.join(PUBLIC_DIR, safePath);
 
@@ -955,6 +1147,7 @@ function insertTicket(ticket) {
     ticket.createdAt
   );
   notifyClients("ticketsChanged", { action: "created", id: ticket.id, source: ticket.source });
+  emitWebhook("ticket.created", serializeTicket(ticket));
   sendTicketNotification("received", ticket).catch((err) =>
     console.error("[NeuroDesk] Notification error (received):", err.message)
   );
@@ -1084,6 +1277,12 @@ function updateTicketFull(id, data) {
   if (resolutionNote) addTicketHistory(id, resolutionNote, status);
   notifyClients("ticketsChanged", { action: "updated", id });
   const ticket = getTickets().find((t) => t.id === id);
+  if (ticket) {
+    emitWebhook("ticket.updated", serializeTicket(ticket));
+    if (oldStatus !== status && (status === "resuelto" || status === "cerrado")) {
+      emitWebhook("ticket.resolved", serializeTicket(ticket));
+    }
+  }
   const silent = data.silent === true || data.silent === "true";
   if (ticket && oldStatus !== status && !silent) {
     const notifType = status === "resuelto" ? "resolved" : "status_changed";
@@ -1903,6 +2102,7 @@ async function pollEmails(options = {}) {
               notifyClients("ticketsChanged", { action: "updated", id: matchedTicket.id });
               const reopened = getTickets().find((t) => t.id === matchedTicket.id);
               if (reopened) {
+                emitWebhook("ticket.reopened", serializeTicket(reopened));
                 sendTicketNotification("status_changed", reopened, { oldStatus: "resuelto" }).catch(() => {});
               }
               console.log(`[NeuroDesk] Ticket ${matchedTicket.id} reabierto por respuesta del cliente (${fromEmail}). Urgencia: ${prevUrgency} → ${newUrgency}.`);
@@ -2103,6 +2303,23 @@ function startAutoCloser() {
   }
   runAutoClose();
   setInterval(runAutoClose, 10 * 60 * 1000);
+
+  // Fire ticket.sla_breached once per ticket, for webhook subscribers.
+  function scanSlaBreaches() {
+    if (store.webhooks.length === 0) return;
+    let dirty = false;
+    for (const raw of store.tickets) {
+      if (raw.status === "resuelto" || raw.status === "cerrado") continue;
+      if (raw.slaBreachNotifiedAt) continue;
+      const full = getTickets().find((t) => t.id === raw.id);
+      if (!full || !getSlaState(full).breached) continue;
+      raw.slaBreachNotifiedAt = new Date().toISOString();
+      dirty = true;
+      emitWebhook("ticket.sla_breached", serializeTicket(full));
+    }
+    if (dirty) saveStore();
+  }
+  setInterval(scanSlaBreaches, 5 * 60 * 1000);
 }
 
 // ── Auth handler ──────────────────────────────────────────────────────────────
@@ -2260,8 +2477,20 @@ async function handleApi(req, res) {
     return;
   }
 
+  // Public, minimal config for the portal form — field labels only, no secrets.
+  if (req.method === "GET" && req.url === "/api/portal/config") {
+    sendJson(res, 200, {
+      fields: appConfig.fields,
+      customFields: (appConfig.customFields || []).filter((f) => f.enabled),
+    });
+    return;
+  }
+
   if (req.method === "GET" && req.url === "/api/config") {
-    sendJson(res, 200, appConfig);
+    // Never expose the Anthropic key here — the panel reads its masked status
+    // from GET /api/config/ai instead.
+    const { aiConfig: _omit, ...safeConfig } = appConfig;
+    sendJson(res, 200, { ...safeConfig, aiConfig: { configured: !!appConfig.aiConfig?.apiKey } });
     return;
   }
 
@@ -2290,6 +2519,11 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && req.url === "/api/tickets") {
     try {
+      // Anonymous submissions come from the open portal form — throttle per IP.
+      if (!getAuthSession(req) && !checkPublicSubmitRateLimit(getClientIp(req))) {
+        sendJson(res, 429, { error: "Demasiadas solicitudes. Intenta de nuevo más tarde." });
+        return;
+      }
       const body = await readBody(req);
       const ticket = normalizeTicket(body, "web");
       if (!ticket) {
@@ -2580,6 +2814,81 @@ async function handleApi(req, res) {
     return;
   }
 
+  // ── API key management (panel only, session-authenticated) ─────────────────
+  if (req.method === "GET" && req.url === "/api/apikeys") {
+    sendJson(res, 200, {
+      keys: store.apiKeys.filter((k) => !k.revokedAt).map(publicApiKey),
+      availableScopes: API_SCOPES,
+    });
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/apikeys") {
+    try {
+      const body = await readBody(req);
+      // The plain token is present in this response only — it is never stored.
+      sendJson(res, 201, createApiKey(body.label, body.scopes));
+    } catch {
+      sendJson(res, 400, { error: "No se pudo crear la llave." });
+    }
+    return;
+  }
+
+  if (req.method === "DELETE" && /^\/api\/apikeys\/[^/]+$/.test(req.url)) {
+    const id = decodeURIComponent(req.url.split("/")[3] || "");
+    if (!revokeApiKey(id)) { sendJson(res, 404, { error: "Llave no encontrada." }); return; }
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  // ── Webhook management (panel only, session-authenticated) ──────────────────
+  if (req.method === "GET" && req.url === "/api/webhooks") {
+    sendJson(res, 200, {
+      webhooks: store.webhooks.map(publicWebhook),
+      availableEvents: WEBHOOK_EVENTS,
+    });
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/webhooks") {
+    try {
+      const body = await readBody(req);
+      const target = String(body.url || "").trim();
+      try { new URL(target); } catch { sendJson(res, 400, { error: "URL inválida." }); return; }
+      const events = (Array.isArray(body.events) ? body.events : []).filter((e) => WEBHOOK_EVENTS.includes(e));
+      if (events.length === 0) { sendJson(res, 400, { error: "Selecciona al menos un evento." }); return; }
+      const secret = `whsec_${crypto.randomBytes(20).toString("hex")}`;
+      const hook = {
+        id: crypto.randomUUID(),
+        url: target.slice(0, 500),
+        events,
+        secret,
+        enabled: true,
+        createdAt: new Date().toISOString(),
+        lastDeliveryAt: null,
+        lastStatus: null,
+        failCount: 0,
+      };
+      store.webhooks.push(hook);
+      saveStore();
+      // Secret shown once so the receiver can verify the HMAC signature.
+      sendJson(res, 201, { ...publicWebhook(hook), secret });
+    } catch {
+      sendJson(res, 400, { error: "No se pudo crear el webhook." });
+    }
+    return;
+  }
+
+  if (req.method === "DELETE" && /^\/api\/webhooks\/[^/]+$/.test(req.url)) {
+    const id = decodeURIComponent(req.url.split("/")[3] || "");
+    const before = store.webhooks.length;
+    store.webhooks = store.webhooks.filter((w) => w.id !== id);
+    if (store.webhooks.length === before) { sendJson(res, 404, { error: "Webhook no encontrado." }); return; }
+    saveStore();
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
   // GET /api/tickets/:id/attachments/:filename — serve attachments
   if (req.method === "GET" && /^\/api\/tickets\/[^/]+\/attachments\/[^/]+$/.test(req.url)) {
     const parts = req.url.split("/");
@@ -2856,12 +3165,521 @@ async function handleApi(req, res) {
   sendJson(res, 404, { error: "Ruta no encontrada." });
 }
 
+// ── Public API v1 ─────────────────────────────────────────────────────────────
+
+function ticketUrl(id) {
+  const base = String(notificationsConfig.app_url || "").replace(/\/+$/, "");
+  return base ? `${base}/#${id}` : null;
+}
+
+function serializeTicket(ticket, { includeHistory = false } = {}) {
+  const sla = getSlaState(ticket);
+  const out = {
+    id: ticket.id,
+    subject: ticket.subject || "",
+    description: ticket.description || "",
+    name: ticket.name,
+    contact: ticket.contact || null,
+    area: ticket.area,
+    urgency: ticket.urgency,
+    status: ticket.status,
+    source: ticket.source,
+    assignedTo: ticket.assignedTo || null,
+    resolution: ticket.resolution || "",
+    workedHours: ticket.workedHours ?? null,
+    customFields: ticket.customFields || {},
+    createdAt: ticket.createdAt,
+    resolvedAt: ticket.resolvedAt || null,
+    reopenedByClient: !!ticket.reopenedByClient,
+    aiCategory: ticket.aiCategory || null,
+    aiSentiment: ticket.aiSentiment || null,
+    sla: {
+      limitHours: sla.limitHours,
+      elapsedHours: sla.elapsedHours,
+      remainingHours: sla.remainingHours,
+      breached: sla.breached,
+      paused: sla.paused,
+      finished: sla.finished,
+      outsideBusinessHours: sla.outsideBusinessHours,
+    },
+    url: ticketUrl(ticket.id),
+  };
+  if (includeHistory) {
+    out.history = (ticket.history || []).map((h) => ({
+      note: h.note,
+      status: h.status,
+      createdAt: h.createdAt,
+      isQuickNote: !!h.isQuickNote,
+    }));
+  }
+  return out;
+}
+
+const AT_RISK_FRACTION = 0.2; // 20% of the SLA budget left or less
+
+function buildInbox() {
+  const tickets = getTickets();
+  const active = tickets.filter((t) => t.status !== "resuelto" && t.status !== "cerrado");
+
+  const breached = [];
+  const atRisk = [];
+  const unassigned = [];
+  const reopened = [];
+  const waitingOnClient = [];
+
+  for (const ticket of active) {
+    const sla = getSlaState(ticket);
+    const item = serializeTicket(ticket);
+    if (sla.breached) {
+      breached.push({ ...item, overdueHours: Number((sla.elapsedHours - sla.limitHours).toFixed(1)) });
+    } else if (!sla.paused && sla.remainingHours <= sla.limitHours * AT_RISK_FRACTION) {
+      atRisk.push(item);
+    }
+    if (!ticket.assignedTo) unassigned.push(item);
+    if (ticket.reopenedByClient) reopened.push(item);
+    if (ticket.status === "en_espera") waitingOnClient.push(item);
+  }
+
+  // Most urgent first: overdue the longest, then least time remaining.
+  breached.sort((a, b) => b.overdueHours - a.overdueHours);
+  atRisk.sort((a, b) => a.sla.remainingHours - b.sla.remainingHours);
+
+  const tz = appConfig.timezone || "America/Bogota";
+  return {
+    generatedAt: new Date().toISOString(),
+    timezone: tz,
+    insideBusinessHours: isInsideBusinessHours(appConfig.businessHours),
+    summary: {
+      breached: breached.length,
+      atRisk: atRisk.length,
+      unassigned: unassigned.length,
+      reopened: reopened.length,
+      waitingOnClient: waitingOnClient.length,
+      totalActive: active.length,
+    },
+    buckets: { breached, atRisk, unassigned, reopened, waitingOnClient },
+  };
+}
+
+function buildOpenApiSpec() {
+  const base = String(notificationsConfig.app_url || "").replace(/\/+$/, "");
+  const ticketSchema = {
+    type: "object",
+    properties: {
+      id: { type: "string", example: "ND-1075" },
+      subject: { type: "string" },
+      description: { type: "string" },
+      name: { type: "string" },
+      contact: { type: "string", nullable: true },
+      area: { type: "string" },
+      urgency: { type: "string", enum: ["baja", "media", "alta", "critica"] },
+      status: { type: "string", enum: ticketStatuses },
+      source: { type: "string" },
+      assignedTo: { type: "string", nullable: true },
+      createdAt: { type: "string", format: "date-time" },
+      resolvedAt: { type: "string", format: "date-time", nullable: true },
+      reopenedByClient: { type: "boolean" },
+      sla: {
+        type: "object",
+        properties: {
+          limitHours: { type: "number" },
+          elapsedHours: { type: "number" },
+          remainingHours: { type: "number" },
+          breached: { type: "boolean" },
+          paused: { type: "boolean" },
+          finished: { type: "boolean" },
+          outsideBusinessHours: { type: "boolean" },
+        },
+      },
+      url: { type: "string", nullable: true },
+    },
+  };
+  return {
+    openapi: "3.1.0",
+    info: {
+      title: "NeuroDesk API",
+      version: packageInfo.version,
+      description:
+        "API de la mesa de soporte NeuroDesk. Autenticación con token Bearer. " +
+        "Usa GET /api/v1/inbox para obtener el trabajo pendiente ya priorizado.",
+    },
+    servers: [{ url: base || "https://soporte.easystem.co" }],
+    security: [{ bearerAuth: [] }],
+    components: {
+      securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } },
+      schemas: { Ticket: ticketSchema },
+    },
+    paths: {
+      "/api/v1/me": {
+        get: {
+          summary: "Verificar el token y ver sus permisos",
+          operationId: "getMe",
+          responses: { 200: { description: "Información del token" } },
+        },
+      },
+      "/api/v1/inbox": {
+        get: {
+          summary: "Trabajo pendiente priorizado (SLA vencido, en riesgo, sin asignar, reabiertos)",
+          operationId: "getInbox",
+          responses: { 200: { description: "Bandeja priorizada" } },
+        },
+      },
+      "/api/v1/tickets": {
+        get: {
+          summary: "Listar tickets con filtros",
+          operationId: "listTickets",
+          parameters: [
+            { name: "status", in: "query", schema: { type: "string", enum: ticketStatuses } },
+            { name: "urgency", in: "query", schema: { type: "string", enum: ["baja", "media", "alta", "critica"] } },
+            { name: "area", in: "query", schema: { type: "string" } },
+            { name: "assignedTo", in: "query", schema: { type: "string" } },
+            { name: "contact", in: "query", schema: { type: "string" } },
+            { name: "active", in: "query", schema: { type: "boolean" }, description: "true = excluye resueltos y cerrados" },
+            { name: "slaBreached", in: "query", schema: { type: "boolean" } },
+            { name: "updatedSince", in: "query", schema: { type: "string", format: "date-time" } },
+            { name: "limit", in: "query", schema: { type: "integer", default: 25, maximum: 100 } },
+            { name: "cursor", in: "query", schema: { type: "string" } },
+          ],
+          responses: { 200: { description: "Lista paginada de tickets" } },
+        },
+        post: {
+          summary: "Crear un ticket",
+          operationId: "createTicket",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["name", "urgency"],
+                  properties: {
+                    name: { type: "string" },
+                    urgency: { type: "string", enum: ["baja", "media", "alta", "critica"] },
+                    subject: { type: "string" },
+                    description: { type: "string" },
+                    contact: { type: "string" },
+                    area: { type: "string" },
+                    assignedTo: { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+          responses: { 201: { description: "Ticket creado" } },
+        },
+      },
+      "/api/v1/tickets/{id}": {
+        get: {
+          summary: "Obtener un ticket con su historial",
+          operationId: "getTicket",
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          responses: { 200: { description: "Ticket", content: { "application/json": { schema: ticketSchema } } } },
+        },
+        patch: {
+          summary: "Actualizar estado, urgencia o asignación",
+          operationId: "updateTicket",
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string", enum: ticketStatuses },
+                    urgency: { type: "string", enum: ["baja", "media", "alta", "critica"] },
+                    assignedTo: { type: "string" },
+                    area: { type: "string" },
+                    resolution: { type: "string", description: "Obligatorio al pasar a resuelto o cerrado" },
+                    workedHours: { type: "number" },
+                  },
+                },
+              },
+            },
+          },
+          responses: { 200: { description: "Ticket actualizado" } },
+        },
+      },
+      "/api/v1/tickets/{id}/notes": {
+        post: {
+          summary: "Agregar una nota interna",
+          operationId: "addNote",
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { type: "object", required: ["note"], properties: { note: { type: "string" } } },
+              },
+            },
+          },
+          responses: { 201: { description: "Nota agregada" } },
+        },
+      },
+      "/api/v1/tickets/{id}/reply": {
+        post: {
+          summary: "Responder al cliente por correo",
+          operationId: "replyToTicket",
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { type: "object", required: ["message"], properties: { message: { type: "string" } } },
+              },
+            },
+          },
+          responses: { 200: { description: "Respuesta enviada" } },
+        },
+      },
+      "/api/v1/stats": {
+        get: {
+          summary: "Métricas y cumplimiento de SLA",
+          operationId: "getStats",
+          responses: { 200: { description: "Estadísticas" } },
+        },
+      },
+    },
+  };
+}
+
+async function handleApiV1(req, res) {
+  const url = new URL(req.url, "http://localhost");
+  const route = url.pathname.replace(/^\/api\/v1/, "") || "/";
+
+  // The spec itself is public so agent platforms can import it before auth.
+  if (req.method === "GET" && route === "/openapi.json") {
+    sendJson(res, 200, buildOpenApiSpec());
+    return;
+  }
+
+  const key = getApiKeyFromRequest(req);
+  if (!key) {
+    sendApiError(res, 401, "unauthorized", "Token ausente o inválido. Usa el header Authorization: Bearer <token>.");
+    return;
+  }
+
+  const rate = checkApiRateLimit(key.id);
+  const rateHeaders = {
+    "X-RateLimit-Limit": String(API_RATE_LIMIT),
+    "X-RateLimit-Remaining": String(rate.remaining),
+    "X-RateLimit-Reset": String(Math.ceil(rate.resetAt / 1000)),
+  };
+  if (!rate.allowed) {
+    sendApiError(res, 429, "rate_limited", `Máximo ${API_RATE_LIMIT} peticiones por minuto.`, rateHeaders);
+    return;
+  }
+
+  const requireScope = (scope) => {
+    if (key.scopes.includes(scope)) return true;
+    sendApiError(res, 403, "invalid_scope", `Este token no tiene el permiso ${scope}.`, rateHeaders);
+    return false;
+  };
+  const ok = (status, data) => {
+    res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", ...rateHeaders });
+    res.end(JSON.stringify(data));
+  };
+
+  // GET /api/v1/me
+  if (req.method === "GET" && route === "/me") {
+    ok(200, {
+      keyId: key.id,
+      label: key.label,
+      prefix: key.prefix,
+      scopes: key.scopes,
+      rateLimit: { limit: API_RATE_LIMIT, remaining: rate.remaining, resetAt: new Date(rate.resetAt).toISOString() },
+      version: packageInfo.version,
+      timezone: appConfig.timezone || "America/Bogota",
+    });
+    return;
+  }
+
+  // GET /api/v1/inbox
+  if (req.method === "GET" && route === "/inbox") {
+    if (!requireScope("tickets:read")) return;
+    ok(200, buildInbox());
+    return;
+  }
+
+  // GET /api/v1/stats
+  if (req.method === "GET" && route === "/stats") {
+    if (!requireScope("stats:read")) return;
+    ok(200, getStats());
+    return;
+  }
+
+  // GET /api/v1/tickets
+  if (req.method === "GET" && route === "/tickets") {
+    if (!requireScope("tickets:read")) return;
+    const q = url.searchParams;
+    let list = getTickets();
+
+    const status = q.get("status");
+    if (status) list = list.filter((t) => t.status === status);
+    if (q.get("active") === "true") list = list.filter((t) => t.status !== "resuelto" && t.status !== "cerrado");
+    const urgency = q.get("urgency");
+    if (urgency) list = list.filter((t) => t.urgency === urgency);
+    const area = q.get("area");
+    if (area) list = list.filter((t) => (t.area || "").toLowerCase() === area.toLowerCase());
+    const assignedTo = q.get("assignedTo");
+    if (assignedTo) {
+      list = assignedTo === "none"
+        ? list.filter((t) => !t.assignedTo)
+        : list.filter((t) => (t.assignedTo || "").toLowerCase() === assignedTo.toLowerCase());
+    }
+    const contact = q.get("contact");
+    if (contact) list = list.filter((t) => (t.contact || "").toLowerCase() === contact.toLowerCase());
+    if (q.get("slaBreached") === "true") list = list.filter((t) => getSlaState(t).breached);
+    const since = q.get("updatedSince");
+    if (since) {
+      const sinceMs = new Date(since).getTime();
+      if (isFinite(sinceMs)) {
+        list = list.filter((t) => {
+          const history = t.history || [];
+          const lastTs = history.length ? history[history.length - 1].createdAt : t.createdAt;
+          return new Date(lastTs).getTime() >= sinceMs;
+        });
+      }
+    }
+
+    const total = list.length;
+    const limit = Math.min(Math.max(parseInt(q.get("limit") || "25", 10) || 25, 1), 100);
+    const offset = Math.max(parseInt(q.get("cursor") || "0", 10) || 0, 0);
+    const page = list.slice(offset, offset + limit);
+    const nextOffset = offset + limit;
+    ok(200, {
+      data: page.map((t) => serializeTicket(t)),
+      pagination: {
+        total,
+        limit,
+        cursor: String(offset),
+        nextCursor: nextOffset < total ? String(nextOffset) : null,
+      },
+    });
+    return;
+  }
+
+  // POST /api/v1/tickets
+  if (req.method === "POST" && route === "/tickets") {
+    if (!requireScope("tickets:write")) return;
+    let body;
+    try { body = await readBody(req); } catch { sendApiError(res, 400, "validation_error", "JSON inválido.", rateHeaders); return; }
+    const ticket = normalizeTicket(body, String(body.source || "api").slice(0, 20));
+    if (!ticket) {
+      sendApiError(res, 400, "validation_error", "Se requiere 'name' y una 'urgency' válida (baja, media, alta, critica).", rateHeaders);
+      return;
+    }
+    insertTicket(ticket);
+    // Triage in the background so the response is not delayed.
+    aiTriageTicket(ticket.subject || "", ticket.description || "").then((triage) => {
+      if (!triage) return;
+      const raw = store.tickets.find((t) => t.id === ticket.id);
+      if (!raw) return;
+      if (triage.urgency && appConfig.sla[triage.urgency]) raw.urgency = triage.urgency;
+      raw.aiCategory = triage.category || null;
+      raw.aiSentiment = triage.sentiment || null;
+      raw.aiSentimentScore = triage.sentimentScore ?? null;
+      saveStore();
+      notifyClients("ticketsChanged", { action: "updated", id: ticket.id });
+    }).catch(() => {});
+    const created = getTickets().find((t) => t.id === ticket.id);
+    ok(201, serializeTicket(created || ticket));
+    return;
+  }
+
+  // Routes below operate on a single ticket: /tickets/:id[/notes|/reply]
+  const ticketMatch = route.match(/^\/tickets\/([^/]+)(\/notes|\/reply)?$/);
+  if (ticketMatch) {
+    const id = decodeURIComponent(ticketMatch[1]);
+    const sub = ticketMatch[2] || "";
+    const raw = store.tickets.find((t) => t.id === id);
+    if (!raw) { sendApiError(res, 404, "not_found", `Ticket ${id} no encontrado.`, rateHeaders); return; }
+
+    if (req.method === "GET" && !sub) {
+      if (!requireScope("tickets:read")) return;
+      const full = getTickets().find((t) => t.id === id);
+      ok(200, serializeTicket(full, { includeHistory: true }));
+      return;
+    }
+
+    if (req.method === "PATCH" && !sub) {
+      if (!requireScope("tickets:write")) return;
+      let body;
+      try { body = await readBody(req); } catch { sendApiError(res, 400, "validation_error", "JSON inválido.", rateHeaders); return; }
+      // Merge onto the current values so callers can send only what changes.
+      const merged = {
+        name: body.name ?? raw.name,
+        contact: body.contact ?? raw.contact,
+        area: body.area ?? raw.area,
+        urgency: body.urgency ?? raw.urgency,
+        status: body.status ?? raw.status,
+        subject: body.subject ?? raw.subject,
+        description: body.description ?? raw.description,
+        resolution: body.resolution ?? raw.resolution,
+        resolutionNote: body.resolutionNote || "",
+        assignedTo: body.assignedTo ?? raw.assignedTo,
+        workedHours: body.workedHours ?? raw.workedHours,
+        customFields: body.customFields ?? raw.customFields,
+        silent: body.silent === true,
+      };
+      const updated = updateTicketFull(id, merged);
+      if (!updated) {
+        sendApiError(res, 400, "validation_error",
+          "Datos inválidos. Al pasar a 'resuelto' o 'cerrado' se requiere 'resolution' o 'resolutionNote'.", rateHeaders);
+        return;
+      }
+      ok(200, serializeTicket(updated, { includeHistory: true }));
+      return;
+    }
+
+    if (req.method === "POST" && sub === "/notes") {
+      if (!requireScope("tickets:write")) return;
+      let body;
+      try { body = await readBody(req); } catch { sendApiError(res, 400, "validation_error", "JSON inválido.", rateHeaders); return; }
+      const note = String(body.note || "").trim().slice(0, 4000);
+      if (!note) { sendApiError(res, 400, "validation_error", "El campo 'note' es obligatorio.", rateHeaders); return; }
+      store.ticketHistory.push({
+        id: crypto.randomUUID(), ticketId: id, note, status: raw.status,
+        createdAt: new Date().toISOString(), isQuickNote: true,
+      });
+      saveStore();
+      notifyClients("ticketsChanged", { action: "updated", id });
+      ok(201, { ok: true, ticketId: id });
+      return;
+    }
+
+    if (req.method === "POST" && sub === "/reply") {
+      if (!requireScope("tickets:write")) return;
+      if (!raw.contact) { sendApiError(res, 400, "validation_error", "El ticket no tiene correo de contacto.", rateHeaders); return; }
+      let body;
+      try { body = await readBody(req); } catch { sendApiError(res, 400, "validation_error", "JSON inválido.", rateHeaders); return; }
+      const message = String(body.message || "").trim().slice(0, 4000);
+      if (!message) { sendApiError(res, 400, "validation_error", "El campo 'message' es obligatorio.", rateHeaders); return; }
+      const msgId = await sendEmail(raw.contact, `Re: ${raw.subject || raw.id}`, message);
+      if (!msgId) { sendApiError(res, 502, "email_failed", "No se pudo enviar el correo. Revisa la configuración SMTP.", rateHeaders); return; }
+      let dirty = false;
+      if (!raw.emailThreadId) { raw.emailThreadId = msgId; dirty = true; }
+      if (raw.reopenedByClient) { raw.reopenedByClient = false; dirty = true; }
+      if (dirty) saveStore();
+      addTicketHistory(id, `Respuesta enviada al cliente (API):\n${message}`, raw.status);
+      notifyClients("ticketsChanged", { action: "updated", id });
+      ok(200, { ok: true, ticketId: id, messageId: msgId });
+      return;
+    }
+  }
+
+  sendApiError(res, 404, "not_found", "Ruta no encontrada en la API v1.", rateHeaders);
+}
+
 // ── Main server ───────────────────────────────────────────────────────────────
 
+// NOTE: /api/config is NOT public — it carries aiConfig, SLA and business-hours
+// data. The public ticket form uses /api/portal/config, which exposes only the
+// field labels it needs to render.
 const isPublicApi = (method, url) =>
   (method === "GET" &&
-    (url === "/api/health" || url === "/api/version" || url === "/api/config" ||
-     url.startsWith("/api/portal/tickets"))) ||
+    (url === "/api/health" || url === "/api/version" ||
+     url === "/api/portal/config" || url.startsWith("/api/portal/tickets"))) ||
   (method === "POST" && (url === "/api/tickets" || url === "/api/email/inbound"));
 // All /api/notifications/* routes require authentication (handled by default guard)
 
@@ -2902,6 +3720,12 @@ const server = http.createServer(async (req, res) => {
   // Auth endpoints — always public
   if (req.url.startsWith("/api/auth/")) {
     await handleAuth(req, res);
+    return;
+  }
+
+  // Public API v1 — authenticated with Bearer tokens, not session cookies.
+  if (req.url.startsWith("/api/v1/")) {
+    await handleApiV1(req, res);
     return;
   }
 
