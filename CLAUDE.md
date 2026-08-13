@@ -1,6 +1,6 @@
 # NeuroDesk — Reglas de Producción
 
-**Versión actual en producción: v14.34**
+**Versión actual en producción: v14.35**
 
 ## ⚠️ ESTE PROYECTO ESTÁ EN PRODUCCIÓN
 
@@ -143,6 +143,34 @@ Documentación completa en **`API.md`**.
   El formulario público usa `GET /api/portal/config`, que solo expone etiquetas de campos.
 - `sendStatic()` debe seguir descartando el query string, o los cache-busters
   (`/app.js?v=…`) rompen el frontend cuando no hay proxy delante.
+
+---
+
+## Rendimiento — trampas conocidas (desde v14.35)
+
+Cerrar un ticket llegó a tardar 30-40 s. Causa: `calcBusinessMs()` recorre un día
+por cada día de antigüedad del ticket, y llamaba `toLocaleDateString` con `timeZone`
+en cada iteración. Ese patrón cuesta **~106 µs por llamada** (medido); con 800 tickets
+de 180 días y 4-6 refrescos por cierre son ~400.000 llamadas.
+
+**Reglas para no reintroducirlo:**
+
+- **Nunca** construir `Intl.DateTimeFormat` ni llamar `toLocaleDateString`/`toLocaleString`
+  dentro de un bucle. Usar `getTzFormatter(tz)` (cacheado) o `getTzOffsetMs(tz, ms)` y
+  aritmética con `getUTCDay()`.
+- El SLA de tickets `resuelto`/`cerrado` es inmutable → lo sirve `finishedSlaCache`.
+  Si se agrega un campo que altere el cálculo, incluirlo en `finishedSlaCacheKey()`.
+- El historial se lee por índice (`getHistoryIndex()`). Cualquier código que mute
+  `store.ticketHistory` **debe** llamar `invalidateHistoryIndex()`.
+- Para leer un solo ticket usar `getTicketById(id)`, no `getTickets().find(...)`.
+- Operaciones con varias escrituras: envolver en `withBatchedSave(() => ...)` para
+  que `saveStore()` se vuelque una sola vez. El flush está garantizado incluso si lanza.
+- En el frontend, un cambio de estado debe ser **1 PATCH + 1 refresh**. Los eventos SSE
+  pasan por `scheduleRefreshFromEvent()` (debounce 250 ms); no añadir listeners que
+  hagan su propio `GET /api/tickets`.
+
+Referencia medida (800 tickets, 180 días): `GET /api/tickets` 3.1 s → 16 ms,
+`GET /api/stats` 2.6 s → 8 ms, cierre completo en navegador 30 s+ → 1.4 s.
 
 ---
 

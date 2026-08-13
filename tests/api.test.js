@@ -23,11 +23,30 @@ describe("Public endpoints", () => {
     expect(typeof res.body.version).toBe("string");
   });
 
-  test("GET /api/config is public and returns SLA + fields", async () => {
+  test("GET /api/config requiere sesión — lleva la API key y no puede ser pública", async () => {
     const res = await request(server).get("/api/config");
+    expect(res.status).toBe(401);
+  });
+
+  test("GET /api/config nunca expone la API key de Anthropic", async () => {
+    const login = await request(server)
+      .post("/api/auth/login")
+      .send({ username: "admin", password: "neurofic" });
+    const cookie = login.headers["set-cookie"];
+    const res = await request(server).get("/api/config").set("Cookie", cookie);
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("sla");
     expect(res.body).toHaveProperty("fields");
+    expect(res.body.aiConfig).not.toHaveProperty("apiKey");
+    expect(JSON.stringify(res.body)).not.toContain("sk-ant");
+  });
+
+  test("GET /api/portal/config es público y sólo expone etiquetas de campos", async () => {
+    const res = await request(server).get("/api/portal/config");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("fields");
+    expect(res.body).not.toHaveProperty("aiConfig");
+    expect(res.body).not.toHaveProperty("sla");
   });
 });
 

@@ -1593,24 +1593,11 @@ confirmClosureBtn.addEventListener("click", async () => {
   const closureHoursVal = closureHoursInput && closureHoursInput.value !== "" ? Number(closureHoursInput.value) : null;
   hideClosureModal();
   detailResolution.value = reason;
-  // Auto-guardar cambios de campos antes de resolver/cerrar
-  const currentTicket = cachedTickets.find((t) => t.id === activeTicketId);
-  if (currentTicket) {
-    const resolvedHours = closureHoursVal !== null ? closureHoursVal :
-      (detailWorkedHours?.value !== "" ? Number(detailWorkedHours?.value) : currentTicket.workedHours);
-    const payload = {
-      status: currentTicket.status,
-      urgency: detailUrgency?.value || currentTicket.urgency,
-      area: detailArea?.value?.trim() || currentTicket.area,
-      assignedTo: detailAssignedTo?.value?.trim() || currentTicket.assignedTo,
-      workedHours: resolvedHours,
-    };
-    try {
-      await requestJson(`/api/tickets/${encodeURIComponent(activeTicketId)}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      });
-    } catch (_) {}
+  // The closure modal's hours field wins over the one in the side panel.
+  // saveDetail() already sends urgency, area, assignedTo and customFields, so a
+  // separate "auto-save" PATCH beforehand was a redundant round trip.
+  if (closureHoursVal !== null && detailWorkedHours) {
+    detailWorkedHours.value = String(closureHoursVal);
   }
   try {
     await saveDetail(status, silent);
@@ -2880,15 +2867,26 @@ async function doRefresh() {
     badge.classList.toggle("sidebarBadge--new", newCount > 0);
   }
   renderSlaReport();
+  // Run notifications off the data we just fetched, not a second request.
+  handleTicketsChangedForNotif();
+}
+
+// A single close emits several SSE events; without this they each triggered a
+// full refresh cycle.
+let sseRefreshTimer = null;
+function scheduleRefreshFromEvent() {
+  if (sseRefreshTimer) return;
+  sseRefreshTimer = setTimeout(() => {
+    sseRefreshTimer = null;
+    refresh().catch(() => {});
+    loadEmailStatus().catch(() => {});
+  }, 250);
 }
 
 function connectLiveUpdates() {
   if (!window.EventSource || liveEvents) return;
   liveEvents = new EventSource("/api/events");
-  liveEvents.addEventListener("ticketsChanged", () => {
-    refresh().catch(() => {});
-    loadEmailStatus().catch(() => {});
-  });
+  liveEvents.addEventListener("ticketsChanged", scheduleRefreshFromEvent);
   liveEvents.onerror = () => {
     liveEvents.close();
     liveEvents = null;
@@ -3250,18 +3248,16 @@ notifPermBtn?.addEventListener("click", async () => {
 });
 
 function setupNotifOnNewTickets() {
-  // Seed knownTicketIds with current tickets (no notification for existing ones)
+  // Seed knownTicketIds with current tickets (no notification for existing ones).
+  // The check itself now runs at the end of doRefresh(), so no SSE listener here.
   cachedTickets.forEach((t) => knownTicketIds.add(t.id));
-  // Override the SSE event to also trigger notifications
-  if (liveEvents) {
-    liveEvents.addEventListener("ticketsChanged", handleTicketsChangedForNotif);
-  }
 }
 
-async function handleTicketsChangedForNotif() {
+// Runs off the tickets the refresh already fetched. It used to issue its own
+// full GET /api/tickets on every SSE event, doubling the load of each change.
+function handleTicketsChangedForNotif() {
   try {
-    const freshTickets = await requestJson("/api/tickets");
-    freshTickets.forEach((t) => {
+    cachedTickets.forEach((t) => {
       if (!knownTicketIds.has(t.id)) {
         knownTicketIds.add(t.id);
         if (Notification.permission === "granted") {

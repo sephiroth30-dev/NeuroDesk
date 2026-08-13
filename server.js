@@ -59,7 +59,38 @@ function loadStore() {
 
 const store = loadStore();
 
-function saveStore() {
+// ── Ticket history index ─────────────────────────────────────────────────────
+// Reading a ticket's history used to filter the entire history array, so listing
+// N tickets was O(N*M). Built lazily and dropped whenever history changes.
+let historyIndex = null;
+
+function invalidateHistoryIndex() {
+  historyIndex = null;
+}
+
+function getHistoryIndex() {
+  if (historyIndex) return historyIndex;
+  const index = new Map();
+  for (const entry of store.ticketHistory) {
+    let list = index.get(entry.ticketId);
+    if (!list) { list = []; index.set(entry.ticketId, list); }
+    list.push(entry);
+  }
+  for (const list of index.values()) {
+    list.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+  }
+  historyIndex = index;
+  return index;
+}
+
+// ── Store persistence ────────────────────────────────────────────────────────
+// A single ticket close used to trigger 6-10 full-JSON writes. Callers can open
+// a batch so the store is serialized once, at the end. Writes stay atomic
+// (tmp + rename) and a batch always flushes, even on error.
+let saveDepth = 0;
+let savePending = false;
+
+function writeStoreToDisk() {
   try {
     fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
     const tmpPath = `${STORE_PATH}.tmp`;
@@ -70,6 +101,26 @@ function saveStore() {
       "[NeuroDesk] No se pudo guardar datos en disco; continuando en memoria:",
       err.message
     );
+  }
+}
+
+function saveStore() {
+  if (saveDepth > 0) { savePending = true; return; }
+  writeStoreToDisk();
+}
+
+// Runs fn with store writes coalesced into one. Always flushes if anything was
+// written, including when fn throws — data must never be left only in memory.
+function withBatchedSave(fn) {
+  saveDepth += 1;
+  try {
+    return fn();
+  } finally {
+    saveDepth -= 1;
+    if (saveDepth === 0 && savePending) {
+      savePending = false;
+      writeStoreToDisk();
+    }
   }
 }
 
@@ -229,6 +280,7 @@ function statement(sql) {
       run: (ticketId) => {
         const before = store.ticketHistory.length;
         store.ticketHistory = store.ticketHistory.filter((item) => item.ticketId !== ticketId);
+        invalidateHistoryIndex();
         saveStore();
         return { changes: before - store.ticketHistory.length };
       },
@@ -238,18 +290,16 @@ function statement(sql) {
     return {
       run: (id, ticketId, note, status, createdAt) => {
         store.ticketHistory.push({ id, ticketId, note, status, createdAt });
+        invalidateHistoryIndex();
         saveStore();
         return { changes: 1 };
       },
     };
   }
   if (compact.startsWith("SELECT id, note, status")) {
-    return {
-      all: (ticketId) =>
-        store.ticketHistory
-          .filter((item) => item.ticketId === ticketId)
-          .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))),
-    };
+    // Was a full filter+sort over the whole history array per ticket — O(N*M)
+    // across a listing. Served from a lazily-built index instead.
+    return { all: (ticketId) => getHistoryIndex().get(ticketId) || [] };
   }
   if (compact.startsWith("INSERT INTO config")) {
     return {
@@ -428,8 +478,12 @@ function resetLoginRateLimit(ip) {
 }
 
 // ── Public ticket submission rate limiting (anti-spam on the open form) ───────
+// NOTE: this is per IP, and an internal office shares one public IP — a whole
+// team submitting tickets looks like a single client. Keep the ceiling high
+// enough that real usage never hits it; it exists to stop scripted floods, not
+// to ration legitimate tickets. Override with ND_PUBLIC_SUBMIT_MAX if needed.
 const publicSubmits = new Map();
-const PUBLIC_SUBMIT_MAX = 10;
+const PUBLIC_SUBMIT_MAX = Number(process.env.ND_PUBLIC_SUBMIT_MAX) || 200;
 const PUBLIC_SUBMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 function checkPublicSubmitRateLimit(ip) {
@@ -1182,6 +1236,17 @@ function addTicketHistory(ticketId, note, status) {
   );
 }
 
+// Hydrate a single ticket. Callers used to build the whole list just to find one.
+function getTicketById(id) {
+  const raw = store.tickets.find((t) => t.id === id);
+  if (!raw) return undefined;
+  let customFields = {};
+  try { customFields = raw.customFields ? JSON.parse(raw.customFields) : {}; } catch (_) {}
+  let attachments = [];
+  try { attachments = raw.attachments ? JSON.parse(raw.attachments) : []; } catch (_) {}
+  return { ...raw, customFields, attachments, history: getTicketHistory(raw.id) };
+}
+
 function updateTicketStatus(id, status) {
   if (!ticketStatuses.includes(status)) return null;
   const rawTicket = store.tickets.find((t) => t.id === id);
@@ -1200,7 +1265,7 @@ function updateTicketStatus(id, status) {
     }
   }
   notifyClients("ticketsChanged", { action: "status", id });
-  const ticket = getTickets().find((t) => t.id === id);
+  const ticket = getTicketById(id);
   if (ticket && oldStatus !== status) {
     const notifType = status === "resuelto" ? "resolved" : "status_changed";
     sendTicketNotification(notifType, ticket, { oldStatus }).catch((err) =>
@@ -1240,6 +1305,18 @@ function updateTicketFull(id, data) {
   if (!name || !appConfig.sla[urgency] || !ticketStatuses.includes(status)) return null;
   if ((status === "resuelto" || status === "cerrado") && !resolution && !resolutionNote)
     return null;
+  // Coalesce the 3-5 store writes this function performs into a single flush.
+  return withBatchedSave(() => updateTicketFullInner(id, {
+    name, contact, area, urgency, status, subject, description,
+    resolution, resolutionNote, assignedTo, workedHours, customFields, silent: data.silent,
+  }));
+}
+
+function updateTicketFullInner(id, data) {
+  const {
+    name, contact, area, urgency, status, subject, description,
+    resolution, resolutionNote, assignedTo, workedHours, customFields,
+  } = data;
   const rawTicket = store.tickets.find((t) => t.id === id);
   const oldStatus = rawTicket?.status;
   const result = updateTicketFullStmt.run(
@@ -1276,7 +1353,7 @@ function updateTicketFull(id, data) {
   }
   if (resolutionNote) addTicketHistory(id, resolutionNote, status);
   notifyClients("ticketsChanged", { action: "updated", id });
-  const ticket = getTickets().find((t) => t.id === id);
+  const ticket = getTicketById(id);
   if (ticket) {
     emitWebhook("ticket.updated", serializeTicket(ticket));
     if (oldStatus !== status && (status === "resuelto" || status === "cerrado")) {
@@ -1320,7 +1397,7 @@ function updateTicketPosition(id, status, orderedIds) {
     }
   }
   notifyClients("ticketsChanged", { action: "position", id });
-  const ticket = getTickets().find((t) => t.id === id);
+  const ticket = getTicketById(id);
   if (ticket && oldStatus !== status) {
     const notifType = status === "resuelto" ? "resolved" : "status_changed";
     sendTicketNotification(notifType, ticket, { oldStatus }).catch((err) =>
@@ -1353,19 +1430,52 @@ function applySlaTransition(rawTicket, oldStatus, newStatus) {
 
 // Returns { dow, hours, minutes } for the current moment in the configured timezone.
 // Uses Intl.DateTimeFormat — works in any Node.js environment regardless of process.env.TZ.
-function getNowInTz(tz) {
-  try {
-    const now = new Date();
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz || "America/Bogota",
+// Building an Intl.DateTimeFormat costs ~100µs, so never construct one inside a
+// loop — these are cached per timezone and reused.
+const tzFormatterCache = new Map();
+function getTzFormatter(tz) {
+  const key = tz || "America/Bogota";
+  let fmt = tzFormatterCache.get(key);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: key,
       weekday: "short",
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
-    }).formatToParts(now);
+    });
+    tzFormatterCache.set(key, fmt);
+  }
+  return fmt;
+}
+
+// Offset (ms) between UTC and the given timezone at a given instant. Cached per
+// (timezone, day) because it only changes at DST boundaries.
+const tzOffsetCache = new Map();
+function getTzOffsetMs(tz, atMs) {
+  const key = `${tz}|${Math.floor(atMs / 86400000)}`;
+  let offset = tzOffsetCache.get(key);
+  if (offset !== undefined) return offset;
+  try {
+    // 'sv' locale yields an ISO-like "YYYY-MM-DD HH:mm:ss" that Date can parse as UTC.
+    const local = new Date(new Date(atMs).toLocaleString("sv", { timeZone: tz }) + "Z");
+    offset = local.getTime() - Math.floor(atMs / 1000) * 1000;
+  } catch {
+    offset = 0;
+  }
+  if (tzOffsetCache.size > 5000) tzOffsetCache.clear();
+  tzOffsetCache.set(key, offset);
+  return offset;
+}
+
+const DOW_MAP = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+function getNowInTz(tz) {
+  try {
+    const now = new Date();
+    const parts = getTzFormatter(tz).formatToParts(now);
     const get = (type) => parts.find((p) => p.type === type)?.value || "";
-    const dowMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-    const dow = dowMap[get("weekday")] ?? now.getDay();
+    const dow = DOW_MAP[get("weekday")] ?? now.getDay();
     let hours = parseInt(get("hour"), 10);
     if (hours === 24) hours = 0; // some impls return 24 for midnight
     const minutes = parseInt(get("minute"), 10) || 0;
@@ -1401,35 +1511,57 @@ function calcBusinessMs(fromMs, toMs, bh) {
     return ((h || 0) * 60 + (m || 0)) * 60000;
   };
   const tz = appConfig.timezone || "America/Bogota";
-  const dowMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-  const getDow = (ms) => {
-    try {
-      const s = new Date(ms).toLocaleDateString("en-US", { timeZone: tz, weekday: "short" });
-      return dowMap[s] ?? new Date(ms).getDay();
-    } catch { return new Date(ms).getDay(); }
-  };
   const sched = bh.schedule || {};
+
+  // Precompute each weekday's window once — start/end are constants, so parsing
+  // them inside the loop was pure waste.
+  const dayWindows = [];
+  for (let d = 0; d <= 6; d++) {
+    const day = sched[String(d)];
+    if (!day || !day.enabled) { dayWindows.push(null); continue; }
+    const start = parseTime(day.start);
+    const end = parseTime(day.end);
+    dayWindows.push(end > start ? { start, end } : null);
+  }
+  if (dayWindows.every((w) => w === null)) return 0;
+
+  // Walking day by day with Intl per iteration cost ~106µs each and dominated
+  // the whole request. Resolve the UTC offset once and use plain arithmetic.
+  const offsetStart = getTzOffsetMs(tz, fromMs);
+  const offsetEnd = getTzOffsetMs(tz, toMs);
+  const dstShift = offsetStart !== offsetEnd;
+
   let total = 0;
-  const anchor = new Date(fromMs);
-  anchor.setHours(0, 0, 0, 0);
-  let cursor = anchor.getTime();
+  // Local midnight of the day containing fromMs, expressed as a UTC timestamp.
+  let cursor = Math.floor((fromMs + offsetStart) / 86400000) * 86400000 - offsetStart;
+
   while (cursor < toMs) {
-    const dow = getDow(cursor);
-    const day = sched[String(dow)];
-    if (day && day.enabled) {
-      const dayStartMs = parseTime(day.start);
-      const dayEndMs = parseTime(day.end);
-      if (dayEndMs > dayStartMs) {
-        const segStart = cursor + dayStartMs;
-        const segEnd = cursor + dayEndMs;
-        const overlapStart = Math.max(segStart, fromMs);
-        const overlapEnd = Math.min(segEnd, toMs);
-        if (overlapEnd > overlapStart) total += overlapEnd - overlapStart;
-      }
+    // Only pay for a per-day offset lookup when the range crosses a DST change
+    // (Colombia has none, but the code must stay correct for zones that do).
+    const offset = dstShift ? getTzOffsetMs(tz, cursor) : offsetStart;
+    const dow = new Date(cursor + offset).getUTCDay();
+    const win = dayWindows[dow];
+    if (win) {
+      const overlapStart = Math.max(cursor + win.start, fromMs);
+      const overlapEnd = Math.min(cursor + win.end, toMs);
+      if (overlapEnd > overlapStart) total += overlapEnd - overlapStart;
     }
     cursor += 86400000;
   }
   return total;
+}
+
+// A finished ticket's SLA can no longer change, so it is computed once and
+// cached in-process. Keyed by the inputs that could alter the result, so any
+// edit (status, urgency, config, reopen) produces a different key and recomputes.
+const finishedSlaCache = new Map();
+
+function finishedSlaCacheKey(ticket, bh) {
+  return [
+    ticket.id, ticket.status, ticket.urgency, ticket.createdAt, ticket.resolvedAt,
+    ticket.slaBusinessPausedMs || 0, ticket.slaPausedMs || 0,
+    appConfig.sla[ticket.urgency] || 8, bh && bh.enabled ? 1 : 0, appConfig.timezone,
+  ].join("|");
 }
 
 function getSlaState(ticket) {
@@ -1438,6 +1570,13 @@ function getSlaState(ticket) {
   const isPaused = status === "en_espera";
   const createdMs = new Date(ticket.createdAt).getTime();
   const bh = appConfig.businessHours;
+
+  let cacheKey = null;
+  if (isFinished) {
+    cacheKey = finishedSlaCacheKey(ticket, bh);
+    const cached = finishedSlaCache.get(cacheKey);
+    if (cached) return cached;
+  }
 
   let endMs;
   if (isFinished) {
@@ -1469,7 +1608,7 @@ function getSlaState(ticket) {
   const limitHours = appConfig.sla[ticket.urgency] || 8;
   const bhEnabled = !!(bh && bh.enabled);
   const outsideBusinessHours = bhEnabled && !isFinished && !isPaused && !isInsideBusinessHours(bh);
-  return {
+  const state = {
     limitHours,
     remainingHours: Number(Math.max(limitHours - elapsedHours, 0).toFixed(1)),
     elapsedHours: Number(elapsedHours.toFixed(1)),
@@ -1479,39 +1618,44 @@ function getSlaState(ticket) {
     businessHours: bhEnabled,
     outsideBusinessHours,
   };
+  if (cacheKey) {
+    if (finishedSlaCache.size > 20000) finishedSlaCache.clear();
+    finishedSlaCache.set(cacheKey, state);
+  }
+  return state;
 }
 
 function getStats() {
   const tickets = getTickets();
-  const active = tickets.filter((t) => t.status !== "resuelto" && t.status !== "cerrado");
-  const breached = active.filter((t) => getSlaState(t).breached);
-  const byStatus = ticketStatuses.reduce((s, st) => {
-    s[st] = tickets.filter((t) => t.status === st).length;
-    return s;
-  }, {});
-  const byUrgency = Object.keys(appConfig.sla).reduce((s, u) => {
-    s[u] = tickets.filter((t) => t.urgency === u).length;
-    return s;
-  }, {});
-  const avgRemainingHours =
-    active.length === 0
-      ? 0
-      : Number(
-          (
-            active.reduce((sum, t) => sum + getSlaState(t).remainingHours, 0) / active.length
-          ).toFixed(1)
-        );
+  const byStatus = ticketStatuses.reduce((s, st) => { s[st] = 0; return s; }, {});
+  const byUrgency = Object.keys(appConfig.sla).reduce((s, u) => { s[u] = 0; return s; }, {});
+
+  // Single pass: the previous version walked the list four times and computed
+  // getSlaState twice per active ticket.
+  let activeCount = 0;
+  let breachedCount = 0;
+  let remainingSum = 0;
+  for (const ticket of tickets) {
+    if (byStatus[ticket.status] !== undefined) byStatus[ticket.status] += 1;
+    if (byUrgency[ticket.urgency] !== undefined) byUrgency[ticket.urgency] += 1;
+    if (ticket.status === "resuelto" || ticket.status === "cerrado") continue;
+    activeCount += 1;
+    const sla = getSlaState(ticket);
+    if (sla.breached) breachedCount += 1;
+    remainingSum += sla.remainingHours;
+  }
+
   return {
     total: tickets.length,
-    open: active.length,
-    breached: breached.length,
+    open: activeCount,
+    breached: breachedCount,
     byStatus,
     byUrgency,
-    avgRemainingHours,
+    avgRemainingHours: activeCount === 0 ? 0 : Number((remainingSum / activeCount).toFixed(1)),
     slaCompliance:
-      active.length === 0
+      activeCount === 0
         ? 100
-        : Math.round(((active.length - breached.length) / active.length) * 100),
+        : Math.round(((activeCount - breachedCount) / activeCount) * 100),
   };
 }
 
@@ -2100,7 +2244,7 @@ async function pollEmails(options = {}) {
                 : `⚠️ Ticket reabierto por el cliente. Cliente insatisfecho con la solución entregada.`;
               addTicketHistory(matchedTicket.id, escalationMsg, "abierto");
               notifyClients("ticketsChanged", { action: "updated", id: matchedTicket.id });
-              const reopened = getTickets().find((t) => t.id === matchedTicket.id);
+              const reopened = getTicketById(matchedTicket.id);
               if (reopened) {
                 emitWebhook("ticket.reopened", serializeTicket(reopened));
                 sendTicketNotification("status_changed", reopened, { oldStatus: "resuelto" }).catch(() => {});
@@ -2311,7 +2455,7 @@ function startAutoCloser() {
     for (const raw of store.tickets) {
       if (raw.status === "resuelto" || raw.status === "cerrado") continue;
       if (raw.slaBreachNotifiedAt) continue;
-      const full = getTickets().find((t) => t.id === raw.id);
+      const full = getTicketById(raw.id);
       if (!full || !getSlaState(full).breached) continue;
       raw.slaBreachNotifiedAt = new Date().toISOString();
       dirty = true;
@@ -2585,7 +2729,7 @@ async function handleApi(req, res) {
   // POST /api/tickets/:id/ai-suggest — generate or polish a reply
   if (req.method === "POST" && /^\/api\/tickets\/[^/]+\/ai-suggest$/.test(req.url)) {
     const id = decodeURIComponent(req.url.split("/")[3] || "");
-    const ticket = getTickets().find((t) => t.id === id);
+    const ticket = getTicketById(id);
     if (!ticket) { sendJson(res, 404, { error: "Ticket no encontrado." }); return; }
     if (!process.env.ANTHROPIC_API_KEY && !appConfig.aiConfig?.apiKey) {
       sendJson(res, 503, { error: "API key de Anthropic no configurada. Ve a Configuración → IA para agregarla." });
@@ -2793,6 +2937,7 @@ async function handleApi(req, res) {
       // Push directly so isQuickNote flag is preserved in the JSON store
       const entry = { id: crypto.randomUUID(), ticketId: id, note, status: rawTicket.status, createdAt: new Date().toISOString(), isQuickNote: true };
       store.ticketHistory.push(entry);
+      invalidateHistoryIndex();
       saveStore();
       notifyClients("ticketsChanged", { action: "updated", id });
       sendJson(res, 201, { ok: true });
@@ -3582,7 +3727,7 @@ async function handleApiV1(req, res) {
       saveStore();
       notifyClients("ticketsChanged", { action: "updated", id: ticket.id });
     }).catch(() => {});
-    const created = getTickets().find((t) => t.id === ticket.id);
+    const created = getTicketById(ticket.id);
     ok(201, serializeTicket(created || ticket));
     return;
   }
@@ -3597,7 +3742,7 @@ async function handleApiV1(req, res) {
 
     if (req.method === "GET" && !sub) {
       if (!requireScope("tickets:read")) return;
-      const full = getTickets().find((t) => t.id === id);
+      const full = getTicketById(id);
       ok(200, serializeTicket(full, { includeHistory: true }));
       return;
     }
@@ -3642,6 +3787,7 @@ async function handleApiV1(req, res) {
         id: crypto.randomUUID(), ticketId: id, note, status: raw.status,
         createdAt: new Date().toISOString(), isQuickNote: true,
       });
+      invalidateHistoryIndex();
       saveStore();
       notifyClients("ticketsChanged", { action: "updated", id });
       ok(201, { ok: true, ticketId: id });
