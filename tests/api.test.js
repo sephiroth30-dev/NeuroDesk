@@ -1,16 +1,39 @@
 // Set env before requiring the server so it uses an in-memory DB and skips the email poller
+const os = require("os");
+const path = require("path");
+const fs = require("fs");
+const crypto = require("crypto");
+
+// Point the store at a throwaway file BEFORE requiring the server. Without this
+// the suite falls back to ~/.neurodesk/data.json — the real production store on
+// the server — and every run would write tickets into live data.
+const TEST_STORE = path.join(
+  os.tmpdir(),
+  `neurodesk-test-${crypto.randomUUID()}`,
+  "data.json"
+);
+process.env.ND_STORE_PATH = TEST_STORE;
 process.env.ND_DB_PATH = ":memory:";
 process.env.ND_TEST = "1";
+// The seed no longer ships a fixed password, so tests pin their own.
+process.env.ND_PASS = process.env.ND_PASS || "neurofic";
 
 const request = require("supertest");
 const { server } = require("../server");
 
 beforeAll((done) => {
+  // Guard against ever running against the real store.
+  if (!TEST_STORE.startsWith(os.tmpdir())) {
+    throw new Error(`El store de pruebas debe estar en un temporal, no en ${TEST_STORE}`);
+  }
   server.listen(0, done);
 });
 
 afterAll((done) => {
-  server.close(done);
+  server.close(() => {
+    try { fs.rmSync(path.dirname(TEST_STORE), { recursive: true, force: true }); } catch (_) {}
+    done();
+  });
 });
 
 // ── Public endpoints ──────────────────────────────────────────────────────────
@@ -651,5 +674,155 @@ describe("Ciclo de vida completo de un ticket", () => {
     const all = await request(server).get("/api/tickets").set("Cookie", cookie);
     const closed = all.body.filter((t) => t.status === "cerrado" || t.status === "resuelto");
     expect(res.body.open).toBe(res.body.total - closed.length);
+  });
+});
+
+// ── Seguridad ─────────────────────────────────────────────────────────────────
+
+describe("Seguridad", () => {
+  let cookie;
+
+  beforeAll(async () => {
+    const login = await request(server)
+      .post("/api/auth/login")
+      .send({ username: "admin", password: "neurofic" });
+    cookie = login.headers["set-cookie"];
+  });
+
+  test("las cabeceras de seguridad están presentes en todas las respuestas", async () => {
+    const res = await request(server).get("/api/version");
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    expect(res.headers["x-frame-options"]).toBe("DENY");
+    expect(res.headers["referrer-policy"]).toBe("same-origin");
+    const csp = res.headers["content-security-policy"];
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("connect-src 'self'");
+    expect(csp).toContain("object-src 'none'");
+  });
+
+  test("el límite de login NO se evade falsificando X-Forwarded-For", async () => {
+    // Sin proxy confiable la cabecera se ignora, así que los 11 intentos caen
+    // en el mismo bucket y el último debe rechazarse.
+    let last;
+    for (let i = 0; i < 12; i += 1) {
+      last = await request(server)
+        .post("/api/auth/login")
+        .set("X-Forwarded-For", `10.0.0.${i}`)
+        .send({ username: "admin", password: "clave-incorrecta" });
+    }
+    expect(last.status).toBe(429);
+  });
+
+  test("un webhook hacia una dirección interna se rechaza", async () => {
+    for (const url of [
+      "http://127.0.0.1:3000/hook",
+      "http://169.254.169.254/latest/meta-data/",
+      "http://192.168.1.10/x",
+      "http://localhost/x",
+    ]) {
+      const res = await request(server)
+        .post("/api/webhooks")
+        .set("Cookie", cookie)
+        .send({ url, events: ["ticket.created"] });
+      expect(res.status).toBe(400);
+    }
+  });
+
+  test("un webhook público sí se acepta", async () => {
+    const res = await request(server)
+      .post("/api/webhooks")
+      .set("Cookie", cookie)
+      .send({ url: "https://example.com/hook", events: ["ticket.created"] });
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty("secret");
+  });
+
+  test("no se puede cambiar la contraseña de otro usuario sin confirmar la propia", async () => {
+    await request(server)
+      .post("/api/users")
+      .set("Cookie", cookie)
+      .send({ username: "otro", password: "unaClaveLarga123" });
+
+    const sinConfirmar = await request(server)
+      .put("/api/users/otro/password")
+      .set("Cookie", cookie)
+      .send({ password: "nuevaClaveLarga456" });
+    expect(sinConfirmar.status).toBe(403);
+
+    const conConfirmacion = await request(server)
+      .put("/api/users/otro/password")
+      .set("Cookie", cookie)
+      .send({ password: "nuevaClaveLarga456", currentPassword: "neurofic" });
+    expect(conConfirmacion.status).toBe(200);
+  });
+
+  test("la política de contraseñas exige 12 caracteres", async () => {
+    const res = await request(server)
+      .post("/api/users")
+      .set("Cookie", cookie)
+      .send({ username: "corta", password: "1234" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/12/);
+  });
+
+  test("POST /api/email/inbound ya no es anónimo", async () => {
+    const res = await request(server)
+      .post("/api/email/inbound")
+      .send({ from: "suplantado@cliente.com", subject: "Falso", description: "x" });
+    expect(res.status).toBe(401);
+  });
+});
+
+// ── Anti-spam del formulario público ──────────────────────────────────────────
+
+describe("Anti-spam del formulario público", () => {
+  test("el honeypot descarta el envío sin crear ticket", async () => {
+    const before = await request(server).get("/api/portal/tickets?email=bot@spam.com");
+    const res = await request(server).post("/api/tickets").send({
+      name: "Bot", contact: "bot@spam.com", urgency: "media",
+      subject: "spam", website: "http://spam.example",
+    });
+    // Responde 201 a propósito para no darle señal al bot...
+    expect(res.status).toBe(201);
+    // ...pero no se creó nada.
+    const after = await request(server).get("/api/portal/tickets?email=bot@spam.com");
+    expect(after.body.length).toBe(before.body.length);
+  });
+
+  test("un envío instantáneo con token recién emitido se descarta", async () => {
+    const cfg = await request(server).get("/api/portal/config");
+    expect(cfg.body).toHaveProperty("formToken");
+    const res = await request(server).post("/api/tickets").send({
+      name: "Bot rápido", contact: "rapido@spam.com", urgency: "media",
+      formToken: cfg.body.formToken,
+    });
+    expect(res.status).toBe(201);
+    const after = await request(server).get("/api/portal/tickets?email=rapido@spam.com");
+    expect(after.body.length).toBe(0);
+  });
+
+  test("un token con firma manipulada se descarta", async () => {
+    const res = await request(server).post("/api/tickets").send({
+      name: "Falsificador", contact: "falso@spam.com", urgency: "media",
+      formToken: "999999.0000000000000000000000000000000000",
+    });
+    expect(res.status).toBe(201);
+    const after = await request(server).get("/api/portal/tickets?email=falso@spam.com");
+    expect(after.body.length).toBe(0);
+  });
+
+  test("muchos envíos desde la misma IP con remitentes distintos SÍ se crean todos", async () => {
+    // Esto es justo lo que rompía el límite por IP: una oficina entera comparte
+    // una sola dirección pública.
+    const total = 25;
+    for (let i = 0; i < total; i += 1) {
+      const res = await request(server).post("/api/tickets").send({
+        name: `Compañero ${i}`, contact: `persona${i}@neurofic.com`, urgency: "media",
+        subject: `Solicitud ${i}`,
+      });
+      expect(res.status).toBe(201);
+    }
+    const check = await request(server).get("/api/portal/tickets?email=persona24@neurofic.com");
+    expect(check.body.length).toBe(1);
   });
 });

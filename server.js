@@ -59,6 +59,17 @@ function loadStore() {
 
 const store = loadStore();
 
+// ── Timezone caches ──────────────────────────────────────────────────────────
+// Declared here, before any module-level code runs, because seedDemoTicket()
+// executes during load and reaches getSlaState() -> calcBusinessMs(). Leaving
+// these next to their functions further down put them in the temporal dead
+// zone and crashed the server on a fresh install.
+// Building an Intl.DateTimeFormat costs ~100µs, so one is cached per timezone
+// and never constructed inside a loop.
+const tzFormatterCache = new Map();
+const tzOffsetCache = new Map();
+const DOW_MAP = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
 // ── Ticket history index ─────────────────────────────────────────────────────
 // Reading a ticket's history used to filter the entire history array, so listing
 // N tickets was O(N*M). Built lazily and dropped whenever history changes.
@@ -452,12 +463,23 @@ const loginAttempts = new Map();
 const LOGIN_MAX = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
+// The socket address is the only value a client cannot forge. Trusting the
+// first entry of X-Forwarded-For let anyone reset every rate-limit bucket just
+// by varying the header, which made the login throttle decorative.
+// Set ND_TRUST_PROXY=1 only when a reverse proxy you control sets the header.
+const TRUST_PROXY = process.env.ND_TRUST_PROXY === "1";
+
 function getClientIp(req) {
-  return (
-    (req.headers["x-forwarded-for"] || "").split(",")[0].trim() ||
-    req.socket.remoteAddress ||
-    "unknown"
-  );
+  if (TRUST_PROXY) {
+    // With a trusted proxy the LAST hop is the one it appended, not the first,
+    // which the client controls.
+    const chain = String(req.headers["x-forwarded-for"] || "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (chain.length) return chain[chain.length - 1];
+  }
+  return req.socket.remoteAddress || "unknown";
 }
 
 function checkLoginRateLimit(ip) {
@@ -477,30 +499,143 @@ function resetLoginRateLimit(ip) {
   loginAttempts.delete(ip);
 }
 
-// ── Public ticket submission rate limiting (anti-spam on the open form) ───────
-// NOTE: this is per IP, and an internal office shares one public IP — a whole
-// team submitting tickets looks like a single client. Keep the ceiling high
-// enough that real usage never hits it; it exists to stop scripted floods, not
-// to ration legitimate tickets. Override with ND_PUBLIC_SUBMIT_MAX if needed.
-const publicSubmits = new Map();
-const PUBLIC_SUBMIT_MAX = Number(process.env.ND_PUBLIC_SUBMIT_MAX) || 200;
+// ── Anti-spam for the open ticket form ───────────────────────────────────────
+// Counting submissions per IP was the wrong tool: an office shares one public
+// IP, so the counter measured "everyone together" rather than "one abuser", and
+// legitimate tickets got rejected once the team got busy. Instead we identify
+// automation directly — bots fill hidden fields and submit instantly — and cap
+// per sender, so one person's excess never blocks a colleague.
 const PUBLIC_SUBMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
-function checkPublicSubmitRateLimit(ip) {
+// Per-contact cap. Generous: a human filling a form never approaches it.
+const submitsByContact = new Map();
+const PUBLIC_SUBMIT_PER_CONTACT = Number(process.env.ND_SUBMIT_PER_CONTACT) || 20;
+
+// Absolute circuit breaker per IP. Not a ration — it only exists so a flood
+// cannot exhaust the process. A human will never see it.
+const submitsByIp = new Map();
+const PUBLIC_SUBMIT_IP_CEILING = Number(process.env.ND_SUBMIT_IP_CEILING) || 1000;
+
+const MIN_FORM_FILL_MS = 3000;             // faster than this is not a human
+const FORM_TOKEN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function bumpCounter(map, key, limit) {
   const now = Date.now();
-  let entry = publicSubmits.get(ip);
+  let entry = map.get(key);
   if (!entry || now > entry.resetAt) entry = { count: 0, resetAt: now + PUBLIC_SUBMIT_WINDOW_MS };
   entry.count += 1;
-  publicSubmits.set(ip, entry);
-  return entry.count <= PUBLIC_SUBMIT_MAX;
+  map.set(key, entry);
+  if (map.size > 10000) {
+    for (const [k, v] of map) if (now > v.resetAt) map.delete(k);
+  }
+  return entry.count <= limit;
+}
+
+// Secret for signing form timestamps. Regenerated on restart, which at worst
+// makes a form open across a restart fail closed — the visitor just resubmits.
+const FORM_TOKEN_SECRET = crypto.randomBytes(32).toString("hex");
+
+function issueFormToken() {
+  const ts = Date.now().toString(36);
+  const sig = crypto.createHmac("sha256", FORM_TOKEN_SECRET).update(ts).digest("hex").slice(0, 32);
+  return `${ts}.${sig}`;
+}
+
+// Returns null when the token is acceptable, or a reason string.
+function checkFormToken(token) {
+  const [ts, sig] = String(token || "").split(".");
+  if (!ts || !sig) return "missing";
+  const expected = crypto.createHmac("sha256", FORM_TOKEN_SECRET).update(ts).digest("hex").slice(0, 32);
+  if (!safeEqual(sig, expected)) return "bad_signature";
+  const issuedAt = parseInt(ts, 36);
+  if (!isFinite(issuedAt)) return "bad_timestamp";
+  const age = Date.now() - issuedAt;
+  if (age < MIN_FORM_FILL_MS) return "too_fast";
+  if (age > FORM_TOKEN_MAX_AGE_MS) return "expired";
+  return null;
+}
+
+// Decides whether an anonymous submission should become a ticket.
+// `silentDrop` means: answer 200 but create nothing — never tell a bot it was
+// detected, or it just adapts.
+function screenPublicSubmission(req, body) {
+  // 1. Honeypot: a field hidden by CSS that only automation fills in.
+  if (String(body.website || body.empresa_url || "").trim()) {
+    return { accept: false, silentDrop: true, reason: "honeypot" };
+  }
+
+  // 2. Timing. Only enforced when the form supplied a token, so API clients and
+  //    integrations that post directly are unaffected.
+  if (body.formToken !== undefined) {
+    const tokenProblem = checkFormToken(body.formToken);
+    if (tokenProblem) return { accept: false, silentDrop: true, reason: `token_${tokenProblem}` };
+  }
+
+  // 3. Per-sender cap — isolates abuse to whoever is causing it.
+  const contact = String(body.contact || "").trim().toLowerCase();
+  if (contact && !bumpCounter(submitsByContact, contact, PUBLIC_SUBMIT_PER_CONTACT)) {
+    return { accept: false, silentDrop: false, reason: "contact_limit" };
+  }
+
+  // 4. Process-protection ceiling.
+  if (!bumpCounter(submitsByIp, getClientIp(req), PUBLIC_SUBMIT_IP_CEILING)) {
+    console.warn(`[NeuroDesk] Techo de envíos alcanzado desde ${getClientIp(req)} — posible flood.`);
+    return { accept: false, silentDrop: false, reason: "ip_ceiling" };
+  }
+
+  return { accept: true };
 }
 const SESSION_COOKIE_MAX_AGE = 86400;
 
+// ── Password hashing ─────────────────────────────────────────────────────────
+// Stored hashes carry an algorithm prefix. Legacy records are bare SHA-256 hex
+// with no prefix; they keep working and are silently upgraded to scrypt the next
+// time that user signs in, so nobody has to reset anything.
+const SCRYPT_PREFIX = "scrypt$";
+const SCRYPT_KEYLEN = 64;
+const MIN_PASSWORD_LENGTH = 12;
+
+function legacyHashPassword(password, salt) {
+  return crypto.createHash("sha256").update(salt + password).digest("hex");
+}
+
 function hashPassword(password, salt) {
-  return crypto
-    .createHash("sha256")
-    .update(salt + password)
-    .digest("hex");
+  return SCRYPT_PREFIX + crypto.scryptSync(String(password), salt, SCRYPT_KEYLEN).toString("hex");
+}
+
+// Constant-time comparison so the response time can't leak how much matched.
+function safeEqual(a, b) {
+  const bufA = Buffer.from(String(a));
+  const bufB = Buffer.from(String(b));
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function verifyPassword(password, user) {
+  if (!user || !user.password_hash) return { ok: false, needsUpgrade: false };
+  if (String(user.password_hash).startsWith(SCRYPT_PREFIX)) {
+    return { ok: safeEqual(hashPassword(password, user.salt), user.password_hash), needsUpgrade: false };
+  }
+  const ok = safeEqual(legacyHashPassword(password, user.salt), user.password_hash);
+  return { ok, needsUpgrade: ok };
+}
+
+// Re-hash a legacy record with scrypt, keeping the same password.
+function upgradePasswordHash(username, password) {
+  try {
+    const salt = crypto.randomBytes(16).toString("hex");
+    updatePasswordStmt.run(hashPassword(password, salt), salt, username);
+    console.log(`[NeuroDesk] Hash de contraseña migrado a scrypt para "${username}".`);
+  } catch (err) {
+    console.error("[NeuroDesk] No se pudo migrar el hash de contraseña:", err.message);
+  }
+}
+
+function passwordPolicyError(password) {
+  if (String(password).length < MIN_PASSWORD_LENGTH) {
+    return `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`;
+  }
+  return null;
 }
 
 function createSession(username) {
@@ -526,6 +661,16 @@ function getSession(token) {
 function deleteSession(token) {
   store.sessions = store.sessions.filter((s) => s.token !== token);
   saveStore();
+}
+
+// Drop every session belonging to a user, optionally sparing the one making the
+// request. Used after a password change so a stolen session can't outlive it.
+function revokeUserSessions(username, keepToken = null) {
+  const before = store.sessions.length;
+  store.sessions = store.sessions.filter(
+    (s) => s.username !== username || (keepToken && s.token === keepToken)
+  );
+  if (store.sessions.length !== before) saveStore();
 }
 
 function parseCookies(req) {
@@ -639,6 +784,39 @@ const WEBHOOK_EVENTS = [
   "ticket.sla_breached",
 ];
 
+// Webhook URLs are user-supplied, so a delivery is a request the server makes on
+// someone else's behalf. Without this check a panel user could point one at
+// 127.0.0.1 or the cloud metadata endpoint and use the recorded status code as
+// an oracle to map the internal network.
+const BLOCKED_HOST_PATTERNS = [
+  /^localhost$/i,
+  /^127\./,
+  /^0\./,
+  /^10\./,
+  /^192\.168\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^169\.254\./,          // link-local, includes cloud metadata at 169.254.169.254
+  /^::1$/,
+  /^\[?::1\]?$/,
+  /^f[cd][0-9a-f]{2}:/i,  // IPv6 unique local
+  /^fe80:/i,              // IPv6 link-local
+  /\.internal$/i,
+  /\.local$/i,
+];
+
+function validateWebhookUrl(raw) {
+  let parsed;
+  try { parsed = new URL(String(raw)); } catch { return { ok: false, error: "URL inválida." }; }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    return { ok: false, error: "Sólo se permiten URLs http:// o https://." };
+  }
+  const host = parsed.hostname.replace(/^\[|\]$/g, "");
+  if (BLOCKED_HOST_PATTERNS.some((re) => re.test(host))) {
+    return { ok: false, error: "No se permiten destinos internos ni direcciones privadas." };
+  }
+  return { ok: true, url: parsed };
+}
+
 function publicWebhook(w) {
   return {
     id: w.id,
@@ -656,9 +834,14 @@ function publicWebhook(w) {
 function deliverWebhook(hook, event, payload) {
   const body = JSON.stringify({ event, deliveredAt: new Date().toISOString(), data: payload });
   const signature = crypto.createHmac("sha256", hook.secret).update(body).digest("hex");
-  let target;
-  try { target = new URL(hook.url); } catch { return; }
-  if (target.protocol !== "https:" && target.protocol !== "http:") return;
+  // Re-checked at delivery time, not only at registration: a hostname that was
+  // public when the webhook was created could later resolve somewhere internal.
+  const check = validateWebhookUrl(hook.url);
+  if (!check.ok) {
+    console.error(`[NeuroDesk] Webhook ${hook.id} descartado — destino no permitido: ${hook.url}`);
+    return;
+  }
+  const target = check.url;
   const client = target.protocol === "https:" ? https : http;
   const attempt = (tryNum) => {
     const request = client.request(
@@ -908,6 +1091,55 @@ function handleEvents(req, res) {
   sendEvent(res, "connected", { ok: true });
   eventClients.add(res);
   req.on("close", () => eventClients.delete(res));
+}
+
+// Base URL for links we email out. Prefers the configured app_url; the Host
+// header is only a last resort because a client can set it to anything.
+function getAppBaseUrl(req) {
+  const configured = String(notificationsConfig.app_url || "").trim().replace(/\/+$/, "");
+  if (configured) return configured;
+  const proto = isSecureRequest(req) ? "https" : "http";
+  return `${proto}://${req.headers.host || "localhost"}`;
+}
+
+// True when the browser reached us over HTTPS. Behind LiteSpeed the TLS
+// termination happens upstream, so the only signal is the forwarded header.
+function isSecureRequest(req) {
+  const proto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  if (proto) return proto === "https";
+  return !!req.socket.encrypted;
+}
+
+// Applied to every response. The app loads no third-party resources, so the
+// policy can be tight. 'unsafe-inline' is still required because index.html,
+// login.html and portal.html carry inline <script> blocks and the markup uses
+// inline style attributes throughout; removing it would need nonces on every
+// inline block. connect-src 'self' is the valuable part: even if markup were
+// injected, it could not phone home.
+function applySecurityHeaders(req, res) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "same-origin");
+  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=(), payment=()");
+  res.setHeader(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      // https: keeps images in forwarded emails working; http: stays blocked.
+      "img-src 'self' data: https:",
+      "font-src 'self' data:",
+      "connect-src 'self'",
+      "form-action 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+    ].join("; ")
+  );
+  if (isSecureRequest(req)) {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
 }
 
 function sendStatic(req, res) {
@@ -1169,10 +1401,19 @@ function seedAdminUser() {
   const { total } = countUsersStmt.get();
   if (total > 0) return;
   const username = process.env.ND_USER || "admin";
-  const password = process.env.ND_PASS || "neurofic";
+  // No fixed fallback password. Shipping one meant every install that didn't
+  // set ND_PASS was reachable with credentials published in the source.
+  const generated = !process.env.ND_PASS;
+  const password = process.env.ND_PASS || crypto.randomBytes(12).toString("base64url");
   const salt = crypto.randomBytes(16).toString("hex");
   insertUserStmt.run(username, hashPassword(password, salt), salt);
+  console.log("─".repeat(64));
   console.log(`Credenciales iniciales → usuario: ${username}  contraseña: ${password}`);
+  if (generated) {
+    console.log("Contraseña generada al azar. Anótala ahora: no se vuelve a mostrar.");
+    console.log("Para fijarla tú, define ND_PASS antes del primer arranque.");
+  }
+  console.log("─".repeat(64));
 }
 
 function getNextTicketId() {
@@ -1430,9 +1671,6 @@ function applySlaTransition(rawTicket, oldStatus, newStatus) {
 
 // Returns { dow, hours, minutes } for the current moment in the configured timezone.
 // Uses Intl.DateTimeFormat — works in any Node.js environment regardless of process.env.TZ.
-// Building an Intl.DateTimeFormat costs ~100µs, so never construct one inside a
-// loop — these are cached per timezone and reused.
-const tzFormatterCache = new Map();
 function getTzFormatter(tz) {
   const key = tz || "America/Bogota";
   let fmt = tzFormatterCache.get(key);
@@ -1451,7 +1689,6 @@ function getTzFormatter(tz) {
 
 // Offset (ms) between UTC and the given timezone at a given instant. Cached per
 // (timezone, day) because it only changes at DST boundaries.
-const tzOffsetCache = new Map();
 function getTzOffsetMs(tz, atMs) {
   const key = `${tz}|${Math.floor(atMs / 86400000)}`;
   let offset = tzOffsetCache.get(key);
@@ -1467,8 +1704,6 @@ function getTzOffsetMs(tz, atMs) {
   tzOffsetCache.set(key, offset);
   return offset;
 }
-
-const DOW_MAP = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
 function getNowInTz(tz) {
   try {
@@ -1978,7 +2213,11 @@ function getSmtpTransporter() {
     port,
     secure,
     auth: { user: cfg.user, pass: cfg.pass },
-    tls: { rejectUnauthorized: false },
+    // Certificates are validated. Skipping validation meant anyone able to
+    // intercept the connection could present their own certificate and read
+    // the Gmail App Password straight out of the handshake.
+    // ND_SMTP_INSECURE_TLS=1 exists only for a self-signed internal relay.
+    tls: { rejectUnauthorized: process.env.ND_SMTP_INSECURE_TLS !== "1" },
   };
   if (!secure) transportOpts.requireTLS = true;
   smtpTransporter = nodemailer.createTransport(transportOpts);
@@ -2492,15 +2731,20 @@ async function handleAuth(req, res) {
         .toLowerCase();
       const password = String(body.password || "");
       const user = getUserStmt.get(username);
-      if (!user || hashPassword(password, user.salt) !== user.password_hash) {
+      const check = verifyPassword(password, user);
+      if (!check.ok) {
         sendJson(res, 401, { error: "Usuario o contraseña incorrectos." });
         return;
       }
+      // Transparent upgrade: legacy SHA-256 records become scrypt on first login.
+      if (check.needsUpgrade) upgradePasswordHash(username, password);
       resetLoginRateLimit(ip);
       const token = createSession(username);
       res.writeHead(200, {
         "Content-Type": "application/json; charset=utf-8",
-        "Set-Cookie": `nd_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_COOKIE_MAX_AGE}`,
+        // Secure only when the browser actually spoke HTTPS — otherwise local
+        // HTTP development could never hold a session.
+        "Set-Cookie": `nd_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_COOKIE_MAX_AGE}${isSecureRequest(req) ? "; Secure" : ""}`,
       });
       res.end(JSON.stringify({ username }));
     } catch {
@@ -2530,17 +2774,20 @@ async function handleAuth(req, res) {
       const body = await readBody(req);
       const current = String(body.current || "");
       const newPass = String(body.password || "").trim();
-      if (newPass.length < 4) {
-        sendJson(res, 400, { error: "Mínimo 4 caracteres." });
+      const policyError = passwordPolicyError(newPass);
+      if (policyError) {
+        sendJson(res, 400, { error: policyError });
         return;
       }
       const user = getUserStmt.get(session.username);
-      if (!user || hashPassword(current, user.salt) !== user.password_hash) {
+      if (!verifyPassword(current, user).ok) {
         sendJson(res, 401, { error: "Contraseña actual incorrecta." });
         return;
       }
       const newSalt = crypto.randomBytes(16).toString("hex");
       updatePasswordStmt.run(hashPassword(newPass, newSalt), newSalt, session.username);
+      // Changing the password must evict anyone else holding a stolen session.
+      revokeUserSessions(session.username, parseCookies(req).nd_session);
       sendJson(res, 200, { ok: true });
     } catch {
       sendJson(res, 400, { error: "No se pudo cambiar la contraseña." });
@@ -2557,9 +2804,9 @@ async function handleAuth(req, res) {
       if (user) {
         const token = crypto.randomBytes(32).toString("hex");
         resetTokens.set(token, { username, expiresAt: Date.now() + RESET_TOKEN_MAX_AGE_MS });
-        const host = req.headers.host || "localhost";
-        const proto = req.headers["x-forwarded-proto"] || "http";
-        const resetUrl = `${proto}://${host}/reset-password?token=${token}`;
+        // Built from configuration, never from the Host header: a poisoned Host
+        // would have sent a working reset token to the attacker's domain.
+        const resetUrl = `${getAppBaseUrl(req)}/reset-password?token=${token}`;
         const adminEmail = (notificationsConfig.adminEmails || "").split(",")[0].trim();
         if (adminEmail) {
           await sendEmail(
@@ -2626,6 +2873,9 @@ async function handleApi(req, res) {
     sendJson(res, 200, {
       fields: appConfig.fields,
       customFields: (appConfig.customFields || []).filter((f) => f.enabled),
+      // Signed timestamp: proves the form was actually loaded and lets the
+      // server tell a human apart from a script that posts instantly.
+      formToken: issueFormToken(),
     });
     return;
   }
@@ -2663,12 +2913,21 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && req.url === "/api/tickets") {
     try {
-      // Anonymous submissions come from the open portal form — throttle per IP.
-      if (!getAuthSession(req) && !checkPublicSubmitRateLimit(getClientIp(req))) {
-        sendJson(res, 429, { error: "Demasiadas solicitudes. Intenta de nuevo más tarde." });
-        return;
-      }
       const body = await readBody(req);
+      // Screening applies only to anonymous submissions from the open form.
+      if (!getAuthSession(req)) {
+        const screen = screenPublicSubmission(req, body);
+        if (!screen.accept) {
+          console.warn(`[NeuroDesk] Envío público descartado (${screen.reason}).`);
+          if (screen.silentDrop) {
+            // Look like a success so automation gets no feedback to adapt to.
+            sendJson(res, 201, { ok: true });
+          } else {
+            sendJson(res, 429, { error: "Demasiadas solicitudes. Intenta de nuevo más tarde." });
+          }
+          return;
+        }
+      }
       const ticket = normalizeTicket(body, "web");
       if (!ticket) {
         sendJson(res, 400, { error: "Nombre y urgencia válida son obligatorios." });
@@ -2999,7 +3258,8 @@ async function handleApi(req, res) {
     try {
       const body = await readBody(req);
       const target = String(body.url || "").trim();
-      try { new URL(target); } catch { sendJson(res, 400, { error: "URL inválida." }); return; }
+      const urlCheck = validateWebhookUrl(target);
+      if (!urlCheck.ok) { sendJson(res, 400, { error: urlCheck.error }); return; }
       const events = (Array.isArray(body.events) ? body.events : []).filter((e) => WEBHOOK_EVENTS.includes(e));
       if (events.length === 0) { sendJson(res, 400, { error: "Selecciona al menos un evento." }); return; }
       const secret = `whsec_${crypto.randomBytes(20).toString("hex")}`;
@@ -3115,6 +3375,22 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && req.url === "/api/email/inbound") {
     try {
+      // This route sets the sender verbatim, so leaving it open let anyone
+      // create tickets impersonating any client. It now requires either a
+      // shared secret (for an external mail relay) or a normal session.
+      const expectedSecret = process.env.ND_INBOUND_SECRET || "";
+      const providedSecret = String(req.headers["x-neurodesk-inbound-secret"] || "");
+      const authorized = expectedSecret
+        ? safeEqual(providedSecret, expectedSecret)
+        : !!getAuthSession(req);
+      if (!authorized) {
+        sendJson(res, 401, {
+          error: expectedSecret
+            ? "Secreto de entrada inválido."
+            : "Ruta no autenticada. Configura ND_INBOUND_SECRET o usa una sesión.",
+        });
+        return;
+      }
       const body = await readBody(req);
       const ticket = normalizeTicket(
         {
@@ -3218,8 +3494,9 @@ async function handleApi(req, res) {
         sendJson(res, 400, { error: "Usuario inválido (mín. 2 chars, solo letras/números/._-)." });
         return;
       }
-      if (password.length < 4) {
-        sendJson(res, 400, { error: "Contraseña mínimo 4 caracteres." });
+      const createPolicyError = passwordPolicyError(password);
+      if (createPolicyError) {
+        sendJson(res, 400, { error: createPolicyError });
         return;
       }
       if (getUserStmt.get(username)) {
@@ -3262,9 +3539,24 @@ async function handleApi(req, res) {
     const target = decodeURIComponent(req.url.split("/")[3]);
     try {
       const body = await readBody(req);
+      // This endpoint used to let ANY authenticated session set ANY user's
+      // password without knowing the current one — a one-request account
+      // takeover. Resetting someone else's password now requires proving you
+      // hold your own.
+      const session = getAuthSession(req);
+      if (target !== session.username) {
+        const actor = getUserStmt.get(session.username);
+        if (!verifyPassword(String(body.currentPassword || ""), actor).ok) {
+          sendJson(res, 403, {
+            error: "Para restablecer la contraseña de otro usuario debes confirmar la tuya.",
+          });
+          return;
+        }
+      }
       const newPass = String(body.password || "").trim();
-      if (newPass.length < 4) {
-        sendJson(res, 400, { error: "Contraseña mínimo 4 caracteres." });
+      const policyError = passwordPolicyError(newPass);
+      if (policyError) {
+        sendJson(res, 400, { error: policyError });
         return;
       }
       if (!getUserStmt.get(target)) {
@@ -3273,6 +3565,7 @@ async function handleApi(req, res) {
       }
       const newSalt = crypto.randomBytes(16).toString("hex");
       updatePasswordStmt.run(hashPassword(newPass, newSalt), newSalt, target);
+      revokeUserSessions(target, target === session.username ? parseCookies(req).nd_session : null);
       sendJson(res, 200, { ok: true });
     } catch {
       sendJson(res, 400, { error: "No se pudo cambiar la contraseña." });
@@ -3830,6 +4123,8 @@ const isPublicApi = (method, url) =>
 // All /api/notifications/* routes require authentication (handled by default guard)
 
 const server = http.createServer(async (req, res) => {
+  applySecurityHeaders(req, res);
+
   // Portal — always public
   if (req.url === "/portal") {
     serveFile(res, "portal.html");

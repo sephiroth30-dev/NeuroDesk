@@ -4400,3 +4400,31 @@ label .fieldLabel {
   padding: 1px 5px;
   border-radius: 4px;
 }
+
+/* ── Aviso de imágenes remotas bloqueadas ────────────────────────────────── */
+.remoteImageNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.remoteImageBtn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--brand);
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.remoteImageBtn:hover { background: var(--surface); }

@@ -356,6 +356,15 @@
         background: var(--soft);
       }
 
+      /* Honeypot: off-screen rather than display:none, since some bots skip
+         fields that are explicitly hidden. */
+      .ndHp {
+        position: absolute;
+        left: -9999px;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+      }
       .portalMessage {
         font-size: 0.84rem;
         color: var(--brand);
@@ -601,6 +610,16 @@
                 </select>
               </label>
 
+              <!-- Decoy field. Hidden from people and from assistive tech;
+                   automated submitters fill every input they find, which is
+                   exactly how we tell them apart. Do not remove. -->
+              <div class="ndHp" aria-hidden="true">
+                <label>
+                  Sitio web
+                  <input type="text" name="website" tabindex="-1" autocomplete="off" />
+                </label>
+              </div>
+
               <button type="submit" id="portalSubmitBtn">Enviar solicitud</button>
               <p id="portalMessage" class="portalMessage" role="status"></p>
             </form>
@@ -662,6 +681,7 @@
         // Apply field config from server
         try {
           const cfg = await fetch("/api/portal/config").then((r) => r.json());
+          window.__ndFormToken = cfg.formToken || "";
 
           if (!cfg.fields.contact.enabled) {
             contactRow.hidden = true;
@@ -694,6 +714,10 @@
             urgency: fd.get("urgency") || "media",
             subject: (fd.get("subject") || "").trim(),
             description: (fd.get("description") || "").trim(),
+            // Anti-spam: signed load timestamp plus a decoy field that only
+            // automated submitters ever fill in.
+            formToken: window.__ndFormToken || "",
+            website: (fd.get("website") || "").trim(),
           };
 
           if (!body.name) {
@@ -736,6 +760,17 @@
         const STATUS_LABELS = { abierto:"Abierto", en_proceso:"En proceso", en_espera:"En espera", resuelto:"Resuelto", cerrado:"Cerrado" };
         const STATUS_COLORS = { abierto:"#3b82f6", en_proceso:"#f59e0b", en_espera:"#8b5cf6", resuelto:"#22c55e", cerrado:"#94a3b8" };
 
+        // Ticket fields come straight from inbound email, so anyone who can send
+        // a message to support controls this content. It must never be trusted.
+        function escapeHtml(value) {
+          return String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+        }
+
         async function doLookup() {
           const email = document.querySelector("#lookupEmail").value.trim();
           const result = document.querySelector("#lookupResult");
@@ -757,12 +792,17 @@
                 <th style="padding:6px 8px">Estado</th>
                 <th style="padding:6px 8px">Fecha</th>
               </tr></thead>
-              <tbody>${tickets.map(t => `<tr style="border-bottom:1px solid var(--line)">
-                <td style="padding:7px 8px;font-weight:700;color:var(--brand)">${t.id}</td>
-                <td style="padding:7px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.subject || "(sin asunto)"}</td>
-                <td style="padding:7px 8px"><span style="display:inline-block;padding:2px 8px;border-radius:999px;font-weight:700;font-size:0.75rem;background:${STATUS_COLORS[t.status]}22;color:${STATUS_COLORS[t.status]}">${STATUS_LABELS[t.status] || t.status}</span></td>
-                <td style="padding:7px 8px;color:var(--muted)">${new Date(t.createdAt).toLocaleDateString("es")}</td>
-              </tr>`).join("")}</tbody>
+              <tbody>${tickets.map(t => {
+                // Colour comes from the lookup table, never from the ticket, so it
+                // can't be used to break out of the style attribute.
+                const color = STATUS_COLORS[t.status] || "#94a3b8";
+                const label = STATUS_LABELS[t.status] || t.status;
+                return `<tr style="border-bottom:1px solid var(--line)">
+                <td style="padding:7px 8px;font-weight:700;color:var(--brand)">${escapeHtml(t.id)}</td>
+                <td style="padding:7px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.subject || "(sin asunto)")}</td>
+                <td style="padding:7px 8px"><span style="display:inline-block;padding:2px 8px;border-radius:999px;font-weight:700;font-size:0.75rem;background:${color}22;color:${color}">${escapeHtml(label)}</span></td>
+                <td style="padding:7px 8px;color:var(--muted)">${escapeHtml(new Date(t.createdAt).toLocaleDateString("es"))}</td>
+              </tr>`; }).join("")}</tbody>
             </table>`;
           } catch {
             result.innerHTML = '<p style="color:#ef4444;font-size:0.84rem">Error al buscar tickets.</p>';

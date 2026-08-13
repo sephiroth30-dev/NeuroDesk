@@ -1,6 +1,6 @@
 # NeuroDesk — Reglas de Producción
 
-**Versión actual en producción: v14.35**
+**Versión actual en producción: v14.36**
 
 ## ⚠️ ESTE PROYECTO ESTÁ EN PRODUCCIÓN
 
@@ -171,6 +171,62 @@ de 180 días y 4-6 refrescos por cierre son ~400.000 llamadas.
 
 Referencia medida (800 tickets, 180 días): `GET /api/tickets` 3.1 s → 16 ms,
 `GET /api/stats` 2.6 s → 8 ms, cierre completo en navegador 30 s+ → 1.4 s.
+
+---
+
+## Seguridad — reglas que no se pueden relajar (desde v14.36)
+
+Auditoría completa en v14.36. Lo corregido y lo que **no** debe reintroducirse:
+
+### Contenido no confiable
+
+Los tickets nacen de **correos entrantes**: asunto, cuerpo, nombre del remitente y
+adjuntos los controla cualquiera que sepa la dirección de soporte.
+
+- **Todo** dato de ticket que se pinte con `innerHTML` pasa por `escapeHtml()`. Aplica
+  a `public/app.js` **y a `public/portal.html`**, que tiene su propia copia de la función.
+  El portal llegó a producción sin ella: era XSS almacenado, disparable enviando un correo.
+- El `htmlBody` del correo se muestra en un iframe cuyo `sandbox` **nunca** puede incluir
+  `allow-scripts`. Junto con el `allow-same-origin` que necesita para medirse, esa pareja
+  daría a cualquier remitente acceso al DOM y la sesión del panel.
+- Las imágenes remotas del correo empiezan bloqueadas (CSP dentro del iframe). Evita que
+  un `<img src="https://rastreador/?id=X">` avise al atacante cuando el agente abre el
+  ticket.
+- El CSV de exportación antepone `'` a las celdas que empiecen por `= + - @`, o Excel
+  ejecuta la fórmula al abrir el fichero.
+
+### Autenticación
+
+- `hashPassword()` usa **scrypt** con prefijo de algoritmo. Los hashes SHA-256 antiguos
+  siguen validando y se migran solos en el siguiente inicio de sesión — no borrar ese
+  camino hasta que no queden hashes sin prefijo.
+- Mínimo **12 caracteres** (`passwordPolicyError`).
+- `seedAdminUser()` **no** tiene contraseña por defecto: si no hay `ND_PASS`, genera una
+  al azar y la imprime una vez. Nunca volver a poner una constante ahí.
+- Restablecer la contraseña de otro usuario exige confirmar la propia; cambiarla revoca
+  las demás sesiones de esa cuenta (`revokeUserSessions`).
+- `getClientIp()` usa el socket, **no** `X-Forwarded-For`, salvo que se active
+  `ND_TRUST_PROXY=1`. Confiar en la cabecera dejaba el límite de login en decorativo.
+
+### Superficie pública
+
+- El anti-spam del formulario **no** cuenta por IP (una oficina comparte una sola). Filtra
+  bots: campo trampa `website`, token de formulario firmado con tiempo mínimo, y tope por
+  remitente. El descarte silencioso responde 201 a propósito.
+- `POST /api/email/inbound` exige `ND_INBOUND_SECRET` o sesión. Abierto permitía crear
+  tickets suplantando a cualquier cliente.
+- Los enlaces que se envían por correo se construyen con `getAppBaseUrl()` a partir de
+  `app_url`, **nunca** con `req.headers.host` (envenenable).
+- Las URLs de webhook se validan contra rangos internos en el registro **y** en cada
+  entrega (`validateWebhookUrl`).
+
+### Transporte
+
+- `applySecurityHeaders()` va en la primera línea del handler: CSP, `X-Frame-Options`,
+  `nosniff`, `Referrer-Policy`, `Permissions-Policy` y HSTS cuando la petición es HTTPS.
+- La cookie de sesión lleva `Secure` cuando el navegador habló HTTPS.
+- SMTP/IMAP validan certificado. `rejectUnauthorized: false` exponía el App Password de
+  Gmail ante un intermediario.
 
 ---
 
