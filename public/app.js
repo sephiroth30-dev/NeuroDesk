@@ -2989,7 +2989,7 @@ function renderUsers(users) {
         </form>
         <form class="userChangePassForm" hidden>
           <div class="userPassInputs">
-            <input class="userNewPassInput" type="password" placeholder="Nueva contraseña (mín. 4 chars)" autocomplete="new-password" />
+            <input class="userNewPassInput" type="password" placeholder="Nueva contraseña (mín. 12 chars)" autocomplete="new-password" />
             <input class="userConfirmPassInput" type="password" placeholder="Confirmar contraseña" autocomplete="new-password" />
           </div>
           <button type="submit" class="primaryAction" style="font-size:0.82rem;white-space:nowrap;align-self:start">Guardar</button>

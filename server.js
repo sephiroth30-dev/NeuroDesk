@@ -37,6 +37,7 @@ const EMPTY_STORE = {
   sessions: [],
   apiKeys: [],
   webhooks: [],
+  emailQuarantine: [],
 };
 
 function loadStore() {
@@ -51,6 +52,9 @@ function loadStore() {
       sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
       apiKeys: Array.isArray(parsed.apiKeys) ? parsed.apiKeys : [],
       webhooks: Array.isArray(parsed.webhooks) ? parsed.webhooks : [],
+      // Correos que no pudieron convertirse en ticket, guardados íntegros para
+      // revisión humana en vez de reprocesarse indefinidamente. Nuevo en v14.37.
+      emailQuarantine: Array.isArray(parsed.emailQuarantine) ? parsed.emailQuarantine : [],
     };
   } catch (_) {
     return JSON.parse(JSON.stringify(EMPTY_STORE));
@@ -953,6 +957,10 @@ const emailPollStatus = {
   polling: false,
   lastMessagesChecked: 0,
   consecutiveErrors: 0,
+  // Bumped on every pollEmails() call. Only the poll that owns the current
+  // generation is allowed to clear `polling` in its finally block, so an
+  // aborted poll can't have its flag-clear race with the next one starting.
+  generation: 0,
 };
 let emailPollerTimer = null;
 const eventClients = new Set();
@@ -960,6 +968,9 @@ const EMAIL_FALLBACK_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const POLL_LOOKBACK_OVERLAP_MS = 2 * 60 * 60 * 1000; // ventana deslizante — 2h overlap
 const IMAP_CONN_TIMEOUT_MS = 30 * 1000; // 30s para establecer conexión TCP/TLS
 const IMAP_SOCKET_TIMEOUT_MS = 90 * 1000; // 90s sin actividad en socket
+const EMAIL_UNREAD_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // techo para no leídos viejos
+const EMAIL_CLAIM_STALE_MS = 10 * 60 * 1000; // reserva huérfana => reintentable
+const EMAIL_CLAIM_MAX_ATTEMPTS = 3; // tras esto, cuarentena en vez de reintentar por siempre
 const POLL_ABSOLUTE_TIMEOUT_MS = 3 * 60 * 1000; // 2 min — mata el poll si se cuelga
 
 const DEFAULT_CONFIG = {
@@ -1043,10 +1054,10 @@ const getEmailConfigStmt = db.prepare("SELECT value FROM config WHERE key = 'ema
 const getNotificationsConfigStmt = db.prepare(
   "SELECT value FROM config WHERE key = 'notifications_config'"
 );
-const isEmailProcessedStmt = db.prepare("SELECT 1 FROM processed_emails WHERE message_id = ?");
-const markEmailProcessedStmt = db.prepare(
-  "INSERT OR IGNORE INTO processed_emails (message_id, processed_at) VALUES (?, ?)"
-);
+// Dedup itself is handled directly against store.processedEmails by
+// findProcessedEmailEntry/claimEmail/finalizeEmail (see the email matching
+// section) — those need claim/pending semantics this fixed-SQL shim can't
+// express. Only pruning still goes through the shim.
 const cleanOldEmailsStmt = db.prepare("DELETE FROM processed_emails WHERE processed_at < ?");
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -2286,10 +2297,15 @@ async function sendTicketNotification(type, ticket, opts = {}) {
   // Only send client email if the contact is NOT already in the admin list (avoids duplicates)
   if (ticket.contact && ticket.contact.includes("@") && !adminEmailSet.has(ticket.contact.toLowerCase())) {
     const clientEmailPromise = sendEmail(ticket.contact, subject, bodyText).then((msgId) => {
-      // Store message ID so future client replies thread back to this ticket
+      // Record the Message-ID so future client replies thread back to this
+      // ticket. Tagged as a RESOLUTION message specifically when this
+      // notification announces the ticket is resolved — that tag is what lets
+      // a direct reply-to-this-email later qualify for the reopened alert
+      // (matchKind "direct-resolution"). Without it, nothing ever would.
       if (msgId) {
         const raw = store.tickets.find((t) => t.id === ticket.id);
-        if (raw && !raw.emailThreadId) { raw.emailThreadId = msgId; saveStore(); }
+        const isResolution = type === "resolved" || (type === "status_changed" && ticket.status === "resuelto");
+        if (raw && rememberThreadId(raw, msgId, { isResolution })) saveStore();
       }
     });
     promises.push(clientEmailPromise);
@@ -2344,6 +2360,317 @@ function getEmailPollBlocker(config, force = false) {
   return "";
 }
 
+// ── Email identity & thread matching (v14.37) ────────────────────────────────
+//
+// Two independent bugs lived here before this version:
+//
+// BUG A (duplicated tickets): when a message had no Message-ID, the dedup key
+// fell back to `uid-${uid}-${Date.now()}`, which is different on every poll —
+// so the same email created a new ticket on every single sondeo. The ticket
+// was also inserted BEFORE the email was marked processed, in two separate
+// writes; a crash in between recreated it forever.
+//
+// BUG B (false "cliente insatisfecho"): the thread match compared
+// `references.includes(t.emailThreadId)` — References accumulates every prior
+// Message-ID in a Gmail thread, so replying in the same thread to ask for
+// something unrelated matched the OLDEST ticket in the array, reopened it, and
+// silently discarded the client's new request.
+//
+// The fixes below: a dedup key that never depends on the clock, a
+// claim-before-create ordering so a ticket can't exist without its email being
+// marked, and exact Message-ID matching classified by strength (subject tag >
+// reply-to-the-resolution-email > reply-to-something-else-in-the-thread >
+// only-in-accumulated-References) so the reopened alert fires in exactly one
+// unambiguous case.
+
+function normalizeMessageId(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  const m = s.match(/<([^<>]+)>/);
+  return (m ? m[1] : s.replace(/^<|>$/g, "")).trim().toLowerCase();
+}
+
+// Tokenizes In-Reply-To / References into complete, normalized Message-IDs.
+// Never used with .includes() — always compared by exact equality — because a
+// substring match on shared suffixes like "@mail.gmail.com" is a false positive.
+function extractMessageIds(value) {
+  if (!value) return [];
+  const arr = Array.isArray(value) ? value : [String(value)];
+  const out = [];
+  for (const item of arr) {
+    const str = String(item);
+    const angled = str.match(/<[^<>\s]+>/g);
+    if (angled) {
+      for (const a of angled) out.push(normalizeMessageId(a));
+      continue;
+    }
+    const bare = normalizeMessageId(str);
+    if (bare.includes("@")) out.push(bare);
+  }
+  return [...new Set(out.filter(Boolean))];
+}
+
+// Stable dedup key. Prefers the real Message-ID; falls back to a content hash
+// (never a timestamp) so a header-less email lands on the same key every poll.
+function computeEmailKey(parsed) {
+  const mid = normalizeMessageId(parsed.messageId);
+  if (mid) return `mid:${mid}`;
+  const from = (parsed.from?.value?.[0]?.address || "").toLowerCase();
+  const subject = String(parsed.subject || "");
+  const date =
+    parsed.date instanceof Date && !Number.isNaN(parsed.date.getTime())
+      ? parsed.date.toISOString()
+      : "";
+  const body = String(parsed.text || parsed.html || "").slice(0, 512);
+  const hash = crypto
+    .createHash("sha256")
+    .update(`${from}|${subject}|${date}|${body}`)
+    .digest("hex");
+  return `sha256:${hash}`;
+}
+
+// A ticket's known thread Message-IDs, including the legacy single
+// emailThreadId field so tickets created before v14.37 keep matching — they
+// just never accumulate resolutionMessageIds, so they can never trigger the
+// reopened-with-alert path (the conservative default).
+function ticketThreadIds(t) {
+  const ids = new Set(
+    (Array.isArray(t.threadMessageIds) ? t.threadMessageIds : []).map(normalizeMessageId)
+  );
+  const legacy = normalizeMessageId(t.emailThreadId);
+  if (legacy) ids.add(legacy);
+  return ids;
+}
+
+function ticketResolutionIds(t) {
+  return new Set(
+    (Array.isArray(t.resolutionMessageIds) ? t.resolutionMessageIds : []).map(normalizeMessageId)
+  );
+}
+
+// Records a Message-ID against a ticket's thread. `isResolution` marks it as
+// the notification whose reply is allowed to trigger the reopened alert.
+// Returns true if it changed anything, so callers know whether to persist.
+function rememberThreadId(rawTicket, msgId, { isResolution = false } = {}) {
+  const norm = normalizeMessageId(msgId);
+  if (!rawTicket || !norm) return false;
+  let dirty = false;
+  if (!Array.isArray(rawTicket.threadMessageIds)) { rawTicket.threadMessageIds = []; dirty = true; }
+  if (!rawTicket.threadMessageIds.includes(norm)) {
+    rawTicket.threadMessageIds.push(norm);
+    if (rawTicket.threadMessageIds.length > 200) rawTicket.threadMessageIds.shift();
+    dirty = true;
+  }
+  if (isResolution) {
+    if (!Array.isArray(rawTicket.resolutionMessageIds)) rawTicket.resolutionMessageIds = [];
+    if (!rawTicket.resolutionMessageIds.includes(norm)) {
+      rawTicket.resolutionMessageIds.push(norm);
+      dirty = true;
+    }
+  }
+  // Keep emailThreadId populated for any code path that still reads it.
+  if (!rawTicket.emailThreadId) { rawTicket.emailThreadId = msgId; dirty = true; }
+  return dirty;
+}
+
+const REOPEN_ALERT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // "unos días" para la alerta
+const THREAD_MATCH_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // hilo más viejo => ticket nuevo
+
+// Finds the best ticket match for an inbound email's thread headers and
+// classifies HOW it matched, from strongest to weakest signal:
+//   subject           — "#ND-1234" was typed by a human, in the subject
+//   direct-resolution — In-Reply-To points at THIS ticket's resolution email
+//   direct            — In-Reply-To points at some other message in the thread
+//   reference         — only appears in the accumulated References header
+// Sender must match the ticket's contact in every case. Ties go to the most
+// recently created ticket, never array order.
+function matchEmailThread({ ticketIdInSubject, inReplyTo, references, fromEmail }) {
+  const senderEmail = String(fromEmail || "").toLowerCase();
+  if (ticketIdInSubject) {
+    const found = store.tickets.find(
+      (t) => String(t.id).toLowerCase() === String(ticketIdInSubject).toLowerCase()
+    );
+    if (found && String(found.contact || "").toLowerCase() === senderEmail) {
+      return { ticket: found, matchKind: "subject" };
+    }
+    if (found) return { ticket: null, matchKind: "none" }; // subject cites someone else's ticket
+  }
+
+  const inReplyToIds = extractMessageIds(inReplyTo);
+  const referenceIds = extractMessageIds(references);
+  const allIds = new Set([...inReplyToIds, ...referenceIds]);
+  if (allIds.size === 0) return { ticket: null, matchKind: "none" };
+  const directParent = inReplyToIds[inReplyToIds.length - 1] || "";
+
+  const candidates = store.tickets.filter((t) => {
+    if (String(t.contact || "").toLowerCase() !== senderEmail) return false;
+    const ids = ticketThreadIds(t);
+    if (!ids.size) return false;
+    for (const id of allIds) if (ids.has(id)) return true;
+    return false;
+  });
+  if (!candidates.length) return { ticket: null, matchKind: "none" };
+
+  candidates.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+  if (directParent) {
+    const resolutionHit = candidates.find((t) => ticketResolutionIds(t).has(directParent));
+    if (resolutionHit) return { ticket: resolutionHit, matchKind: "direct-resolution" };
+    const directHit = candidates.find((t) => ticketThreadIds(t).has(directParent));
+    if (directHit) return { ticket: directHit, matchKind: "direct" };
+  }
+  return { ticket: candidates[0], matchKind: "reference" };
+}
+
+function isActiveStatus(status) {
+  return status !== "resuelto" && status !== "cerrado";
+}
+
+// The full decision table for what to do with a matched ticket. Only ONE row
+// reopens with the reopenedByClient alert: a direct reply to that ticket's own
+// resolution email, within REOPEN_ALERT_WINDOW_MS. Every other row either
+// attaches quietly, reopens without accusing the client of anything, or
+// creates a new ticket — always leaving a cross-reference note rather than
+// silently discarding the client's actual request (the old `continue` after a
+// match used to do exactly that).
+function classifyThreadAction(ticket, matchKind) {
+  const active = isActiveStatus(ticket.status);
+  const resolvedMs = ticket.resolvedAt ? new Date(ticket.resolvedAt).getTime() : null;
+  const ageMs = Date.now() - (resolvedMs ?? new Date(ticket.createdAt || 0).getTime());
+
+  if (matchKind === "subject") {
+    if (active) return { action: "attach-reply" };
+    if (ticket.status === "resuelto") {
+      return ageMs <= REOPEN_ALERT_WINDOW_MS
+        ? { action: "reopen-silent" } // citar el ID no prueba insatisfacción
+        : { action: "cross-reference-new" };
+    }
+    return { action: "cross-reference-new" }; // cerrado: nunca se reabre
+  }
+
+  if (matchKind === "direct-resolution") {
+    if (ticket.status === "cerrado") return { action: "cross-reference-new" };
+    if (ticket.status === "resuelto") {
+      if (ageMs <= REOPEN_ALERT_WINDOW_MS) return { action: "reopen-alert" };
+      return ageMs <= THREAD_MATCH_MAX_AGE_MS
+        ? { action: "reopen-silent" }
+        : { action: "cross-reference-new" };
+    }
+    return { action: "attach-reply" }; // activo
+  }
+
+  if (matchKind === "direct") {
+    if (active) {
+      return ageMs <= THREAD_MATCH_MAX_AGE_MS ? { action: "attach-reply" } : { action: "cross-reference-new" };
+    }
+    if (ticket.status === "resuelto") {
+      return ageMs <= THREAD_MATCH_MAX_AGE_MS ? { action: "reopen-silent" } : { action: "cross-reference-new" };
+    }
+    return { action: "cross-reference-new" }; // cerrado
+  }
+
+  // matchKind === "reference" — only appears in the accumulated References
+  // header, never as a direct reply-to. This is the pattern that produced the
+  // false "cliente insatisfecho" alert: it never reopens and never alerts.
+  if (active) {
+    return ageMs <= THREAD_MATCH_MAX_AGE_MS ? { action: "cross-reference-new" } : { action: "new-only" };
+  }
+  return { action: "cross-reference-new" };
+}
+
+// ── Dedup / claim-before-create ──────────────────────────────────────────────
+//
+// Looks up whether any of an email's keys is already recorded. Tolerant of the
+// legacy format (bare Message-ID, no "mid:" prefix, angle brackets, mixed
+// case) so switching key formats never causes history to replay en masse —
+// that tolerance must exist BEFORE any new-format key is ever written.
+function findProcessedEmailEntry(keys) {
+  for (const entry of store.processedEmails) {
+    if (keys.includes(entry.messageId)) return entry;
+    if (Array.isArray(entry.altKeys) && entry.altKeys.some((k) => keys.includes(k))) return entry;
+  }
+  for (const key of keys) {
+    if (!key.startsWith("mid:")) continue;
+    const bare = key.slice(4);
+    const legacyHit = store.processedEmails.find((e) => normalizeMessageId(e.messageId) === bare);
+    if (legacyHit) return legacyHit;
+  }
+  return null;
+}
+
+// Reserves an email BEFORE any ticket is created from it — persisted
+// immediately via the existing atomic tmp+rename write. If the process dies
+// right after this call, the entry is left `pending` and the next poll retries
+// it (up to EMAIL_CLAIM_MAX_ATTEMPTS) instead of either losing it silently or
+// recreating the ticket every cycle.
+function claimEmail(keys, meta) {
+  const now = new Date().toISOString();
+  const existing = findProcessedEmailEntry(keys);
+  if (existing) {
+    existing.pending = true;
+    existing.attempts = (existing.attempts || 0) + 1;
+    existing.claimedAt = now;
+    saveStore();
+    return existing;
+  }
+  const entry = {
+    messageId: keys[0],
+    altKeys: keys.slice(1),
+    processedAt: now,
+    claimedAt: now,
+    pending: true,
+    attempts: 1,
+    from: meta.from || "",
+    subject: meta.subject || "",
+  };
+  store.processedEmails.push(entry);
+  saveStore();
+  return entry;
+}
+
+function finalizeEmail(keys, outcome) {
+  const entry = findProcessedEmailEntry(keys);
+  if (!entry) return;
+  entry.pending = false;
+  entry.processedAt = new Date().toISOString();
+  if (outcome) {
+    entry.outcome = outcome.kind;
+    if (outcome.ticketId) entry.ticketId = outcome.ticketId;
+  }
+  saveStore();
+}
+
+// Keeps the original content when a message can't become a ticket, instead of
+// either discarding it or reprocessing it forever on every poll.
+function quarantineEmail(parsed, reason) {
+  store.emailQuarantine.push({
+    id: crypto.randomUUID(),
+    reason,
+    from: parsed?.from?.value?.[0]?.address || "",
+    subject: String(parsed?.subject || "").slice(0, 200),
+    body: String(parsed?.text || "").slice(0, 4000),
+    at: new Date().toISOString(),
+  });
+  saveStore();
+}
+
+// A message dated inside the polling window is always eligible. An unread
+// message OUTSIDE the window used to be exempt from the date filter entirely,
+// so a very old email that stayed unread (manually flagged in Gmail, or whose
+// \Seen flag failed to set once) kept re-entering the loop forever. Now it
+// gets one more chance, but only within an absolute ceiling.
+function isWithinPollWindow(parsed, recentSince) {
+  if (!parsed.date) return true;
+  if (parsed.date >= recentSince) return true;
+  return parsed.date >= new Date(Date.now() - EMAIL_UNREAD_MAX_AGE_MS);
+}
+
+async function markSeen(client, uid) {
+  try {
+    await client.messageFlagsAdd(uid, ["\\Seen"]);
+  } catch (_) {}
+}
+
 async function pollEmails(options = {}) {
   const blocker = getEmailPollBlocker(emailConfig, options.force === true);
   if (blocker) {
@@ -2356,13 +2683,21 @@ async function pollEmails(options = {}) {
     return { created: 0, checked: 0, skipped: true, error: "Ya hay un sondeo en curso." };
 
   emailPollStatus.polling = true;
+  const pollGeneration = ++emailPollStatus.generation;
   let created = 0;
+  let pollAborted = false;
   emailPollStatus.lastMessagesChecked = 0;
 
-  // Timeout absoluto: si el poll se cuelga, libera el flag después de 3 min
+  // Timeout absoluto: si el poll se cuelga, libera el flag después de 3 min.
+  // Antes esto solo rechazaba la promesa y bajaba `polling` — el doPoll()
+  // original seguía vivo en segundo plano, así que un siguiente sondeo podía
+  // arrancar en paralelo sobre el mismo buzón. Ahora además cierra el socket
+  // IMAP de verdad, lo que hace fallar cualquier operación en curso.
   let absoluteTimeoutHandle = null;
   const absoluteTimeoutPromise = new Promise((_, reject) => {
     absoluteTimeoutHandle = setTimeout(() => {
+      pollAborted = true;
+      try { client.close(); } catch (_) {}
       reject(new Error(`Sondeo IMAP superó el tiempo límite de ${POLL_ABSOLUTE_TIMEOUT_MS / 1000}s`));
     }, POLL_ABSOLUTE_TIMEOUT_MS);
   });
@@ -2395,148 +2730,182 @@ async function pollEmails(options = {}) {
         const uids = [...new Set([...unreadUids, ...recentUids])];
         emailPollStatus.lastMessagesChecked = uids.length;
         for (const uid of uids) {
-          const message = await client.fetchOne(uid, { source: true, uid: true });
-          if (!message) continue;
-          const parsed = await simpleParser(message.source);
-          if (parsed.date && parsed.date < recentSince && !unreadUids.includes(uid)) continue;
-          const messageId = parsed.messageId || `uid-${uid}-${Date.now()}`;
-          if (isEmailProcessedStmt.get(messageId)) continue;
-          const fromAddress = parsed.from?.value?.[0];
-          const fromEmail = fromAddress?.address || "";
-          const fromName = fromAddress?.name || fromEmail;
-          if (shouldIgnoreEmail(fromEmail)) {
-            markEmailProcessedStmt.run(messageId, new Date().toISOString());
-            try {
-              await client.messageFlagsAdd(uid, ["\\Seen"]);
-            } catch (_) {}
-            continue;
-          }
-          const subject = (parsed.subject || "(sin asunto)").slice(0, 200);
-          const rawText = (parsed.text || (parsed.html || "").replace(/<[^>]+>/g, "")).trim();
-          const bodyText = stripEmailSignature(rawText).slice(0, 4000);
+          if (pollAborted) break;
+          let keys = [];
+          try {
+            const message = await client.fetchOne(uid, { source: true, uid: true });
+            if (!message) continue;
+            const parsed = await simpleParser(message.source);
+            if (!isWithinPollWindow(parsed, recentSince)) continue;
 
-          // ── Detect reply to existing ticket ────────────────────────────────
-          // 1. Try to extract ticket ID from subject: "Re: ... #ND-1234 ..."
-          const ticketIdInSubject = (subject.match(/#(ND-\d+)/i) || [])[1];
-          // 2. Try In-Reply-To / References headers for threadId matching
-          const inReplyTo = parsed.inReplyTo || "";
-          const references = Array.isArray(parsed.references)
-            ? parsed.references.join(" ")
-            : String(parsed.references || "");
+            // Stable key: real Message-ID when present, otherwise a content
+            // hash. Never depends on Date.now(), so the same email lands on
+            // the same key on every poll — this is BUG A's actual fix.
+            const emailKey = computeEmailKey(parsed);
+            keys = [emailKey];
 
-          const recentCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
-          let matchedTicket = null;
-          let matchedClosed = null; // cerrado/old ticket — attach as note only, never reopen
-          if (ticketIdInSubject) {
-            const found = store.tickets.find((t) => t.id.toLowerCase() === ticketIdInSubject.toLowerCase());
-            if (found) {
-              if (found.status === "cerrado") matchedClosed = found;
-              else if (found.status === "resuelto" && found.resolvedAt && found.resolvedAt < recentCutoff) matchedClosed = found;
-              else matchedTicket = found;
-            }
-          }
-          if (!matchedTicket && !matchedClosed && (inReplyTo || references)) {
-            const threadMatch = store.tickets.find((t) => {
-              if (!t.emailThreadId) return false;
-              return inReplyTo.includes(t.emailThreadId) || references.includes(t.emailThreadId);
-            });
-            if (threadMatch) {
-              if (threadMatch.status === "cerrado") matchedClosed = threadMatch;
-              else if (threadMatch.status === "resuelto" && threadMatch.resolvedAt && threadMatch.resolvedAt < recentCutoff) matchedClosed = threadMatch;
-              else matchedTicket = threadMatch;
-            }
-          }
-
-          // Reply to a permanently closed ticket — attach as note without reopening, no new ticket
-          if (matchedClosed && !matchedTicket) {
-            addTicketHistory(matchedClosed.id, `Mensaje del cliente (ticket cerrado):\n${bodyText}`, "cerrado");
-            saveStore();
-            notifyClients("ticketsChanged", { action: "updated", id: matchedClosed.id });
-            markEmailProcessedStmt.run(messageId, new Date().toISOString());
-            try { await client.messageFlagsAdd(uid, ["\\Seen"]); } catch (_) {}
-            console.log(`[NeuroDesk] Nota adjuntada a ticket cerrado ${matchedClosed.id} (${fromEmail}).`);
-            continue;
-          }
-
-          // NOTE: no "last resort" email-only match — new email from same address = new ticket.
-
-          if (matchedTicket) {
-            // This email is a reply to an existing ticket
-            const wasFinished = matchedTicket.status === "resuelto";
-            const replyNote = `Respuesta del cliente:\n${bodyText}`;
-            addTicketHistory(matchedTicket.id, replyNote, wasFinished ? "abierto" : matchedTicket.status);
-            if (wasFinished) {
-              // Bump urgency one level — dissatisfied client deserves higher priority
-              const urgencyLevels = ["baja", "media", "alta", "critica"];
-              const curIdx = urgencyLevels.indexOf(matchedTicket.urgency || "media");
-              const newUrgency = urgencyLevels[Math.min(curIdx + 1, urgencyLevels.length - 1)];
-              const prevUrgency = matchedTicket.urgency;
-              // Reopen with escalated priority
-              matchedTicket.status = "abierto";
-              matchedTicket.urgency = newUrgency;
-              matchedTicket.resolvedAt = null;
-              matchedTicket.reopenedByClient = true;
-              matchedTicket.reopenedAt = new Date().toISOString();
-              saveStore();
-              const escalationMsg = newUrgency !== prevUrgency
-                ? `⚠️ Ticket reabierto por el cliente — prioridad escalada de "${prevUrgency}" a "${newUrgency}". Cliente insatisfecho con la solución entregada.`
-                : `⚠️ Ticket reabierto por el cliente. Cliente insatisfecho con la solución entregada.`;
-              addTicketHistory(matchedTicket.id, escalationMsg, "abierto");
-              notifyClients("ticketsChanged", { action: "updated", id: matchedTicket.id });
-              const reopened = getTicketById(matchedTicket.id);
-              if (reopened) {
-                emitWebhook("ticket.reopened", serializeTicket(reopened));
-                sendTicketNotification("status_changed", reopened, { oldStatus: "resuelto" }).catch(() => {});
+            const existing = findProcessedEmailEntry(keys);
+            if (existing && !existing.pending) continue; // already fully handled
+            if (existing && existing.pending) {
+              const claimAge = Date.now() - new Date(existing.claimedAt || existing.processedAt || 0).getTime();
+              if (claimAge < EMAIL_CLAIM_STALE_MS) continue; // another cycle owns it right now
+              if ((existing.attempts || 0) >= EMAIL_CLAIM_MAX_ATTEMPTS) {
+                quarantineEmail(parsed, "max_attempts");
+                finalizeEmail(keys, { kind: "quarantined" });
+                await markSeen(client, uid);
+                continue;
               }
-              console.log(`[NeuroDesk] Ticket ${matchedTicket.id} reabierto por respuesta del cliente (${fromEmail}). Urgencia: ${prevUrgency} → ${newUrgency}.`);
-            } else {
-              notifyClients("ticketsChanged", { action: "updated", id: matchedTicket.id });
+              // else: stale claim, retry below
             }
-            markEmailProcessedStmt.run(messageId, new Date().toISOString());
-            try { await client.messageFlagsAdd(uid, ["\\Seen"]); } catch (_) {}
-            continue; // Do NOT create a new ticket
-          }
-          // ── End reply detection ─────────────────────────────────────────────
 
-          // If the subject looks like an internal notification or reply to one, skip silently
-          if (/^\[Admin\]/i.test(subject) || /^re:\s*\[Admin\]/i.test(subject) || /^fwd?:\s*\[Admin\]/i.test(subject)) {
-            markEmailProcessedStmt.run(messageId, new Date().toISOString());
-            try { await client.messageFlagsAdd(uid, ["\\Seen"]); } catch (_) {}
-            continue;
-          }
+            const fromAddress = parsed.from?.value?.[0];
+            const fromEmail = fromAddress?.address || "";
+            const fromName = fromAddress?.name || fromEmail;
 
-          const urgency = detectUrgency(subject, bodyText);
-          const ticketBase = normalizeTicket(
-            {
-              name: fromName || fromEmail,
-              contact: fromEmail,
-              area: emailConfig.defaultArea,
-              urgency,
-              subject,
-              description: bodyText,
-              htmlBody: parsed.html || "",
-            },
-            "email"
-          );
-          // Save image attachments to disk
-          const savedAttachments = [];
-          if (ticketBase && Array.isArray(parsed.attachments)) {
-            const ticketAttachDir = path.join(ATTACH_DIR, ticketBase.id);
-            for (const att of parsed.attachments) {
-              if (!att.contentType || !att.contentType.startsWith("image/")) continue;
-              const ext = att.filename
-                ? path.extname(att.filename).toLowerCase() || ".bin"
-                : ".bin";
-              const safeName = `${crypto.randomUUID()}${ext}`;
-              try {
-                fs.mkdirSync(ticketAttachDir, { recursive: true });
-                fs.writeFileSync(path.join(ticketAttachDir, safeName), att.content);
-                savedAttachments.push({ name: att.filename || safeName, file: safeName, type: att.contentType, source: "client" });
-              } catch (_) {}
+            // Reserve BEFORE creating anything. Persisted immediately (atomic
+            // tmp+rename write), so a crash right after this line leaves a
+            // `pending` entry the next poll retries — never a ticket whose
+            // email was never marked, which used to recreate it forever.
+            claimEmail(keys, { from: fromEmail, subject: parsed.subject || "" });
+
+            if (shouldIgnoreEmail(fromEmail)) {
+              finalizeEmail(keys, { kind: "ignored" });
+              await markSeen(client, uid);
+              continue;
             }
-          }
-          let ticket = ticketBase ? { ...ticketBase, attachments: savedAttachments } : null;
-          if (ticket) {
+
+            const subject = (parsed.subject || "(sin asunto)").slice(0, 200);
+            const rawText = (parsed.text || (parsed.html || "").replace(/<[^>]+>/g, "")).trim();
+            const bodyText = stripEmailSignature(rawText).slice(0, 4000);
+
+            if (/^\[Admin\]/i.test(subject) || /^re:\s*\[Admin\]/i.test(subject) || /^fwd?:\s*\[Admin\]/i.test(subject)) {
+              finalizeEmail(keys, { kind: "ignored" });
+              await markSeen(client, uid);
+              continue;
+            }
+
+            // ── Match against existing tickets — see matchEmailThread() and
+            // classifyThreadAction() for the full decision table. The core
+            // fix for BUG B: exact Message-ID equality (never substring),
+            // sender must match the ticket's contact, and ties go to the most
+            // recently created ticket — never the first one in the array.
+            const ticketIdInSubject = (subject.match(/#(ND-\d+)/i) || [])[1];
+            const { ticket: candidate, matchKind } = matchEmailThread({
+              ticketIdInSubject,
+              inReplyTo: parsed.inReplyTo,
+              references: parsed.references,
+              fromEmail,
+            });
+
+            let decision = null;
+            if (candidate) {
+              decision = classifyThreadAction(candidate, matchKind);
+
+              if (decision.action === "attach-reply") {
+                addTicketHistory(candidate.id, `Respuesta del cliente:\n${bodyText}`, candidate.status);
+                if (rememberThreadId(candidate, parsed.messageId)) saveStore();
+                notifyClients("ticketsChanged", { action: "updated", id: candidate.id });
+                finalizeEmail(keys, { kind: "reply", ticketId: candidate.id });
+                await markSeen(client, uid);
+                continue;
+              }
+
+              if (decision.action === "reopen-alert") {
+                // Único caso que dispara la alerta de "cliente insatisfecho":
+                // el remitente respondió DIRECTAMENTE al correo de resolución
+                // de ESTE ticket, dentro de la ventana reciente.
+                const urgencyLevels = ["baja", "media", "alta", "critica"];
+                const curIdx = urgencyLevels.indexOf(candidate.urgency || "media");
+                const newUrgency = urgencyLevels[Math.min(curIdx + 1, urgencyLevels.length - 1)];
+                const prevUrgency = candidate.urgency;
+                candidate.status = "abierto";
+                candidate.urgency = newUrgency;
+                candidate.resolvedAt = null;
+                candidate.reopenedByClient = true;
+                candidate.reopenedAt = new Date().toISOString();
+                rememberThreadId(candidate, parsed.messageId);
+                saveStore();
+                const escalationMsg = newUrgency !== prevUrgency
+                  ? `⚠️ Ticket reabierto por el cliente — prioridad escalada de "${prevUrgency}" a "${newUrgency}". Cliente insatisfecho con la solución entregada.`
+                  : `⚠️ Ticket reabierto por el cliente. Cliente insatisfecho con la solución entregada.`;
+                addTicketHistory(candidate.id, escalationMsg, "abierto");
+                addTicketHistory(candidate.id, `Respuesta del cliente:\n${bodyText}`, "abierto");
+                notifyClients("ticketsChanged", { action: "updated", id: candidate.id });
+                const reopened = getTicketById(candidate.id);
+                if (reopened) {
+                  emitWebhook("ticket.reopened", serializeTicket(reopened));
+                  sendTicketNotification("status_changed", reopened, { oldStatus: "resuelto" }).catch(() => {});
+                }
+                console.log(`[NeuroDesk] Ticket ${candidate.id} reabierto por respuesta del cliente (${fromEmail}). Urgencia: ${prevUrgency} → ${newUrgency}.`);
+                finalizeEmail(keys, { kind: "reopened", ticketId: candidate.id });
+                await markSeen(client, uid);
+                continue;
+              }
+
+              if (decision.action === "reopen-silent") {
+                // Reabre porque el hilo coincide, pero SIN acusar insatisfacción
+                // (match débil, o fuera de la ventana de "unos días"): no hay
+                // base para escalar urgencia ni levantar la alerta roja.
+                candidate.status = "abierto";
+                candidate.resolvedAt = null;
+                rememberThreadId(candidate, parsed.messageId);
+                saveStore();
+                addTicketHistory(candidate.id, `El cliente respondió tras la resolución:\n${bodyText}`, "abierto");
+                notifyClients("ticketsChanged", { action: "updated", id: candidate.id });
+                const reopened = getTicketById(candidate.id);
+                if (reopened) sendTicketNotification("status_changed", reopened, { oldStatus: "resuelto" }).catch(() => {});
+                console.log(`[NeuroDesk] Ticket ${candidate.id} reabierto sin alerta por respuesta del cliente (${fromEmail}).`);
+                finalizeEmail(keys, { kind: "reopened-silent", ticketId: candidate.id });
+                await markSeen(client, uid);
+                continue;
+              }
+
+              // decision.action is "cross-reference-new" or "new-only":
+              // never reopen a closed ticket, never lose the client's new
+              // request — falls through to create a ticket below.
+            }
+
+            const urgency = detectUrgency(subject, bodyText);
+            const ticketBase = normalizeTicket(
+              {
+                name: fromName || fromEmail,
+                contact: fromEmail,
+                area: emailConfig.defaultArea,
+                urgency,
+                subject,
+                description: bodyText,
+                htmlBody: parsed.html || "",
+              },
+              "email"
+            );
+            if (!ticketBase) {
+              // Used to loop forever (never marked processed). Now it's kept
+              // for review and never reprocessed.
+              quarantineEmail(parsed, "normalize_failed");
+              console.error(`[NeuroDesk] Correo de ${fromEmail} no pudo convertirse en ticket; guardado en cuarentena.`);
+              finalizeEmail(keys, { kind: "invalid" });
+              await markSeen(client, uid);
+              continue;
+            }
+
+            const savedAttachments = [];
+            if (Array.isArray(parsed.attachments)) {
+              const ticketAttachDir = path.join(ATTACH_DIR, ticketBase.id);
+              for (const att of parsed.attachments) {
+                if (!att.contentType || !att.contentType.startsWith("image/")) continue;
+                const ext = att.filename
+                  ? path.extname(att.filename).toLowerCase() || ".bin"
+                  : ".bin";
+                const safeName = `${crypto.randomUUID()}${ext}`;
+                try {
+                  fs.mkdirSync(ticketAttachDir, { recursive: true });
+                  fs.writeFileSync(path.join(ticketAttachDir, safeName), att.content);
+                  savedAttachments.push({ name: att.filename || safeName, file: safeName, type: att.contentType, source: "client" });
+                } catch (_) {}
+              }
+            }
+
+            let ticket = { ...ticketBase, attachments: savedAttachments };
             // Run AI triage — override keyword-based urgency with Claude's analysis
             const triage = await aiTriageTicket(subject, bodyText);
             if (triage) {
@@ -2546,11 +2915,33 @@ async function pollEmails(options = {}) {
               ticket.aiSentimentScore = triage.sentimentScore ?? null;
             }
             insertTicket(ticket);
-            markEmailProcessedStmt.run(messageId, new Date().toISOString());
-            try {
-              await client.messageFlagsAdd(uid, ["\\Seen"]);
-            } catch (_) {}
+            const rawNew = store.tickets.find((t) => t.id === ticket.id);
+            if (rawNew && rememberThreadId(rawNew, parsed.messageId)) saveStore();
+
+            if (candidate && decision && decision.action === "cross-reference-new") {
+              addTicketHistory(
+                candidate.id,
+                `El cliente escribió en el mismo hilo pidiendo algo distinto; se creó el ticket ${ticket.id} para no perder la solicitud.\n\n${bodyText}`,
+                candidate.status
+              );
+              notifyClients("ticketsChanged", { action: "updated", id: candidate.id });
+              addTicketHistory(
+                ticket.id,
+                `Mensaje recibido en el mismo hilo de correo que ${candidate.id}. Se creó como ticket nuevo para no perder la solicitud.`,
+                ticket.status
+              );
+            }
+
+            finalizeEmail(keys, { kind: "created", ticketId: ticket.id });
+            await markSeen(client, uid);
             created++;
+          } catch (perMsgErr) {
+            // Un correo malo no debe tumbar el resto del sondeo ni dejar una
+            // reserva abierta que se reintente para siempre.
+            console.error(`[NeuroDesk] Error procesando uid ${uid}: ${perMsgErr.message}`);
+            if (keys.length) {
+              try { finalizeEmail(keys, { kind: "error" }); } catch (_) {}
+            }
           }
         }
       } finally {
@@ -2583,7 +2974,11 @@ async function pollEmails(options = {}) {
         await client.logout();
       } catch (_) {}
     } finally {
-      emailPollStatus.polling = false;
+      // Only clear the flag if THIS run still owns the current generation.
+      // If a timeout already released it below and a new poll started, this
+      // late-arriving finally (from the aborted run finally unwinding) must
+      // not stomp on the new poll's `polling = true`.
+      if (emailPollStatus.generation === pollGeneration) emailPollStatus.polling = false;
       const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
       cleanOldEmailsStmt.run(cutoff);
     }
@@ -2595,7 +2990,7 @@ async function pollEmails(options = {}) {
     emailPollStatus.lastPoll = new Date().toISOString();
     emailPollStatus.lastError = timeoutErr.message;
     emailPollStatus.consecutiveErrors += 1;
-    emailPollStatus.polling = false;
+    if (emailPollStatus.generation === pollGeneration) emailPollStatus.polling = false;
     console.error(`[NeuroDesk] ${timeoutErr.message}`);
     try {
       await client.logout();
@@ -3113,9 +3508,12 @@ async function handleApi(req, res) {
         return { filename: meta.name, path: filePath };
       }).filter(Boolean);
       const replyMsgId = await sendEmail(rawTicket.contact, `Re: ${rawTicket.subject || rawTicket.id}`, message, emailAttachments);
-      // Register thread ID so client replies come back to this ticket instead of creating a new one
+      // Register thread ID so client replies come back to this ticket instead
+      // of creating a new one. Not tagged as a resolution message — a manual
+      // free-text reply isn't the automated "ticket resuelto" notification, so
+      // it should never by itself qualify a later reply for the reopened alert.
       let needsSave = false;
-      if (replyMsgId && !rawTicket.emailThreadId) { rawTicket.emailThreadId = replyMsgId; needsSave = true; }
+      if (replyMsgId && rememberThreadId(rawTicket, replyMsgId)) needsSave = true;
       // Agent replied → no longer an unattended reopened case
       if (rawTicket.reopenedByClient) { rawTicket.reopenedByClient = false; needsSave = true; }
       if (needsSave) saveStore();
@@ -4097,7 +4495,9 @@ async function handleApiV1(req, res) {
       const msgId = await sendEmail(raw.contact, `Re: ${raw.subject || raw.id}`, message);
       if (!msgId) { sendApiError(res, 502, "email_failed", "No se pudo enviar el correo. Revisa la configuración SMTP.", rateHeaders); return; }
       let dirty = false;
-      if (!raw.emailThreadId) { raw.emailThreadId = msgId; dirty = true; }
+      // Same rule as the manual UI reply: not a resolution message, so it
+      // can't by itself qualify a later reply for the reopened alert.
+      if (rememberThreadId(raw, msgId)) dirty = true;
       if (raw.reopenedByClient) { raw.reopenedByClient = false; dirty = true; }
       if (dirty) saveStore();
       addTicketHistory(id, `Respuesta enviada al cliente (API):\n${message}`, raw.status);
@@ -4245,3 +4645,29 @@ if ((require.main === module || process.env.NODE_ENV === "production") && !proce
 }
 
 module.exports = { server, startServer };
+
+if (process.env.ND_TEST === "1") {
+  // Only reachable under test. Exposes the email-matching internals so the
+  // decision table (v14.37) can be exercised end-to-end against a fake IMAP
+  // client, without a real mailbox.
+  module.exports.__internals = {
+    store,
+    pollEmails,
+    getTicketById,
+    computeEmailKey,
+    normalizeMessageId,
+    extractMessageIds,
+    matchEmailThread,
+    classifyThreadAction,
+    EMAIL_CLAIM_STALE_MS,
+    sendTicketNotification,
+    setEmailConfigForTest(overrides) {
+      Object.assign(emailConfig, overrides);
+    },
+    setNotificationsConfigForTest(overrides) {
+      Object.assign(notificationsConfig, overrides);
+      if (overrides.smtp) Object.assign(notificationsConfig.smtp, overrides.smtp);
+      smtpTransporter = null; // force getSmtpTransporter() to rebuild with the new config
+    },
+  };
+}

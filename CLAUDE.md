@@ -1,6 +1,6 @@
 # NeuroDesk — Reglas de Producción
 
-**Versión actual en producción: v14.36**
+**Versión actual en producción: v14.37**
 
 ## ⚠️ ESTE PROYECTO ESTÁ EN PRODUCCIÓN
 
@@ -227,6 +227,44 @@ adjuntos los controla cualquiera que sepa la dirección de soporte.
 - La cookie de sesión lleva `Secure` cuando el navegador habló HTTPS.
 - SMTP/IMAP validan certificado. `rejectUnauthorized: false` exponía el App Password de
   Gmail ante un intermediario.
+
+---
+
+## Correo entrante — deduplicación y matching de hilos (desde v14.37)
+
+Dos bugs de producción corregidos aquí: tickets duplicados (correos sin `Message-ID`
+recreaban un ticket en cada sondeo) y falsa alerta "cliente insatisfecho" (responder
+dentro del mismo hilo de Gmail para pedir algo distinto reabría un ticket viejo).
+
+**Reglas para no reintroducirlos:**
+
+- La clave de deduplicación (`computeEmailKey`) **nunca** debe depender de `Date.now()`
+  ni de ningún reloj. Prefiere el `Message-ID` normalizado; si falta, usa el hash de
+  contenido. Cambiar el formato de clave sin más recrearía en masa el historial — por
+  eso `findProcessedEmailEntry()` es tolerante al formato viejo (Message-ID crudo, sin
+  prefijo) y esa tolerancia debe existir **antes** de escribir cualquier formato nuevo.
+- **Reservar antes de crear**: `claimEmail()` persiste la reserva antes de `insertTicket()`.
+  Ningún camino de salida del bucle puede saltarse `finalizeEmail()` — si `normalizeTicket()`
+  devuelve `null`, el correo va a `store.emailQuarantine`, nunca se reprocesa ni se pierde.
+- El matching de hilos (`matchEmailThread` + `classifyThreadAction`) compara Message-IDs
+  por **igualdad exacta** (`extractMessageIds` + `Set.has`), nunca por `includes()` de
+  subcadena — el header `References` es acumulativo y una subcadena compartida
+  (`@mail.gmail.com`) produce falsos positivos. Siempre exige que el remitente coincida
+  con `contact` del ticket, y ante varias coincidencias gana el ticket más reciente por
+  `createdAt`, nunca el primero del array.
+- La alerta roja de "cliente insatisfecho" (`reopenedByClient`) sólo se activa en la fila
+  `direct-resolution` + `resuelto` + dentro de `REOPEN_ALERT_WINDOW_MS` de la tabla de
+  decisión. Un ticket sólo puede llegar a esa fila si tiene un `resolutionMessageIds`
+  propio — los tickets creados antes de v14.37 no lo tienen, así que nunca disparan la
+  alerta automáticamente (comportamiento conservador por diseño, no un bug).
+- `resolutionMessageIds` sólo se marca desde `sendTicketNotification` cuando `type` es
+  `"resolved"` (o `"status_changed"` con `ticket.status === "resuelto"`). Una respuesta
+  manual del agente (`/api/tickets/:id/reply`, `/api/v1/.../reply`) registra el hilo con
+  `rememberThreadId()` pero **sin** `isResolution: true` — no es la notificación
+  automática, así que no debe habilitar la alerta por sí sola.
+- Ninguna fila de la tabla de decisión pierde la petición del cliente: cuando se crea un
+  ticket nuevo por ambigüedad (`cross-reference-new`), se deja una nota cruzada en ambos
+  tickets. El código viejo hacía `continue` tras un match y descartaba la solicitud nueva.
 
 ---
 
