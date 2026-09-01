@@ -2702,16 +2702,33 @@ async function pollEmails(options = {}) {
     }, POLL_ABSOLUTE_TIMEOUT_MS);
   });
 
-  const client = new ImapFlow({
-    host: emailConfig.host,
-    port: emailConfig.port,
-    secure: emailConfig.secure,
-    auth: { user: emailConfig.username, pass: (emailConfig.password || "").replace(/\s/g, "") },
-    logger: false,
-    connectionTimeout: IMAP_CONN_TIMEOUT_MS,
-    greetingTimeout: IMAP_CONN_TIMEOUT_MS,
-    socketTimeout: IMAP_SOCKET_TIMEOUT_MS,
-  });
+  let client;
+  try {
+    client = new ImapFlow({
+      host: emailConfig.host,
+      port: emailConfig.port,
+      secure: emailConfig.secure,
+      auth: { user: emailConfig.username, pass: (emailConfig.password || "").replace(/\s/g, "") },
+      logger: false,
+      connectionTimeout: IMAP_CONN_TIMEOUT_MS,
+      greetingTimeout: IMAP_CONN_TIMEOUT_MS,
+      socketTimeout: IMAP_SOCKET_TIMEOUT_MS,
+    });
+  } catch (constructErr) {
+    // Nothing before this point had a try/catch: a synchronous throw here used
+    // to reject pollEmails()'s own promise, which both call sites swallow with
+    // .catch(() => {}) — leaving `polling` stuck at true forever, silently,
+    // with every future poll (including "Sondear ahora") short-circuiting on
+    // the "Ya hay un sondeo en curso" guard above. Never observed in this
+    // incident, but there is no reason to leave the gap open.
+    clearTimeout(absoluteTimeoutHandle);
+    emailPollStatus.lastPoll = new Date().toISOString();
+    emailPollStatus.lastError = emailErrorHint(constructErr.message, emailConfig);
+    emailPollStatus.consecutiveErrors += 1;
+    if (emailPollStatus.generation === pollGeneration) emailPollStatus.polling = false;
+    console.error(`[NeuroDesk] No se pudo iniciar el cliente IMAP: ${constructErr.message}`);
+    return { created: 0, checked: 0, error: emailPollStatus.lastError };
+  }
 
   async function doPoll() {
     try {
@@ -2960,7 +2977,11 @@ async function pollEmails(options = {}) {
       }
     } catch (err) {
       emailPollStatus.lastPoll = new Date().toISOString();
-      emailPollStatus.lastError = err.message;
+      // The status panel shows the translated hint (e.g. "credenciales
+      // vencidas, genera una nueva App Password") instead of the raw IMAP
+      // text like "Command failed" — that raw text sat unexplained in
+      // production for days because only "Probar conexión" used to translate it.
+      emailPollStatus.lastError = emailErrorHint(err.message, emailConfig);
       emailPollStatus.consecutiveErrors += 1;
       console.error(
         `[NeuroDesk] Error en sondeo IMAP (intento ${emailPollStatus.consecutiveErrors}): ${err.message}`
@@ -3007,6 +3028,25 @@ async function pollEmails(options = {}) {
   };
 }
 
+// Translates a raw IMAP/network error into something a non-technical admin can
+// act on. Previously only used by "Probar conexión" — the automatic poller
+// showed the raw message (e.g. "Command failed") in its status panel, so an
+// expired Gmail App Password looked like an unexplained generic failure for
+// days instead of the actionable hint this function already knew how to give.
+function emailErrorHint(rawMessage, cfg) {
+  const msg = rawMessage || "";
+  if (/command failed|authentication failed|invalid credentials|login failed/i.test(msg)) {
+    return "Credenciales inválidas o vencidas. Genera una NUEVA Contraseña de Aplicación en tu cuenta de Gmail (Seguridad → Contraseñas de aplicaciones) y guárdala aquí. Los correos no leídos desde el último sondeo exitoso siguen en la bandeja — se procesarán en cuanto la conexión se restablezca.";
+  }
+  if (/ECONNREFUSED|ETIMEDOUT|ENOTFOUND/i.test(msg)) {
+    return `No se pudo conectar al servidor ${cfg?.host || emailConfig.host}:${cfg?.port || emailConfig.port}. Verifica el host y el puerto.`;
+  }
+  if (/self.signed|certificate/i.test(msg)) {
+    return "Error de certificado SSL. Intenta desactivar la conexión segura.";
+  }
+  return msg;
+}
+
 async function testEmailConnection(cfg) {
   const client = new ImapFlow({
     host: cfg.host,
@@ -3020,17 +3060,7 @@ async function testEmailConnection(cfg) {
     await client.logout();
     return { ok: true };
   } catch (err) {
-    const msg = err.message || "";
-    let hint = msg;
-    if (/command failed|authentication failed|invalid credentials|login failed/i.test(msg)) {
-      hint =
-        "Credenciales incorrectas. Para Gmail debes usar una Contraseña de Aplicación (App Password) con IMAP habilitado en la cuenta.";
-    } else if (/ECONNREFUSED|ETIMEDOUT|ENOTFOUND/i.test(msg)) {
-      hint = `No se pudo conectar al servidor ${cfg.host}:${cfg.port}. Verifica el host y el puerto.`;
-    } else if (/self.signed|certificate/i.test(msg)) {
-      hint = "Error de certificado SSL. Intenta desactivar la conexión segura.";
-    }
-    return { ok: false, error: hint };
+    return { ok: false, error: emailErrorHint(err.message, cfg) };
   }
 }
 
@@ -4661,6 +4691,8 @@ if (process.env.ND_TEST === "1") {
     classifyThreadAction,
     EMAIL_CLAIM_STALE_MS,
     sendTicketNotification,
+    emailPollStatus,
+    emailErrorHint,
     setEmailConfigForTest(overrides) {
       Object.assign(emailConfig, overrides);
     },

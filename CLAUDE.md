@@ -1,6 +1,6 @@
 # NeuroDesk — Reglas de Producción
 
-**Versión actual en producción: v14.37**
+**Versión actual en producción: v14.38**
 
 ## ⚠️ ESTE PROYECTO ESTÁ EN PRODUCCIÓN
 
@@ -265,6 +265,37 @@ dentro del mismo hilo de Gmail para pedir algo distinto reabría un ticket viejo
 - Ninguna fila de la tabla de decisión pierde la petición del cliente: cuando se crea un
   ticket nuevo por ambigüedad (`cross-reference-new`), se deja una nota cruzada en ambos
   tickets. El código viejo hacía `continue` tras un match y descartaba la solicitud nueva.
+
+---
+
+## Errores de conexión IMAP — mostrar la traducción, no el texto crudo (desde v14.38)
+
+Incidente real: desde el 27 de agosto el sondeo llevaba **308 fallos consecutivos**
+mostrando literalmente `"Command failed"` en el panel de Configuración → Correo entrante,
+sin ninguna pista de qué hacer. La causa casi segura: la Contraseña de Aplicación de Gmail
+venció o se rotó sin actualizarla aquí. El código **ya sabía** traducir ese mensaje —
+`testEmailConnection()` (usado por "Probar conexión") lo hacía desde hace tiempo — pero
+el sondeo automático nunca aplicaba esa traducción, así que el usuario vio el texto en
+crudo durante días.
+
+**Reglas para no reintroducirlo:**
+
+- Cualquier `err.message` de IMAP que se vaya a mostrar al usuario (panel de estado,
+  notificación, log visible) **debe** pasar por `emailErrorHint(msg, cfg)` antes de
+  guardarse en `emailPollStatus.lastError`. El `console.error` interno sí puede seguir
+  logueando el mensaje crudo — eso es para depurar, no para el usuario.
+- Si se agrega un nuevo patrón de error reconocible (por ejemplo un código IMAP
+  específico), añadirlo a `emailErrorHint()`, nunca duplicar la lógica de traducción en
+  otro sitio — hubo exactamente ese bug (dos copias, una desactualizada).
+- La construcción de `new ImapFlow(...)` en `pollEmails()` está envuelta en su propio
+  try/catch que libera `emailPollStatus.polling` y limpia el timeout — antes de v14.38
+  no lo estaba, y aunque no fue la causa de este incidente, una excepción síncrona ahí
+  habría dejado `polling` atascado en `true` para siempre (todo sondeo futuro,
+  incluido "Sondear ahora", se habría descartado en silencio con "Ya hay un sondeo en
+  curso", sin loguear nada).
+- Los correos que llegan mientras el sondeo falla **no se pierden**: nunca se marcan
+  `\Seen` ni se reservan en `processedEmails`, así que en cuanto la conexión se
+  restablece se procesan todos de golpe en el siguiente sondeo exitoso.
 
 ---
 

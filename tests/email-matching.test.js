@@ -23,11 +23,16 @@ process.env.ND_PASS = process.env.ND_PASS || "neurofic";
 // lazily the first time "imapflow" is required (from inside ../server) — by
 // then mockMailbox already exists. Must be prefixed "mock" per Jest's
 // out-of-scope-variable check on factories.
-const mockMailbox = { messages: [] };
+const mockMailbox = { messages: [], failConnectWith: null };
 
 jest.mock("imapflow", () => ({
   ImapFlow: class FakeImapFlow {
-    async connect() {}
+    async connect() {
+      if (mockMailbox.failConnectWith) {
+        const err = new Error(mockMailbox.failConnectWith);
+        throw err;
+      }
+    }
     async getMailboxLock() {
       return { release() {} };
     }
@@ -122,6 +127,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   mockMailbox.messages = [];
+  mockMailbox.failConnectWith = null;
   // Full isolation between tests. Without this, tickets seeded with fixed IDs
   // like "ND-9001" in one test collide with getNextTicketId()'s MAX(existing
   // numeric id)+1 in a later test — a ticket created by polling in an earlier
@@ -498,5 +504,56 @@ describe("Integración real con sendTicketNotification", () => {
     const reopened = internals.getTicketById("ND-9100");
     expect(reopened.status).toBe("abierto");
     expect(reopened.reopenedByClient).toBe(true);
+  });
+});
+
+describe("Errores de conexión IMAP (incidente 2026-09-01)", () => {
+  // Production showed the raw "Command failed" text in the status panel for
+  // days with zero tickets created — that text already meant "invalid/expired
+  // Gmail App Password" to this codebase (testEmailConnection knew the hint),
+  // but the automatic poller never applied the same translation.
+  test("emailErrorHint traduce 'Command failed' a un mensaje accionable sobre credenciales", () => {
+    const hint = internals.emailErrorHint("Command failed", {});
+    expect(hint).toMatch(/contraseña de aplicaci[oó]n/i);
+    expect(hint).not.toBe("Command failed");
+  });
+
+  test("un fallo de autenticación real dejar el estado del sondeo con el mensaje traducido, no el crudo", async () => {
+    mockMailbox.failConnectWith = "Command failed";
+
+    const result = await pollOnce();
+    expect(result.created).toBe(0);
+    expect(internals.emailPollStatus.lastError).toMatch(/contraseña de aplicaci[oó]n/i);
+    expect(internals.emailPollStatus.lastError).not.toBe("Command failed");
+  });
+
+  test("tras un fallo de conexión, 'polling' vuelve a false y el siguiente sondeo no se salta", async () => {
+    mockMailbox.failConnectWith = "Command failed";
+    await pollOnce();
+    expect(internals.emailPollStatus.polling).toBe(false);
+
+    // If it were stuck, this second poll would short-circuit with
+    // "Ya hay un sondeo en curso" instead of actually trying again.
+    const second = await pollOnce();
+    expect(second.error).not.toMatch(/ya hay un sondeo en curso/i);
+  });
+
+  test("una vez restablecida la conexión, los correos pendientes se crean de inmediato", async () => {
+    mockMailbox.failConnectWith = "Command failed";
+    await pollOnce();
+
+    mockMailbox.failConnectWith = null; // credenciales corregidas
+    const contact = "pendiente@neurofic.com";
+    addToMailbox({
+      from: contact,
+      subject: "Correo que quedó esperando",
+      date: new Date(),
+      messageId: `pendiente-${crypto.randomUUID()}@cliente.com`,
+      text: "Este correo llegó mientras la conexión fallaba",
+    });
+
+    const result = await pollOnce();
+    expect(result.created).toBe(1);
+    expect(ticketsFor(contact).length).toBe(1);
   });
 });
