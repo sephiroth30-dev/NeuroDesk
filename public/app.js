@@ -687,6 +687,7 @@ function renderTicketCard(ticket) {
         <span class="sla ${slaCls}"><span class="slaDot"></span>${slaText}</span>
         <span class="ticketDate">${createdAt}</span>
       </div>
+      <div class="cardStatusSelect">${renderStatusSelect(ticket)}</div>
     </article>
   `;
 }

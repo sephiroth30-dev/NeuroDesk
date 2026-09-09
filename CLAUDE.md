@@ -1,6 +1,6 @@
 # NeuroDesk — Reglas de Producción
 
-**Versión actual en producción: v14.38**
+**Versión actual en producción: v14.39**
 
 ## ⚠️ ESTE PROYECTO ESTÁ EN PRODUCCIÓN
 
@@ -298,6 +298,42 @@ crudo durante días.
   restablece se procesan todos de golpe en el siguiente sondeo exitoso.
 
 ---
+
+## Responsive / móvil (desde v14.39)
+
+Auditoría de UX móvil: la app ya tenía una base responsive madura (viewport meta,
+sidebar off-canvas, 5+ breakpoints, tabla/kanban con scroll contenido, portal público
+con layout móvil dedicado). El único gap funcional real: **el tablero kanban usa
+`draggable`/`dragstart`/`dragover`/`drop`, que no funcionan con touch** — en un
+teléfono era imposible cambiar el estado de un ticket desde el tablero.
+
+**Solución (no se tocó el drag-and-drop de escritorio):**
+
+- Cada tarjeta del kanban (`renderTicketCard` en `public/app.js`) ahora incluye
+  también el mismo `<select class="statusSelect">` que ya usaba la vista de lista
+  (`renderStatusSelect()`), envuelto en `.cardStatusSelect`. Reutiliza el listener
+  `change` ya existente (`document.addEventListener("change", ...)` → `moveTicket()`),
+  el mismo que llama a `PATCH /api/tickets/:id/status`. Cero endpoints nuevos.
+- En escritorio `.cardStatusSelect { display: none; }` — el select solo se muestra
+  dentro del `@media (max-width: 768px)` ya existente en `styles.css`, así que el
+  tablero de escritorio queda visualmente idéntico.
+- `kanbanBoard`'s `dragstart` listener ya excluía `.statusSelect` de iniciar un drag
+  (`e.target.closest(".statusSelect, .bulkCheckbox")`), así que no hubo que tocar la
+  lógica de drag-and-drop para evitar conflictos.
+
+**Reglas para no reintroducir el problema:**
+
+- Cualquier acción que solo pueda dispararse con drag-and-drop (mouse) necesita una
+  alternativa táctil visible en el breakpoint móvil — no asumir que un dispositivo
+  táctil puede arrastrar.
+- Ya existe una sección extensa `/* ── Responsive overhaul ── */` en `styles.css`
+  (busca ese comentario) con más de un `@media (max-width: 768px)` — antes de agregar
+  reglas de tamaño de objetivos táctiles (botones, inputs) revisar esa sección primero
+  para no duplicar `min-height`/tamaños ya definidos ahí.
+- Al añadir un control nuevo a las tarjetas del kanban, respetar el patrón `.ticketCard
+  .cardFooter .statusSelect { display: none; }` (oculta un select si queda dentro de
+  `.cardFooter`) — el select táctil se colocó **fuera** de `.cardFooter`, en su propio
+  `.cardStatusSelect`, precisamente para no chocar con esa regla.
 
 ## Antes de cada entrega, verificar
 

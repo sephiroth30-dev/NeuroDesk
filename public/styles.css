@@ -1985,6 +1985,41 @@ tbody tr:last-child td {
   .modalPanel {
     max-height: 95vh;
   }
+
+  /* Cambiar el estado de un ticket sin arrastrar la tarjeta (el tablero no
+     soporta drag-and-drop táctil): reutiliza el mismo <select> ya cableado
+     en la vista de lista (ver renderStatusSelect / listener .statusSelect). */
+  .cardStatusSelect {
+    display: block;
+    margin-top: 8px;
+  }
+
+  .cardStatusSelect .statusSelect {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  /* Objetivos táctiles más grandes en móvil, sin afectar el layout de escritorio
+     (.sidebarItem min-height ya se fija a 44px en "Responsive overhaul" más abajo) */
+  .sidebarItem span {
+    width: 32px;
+    height: 32px;
+  }
+
+  .sidebarLogoutBtn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .eyeBtn {
+    padding: 10px;
+  }
+
+  .toggleLabel input[type="checkbox"],
+  .settingsForm .toggleRow input[type="checkbox"],
+  .closureNotifyToggle input[type="checkbox"] {
+    transform: scale(1.25);
+  }
 }
 
 @media (max-width: 540px) {
@@ -3264,6 +3299,10 @@ label .fieldLabel {
   justify-content: center;
   border-radius: 4px;
   transition: color 0.13s;
+}
+
+.cardStatusSelect {
+  display: none;
 }
 
 .eyeBtn:hover {
