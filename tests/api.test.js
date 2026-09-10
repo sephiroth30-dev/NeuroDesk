@@ -1102,3 +1102,78 @@ describe("Aviso a Telegram en creación de ticket", () => {
     expect(telegramCalls().length).toBe(1);
   });
 });
+
+// ── Apagado ordenado y bloqueo de instancia única (desde v14.42) ────────────
+// Incidente 2026-09-10: un proceso viejo que no murió a tiempo tras el pkill
+// del deploy siguió corriendo con una copia en memoria vieja del store, y su
+// poller de correo volvió a sobrescribir el archivo con datos desactualizados.
+
+describe("Apagado ordenado y bloqueo de instancia única", () => {
+  const {
+    LOCK_PATH,
+    isPidAlive,
+    checkStaleProcessLock,
+    writeProcessLock,
+    releaseProcessLock,
+    shutdownCleanup,
+    getTimers,
+  } = require("../server").__internals;
+
+  afterEach(() => {
+    try { fs.unlinkSync(LOCK_PATH); } catch (_) {}
+  });
+
+  test("isPidAlive detecta el propio proceso como vivo y un PID inexistente como muerto", () => {
+    expect(isPidAlive(process.pid)).toBe(true);
+    // PID improbablemente en uso — Linux limita PIDs a ~4 millones por defecto.
+    expect(isPidAlive(999999999)).toBe(false);
+  });
+
+  test("writeProcessLock escribe el PID actual en LOCK_PATH", () => {
+    writeProcessLock();
+    const raw = fs.readFileSync(LOCK_PATH, "utf8").trim();
+    expect(parseInt(raw, 10)).toBe(process.pid);
+  });
+
+  test("checkStaleProcessLock advierte en el log si el lock apunta a un PID vivo distinto del propio", () => {
+    // process.ppid (el proceso que lanzó este test) casi seguro sigue vivo.
+    fs.writeFileSync(LOCK_PATH, String(process.ppid));
+    const errSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    checkStaleProcessLock();
+    expect(errSpy).toHaveBeenCalled();
+    expect(errSpy.mock.calls.some((args) => args.join(" ").includes(String(process.ppid)))).toBe(true);
+    errSpy.mockRestore();
+  });
+
+  test("checkStaleProcessLock no advierte nada si el lock es del propio proceso", () => {
+    fs.writeFileSync(LOCK_PATH, String(process.pid));
+    const errSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    checkStaleProcessLock();
+    expect(errSpy).not.toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+
+  test("releaseProcessLock solo borra el lock si es del propio proceso", () => {
+    fs.writeFileSync(LOCK_PATH, "123456789"); // PID ajeno simulado
+    releaseProcessLock();
+    expect(fs.existsSync(LOCK_PATH)).toBe(true); // no se tocó
+
+    fs.writeFileSync(LOCK_PATH, String(process.pid));
+    releaseProcessLock();
+    expect(fs.existsSync(LOCK_PATH)).toBe(false); // sí se borra el propio
+  });
+
+  test("shutdownCleanup libera el lock (los timers reales no arrancan bajo ND_TEST)", () => {
+    writeProcessLock();
+    expect(fs.existsSync(LOCK_PATH)).toBe(true);
+    shutdownCleanup();
+    expect(fs.existsSync(LOCK_PATH)).toBe(false);
+  });
+
+  test("los timers de correo/auto-cierre/SLA no arrancan bajo ND_TEST (ya desactivados por diseño)", () => {
+    const timers = getTimers();
+    expect(timers.emailPollerTimer).toBeNull();
+    expect(timers.autoCloserTimer).toBeNull();
+    expect(timers.slaBreachTimer).toBeNull();
+  });
+});

@@ -1,6 +1,6 @@
 # NeuroDesk — Reglas de Producción
 
-**Versión actual en producción: v14.41**
+**Versión actual en producción: v14.42**
 
 ## ⚠️ ESTE PROYECTO ESTÁ EN PRODUCCIÓN
 
@@ -98,11 +98,18 @@ cuanto el proceso actual muere. Para forzar el reinicio tras un deploy:
 
 ```bash
 pkill -f 'lsnode:/home/u532609482/domains/soporte.easystem.co/nodejs'
+sleep 2
+pgrep -f 'lsnode:/home/u532609482/domains/soporte.easystem.co/nodejs' && \
+  echo "⚠️ Sigue vivo un proceso viejo — investigar antes de continuar (ver incidente 2026-09-10 abajo)" || \
+  echo "✅ Ningún proceso viejo remanente"
 # curl https://soporte.easystem.co para confirmar que respondió tras el respawn
 ```
 
 No hace falta `sudo`, ni tocar hPanel — el pkill del propio usuario basta porque los
-procesos `lsnode` corren con ese mismo usuario.
+procesos `lsnode` corren con ese mismo usuario. **Desde v14.42 el propio proceso se
+apaga solo en ~2-3s al recibir la señal de `pkill`** (antes podía tardar hasta 3 min
+en morir a mitad de un poll IMAP) — el `pgrep` de verificación de arriba debería salir
+siempre limpio, pero queda como chequeo explícito en vez de asumido.
 
 ### Verificar dónde están los datos tras un restart
 
@@ -400,6 +407,57 @@ ticket: `insertTicket()` (`server.js`).
   **@BotFather**, obtenga el `chat_id` visitando
   `https://api.telegram.org/bot<TOKEN>/getUpdates`, y los pegue en
   **Configuración → Notificaciones → Aviso a Telegram**.
+
+## Apagado ordenado y bloqueo de instancia única (desde v14.42)
+
+**Incidente real (2026-09-10):** varios tickets "revirtieron" — `resolution` vacío,
+`status` a un estado anterior, entradas de `history` de ese día desaparecidas — en una
+ventana exacta de 20 minutos, con datos de antes y de después intactos. La causa **no
+fue Docker/CI-CD ni un restore de base de datos** (este proyecto no tiene nada de
+eso) — fue un *race condition* real de este código:
+
+- `store` se carga en memoria **una sola vez** al arrancar (`const store =
+  loadStore()`) y nunca se vuelve a leer desde disco durante la vida del proceso.
+- `writeStoreToDisk()` escribe el **archivo completo** (`JSON.stringify(store)`) sin
+  merge ni control de versión — cualquier proceso vivo, sin importar qué tan vieja sea
+  su copia en memoria, que llame a `saveStore()` sobrescribe todo lo que otro proceso
+  más nuevo haya escrito después.
+- El flujo de deploy documentado (`pkill -f 'lsnode:...'`) no garantizaba que el
+  proceso viejo muriera antes de que LiteSpeed levantara uno nuevo — un proceso a
+  mitad de un poll IMAP podía seguir vivo hasta `POLL_ABSOLUTE_TIMEOUT_MS` (3 min),
+  con su `setInterval` del poller de correo todavía activo, listo para volver a
+  `saveStore()` con datos de horas atrás.
+
+**Qué se corrigió:**
+
+- **Apagado ordenado**: `process.on("SIGTERM"/"SIGINT", ...)` → `gracefulShutdown()`
+  limpia `emailPollerTimer`/`autoCloserTimer`/`slaBreachTimer` de inmediato, libera el
+  lock de proceso, y fuerza `process.exit(0)` en ~2s como máximo (antes podía tardar
+  minutos). El `pkill` del flujo de deploy ahora mata el proceso casi al instante.
+- **Lock de instancia** (`LOCK_PATH`, junto al store): al arrancar,
+  `checkStaleProcessLock()` revisa si el lock apunta a un PID **todavía vivo**
+  (`isPidAlive`) distinto del propio, y si es así lo grita fuerte en el log — no
+  bloquea el arranque (para no arriesgar disponibilidad si el lock quedó huérfano por
+  un crash), pero deja evidencia inequívoca de que dos procesos conviven sobre el
+  mismo archivo. `writeProcessLock()`/`releaseProcessLock()` solo tocan el lock si es
+  el propio PID.
+
+**Reglas para no reintroducirlo:**
+
+- Cualquier nuevo `setInterval` que pueda llamar a `saveStore()` (o mutar
+  `store.ticketHistory`/`store.tickets` de forma que dispare una escritura) **debe**
+  guardar su ID en una variable a nivel de módulo y limpiarse en `shutdownCleanup()` —
+  si no se limpia, reintroduce exactamente esta ventana de carrera.
+- Si algún día se necesita *de verdad* bloquear el arranque de un segundo proceso (no
+  solo advertir), pensarlo dos veces: en un entorno lsnode que respawnea solo, un
+  bloqueo duro mal calibrado podría dejar el sitio caído tras un crash con lock
+  huérfano. La advertencia en log es la opción segura por defecto.
+- `writeStoreToDisk()` sigue sin hacer merge contra el disco — el apagado ordenado y
+  el lock reducen la ventana de carrera casi a cero, pero no la eliminan
+  matemáticamente. Si en el futuro se corre más de una instancia a propósito (ej.
+  balanceo de carga), esto necesitaría un rediseño real de la persistencia (base de
+  datos con locking, o coordinación entre procesos) — no asumir que sigue siendo
+  seguro con >1 proceso escribiendo el mismo `STORE_PATH` a la vez.
 
 ## Antes de cada entrega, verificar
 

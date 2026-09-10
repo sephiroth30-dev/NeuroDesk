@@ -19,6 +19,11 @@ const PUBLIC_DIR = path.join(__dirname, "public");
 // Override posible con ND_STORE_PATH si se necesita una ruta específica.
 const STORE_PATH = process.env.ND_STORE_PATH || path.join(os.homedir(), ".neurodesk", "data.json");
 const ATTACH_DIR = path.join(path.dirname(STORE_PATH), "attachments");
+// Red de seguridad contra dos procesos vivos escribiendo el mismo store.json a
+// la vez (incidente 2026-09-10, ver CLAUDE.md § "Apagado ordenado y bloqueo de
+// instancia única (desde v14.42)"). No reemplaza el apagado ordenado — es una
+// segunda línea de defensa si un proceso viejo sobrevive de todos modos.
+const LOCK_PATH = path.join(path.dirname(STORE_PATH), ".neurodesk.lock");
 const packageInfo = require("./package.json");
 
 try {
@@ -1023,6 +1028,8 @@ const emailPollStatus = {
   generation: 0,
 };
 let emailPollerTimer = null;
+let autoCloserTimer = null;
+let slaBreachTimer = null;
 const eventClients = new Set();
 const EMAIL_FALLBACK_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const POLL_LOOKBACK_OVERLAP_MS = 2 * 60 * 60 * 1000; // ventana deslizante — 2h overlap
@@ -3193,7 +3200,7 @@ function startAutoCloser() {
     }
   }
   runAutoClose();
-  setInterval(runAutoClose, 10 * 60 * 1000);
+  autoCloserTimer = setInterval(runAutoClose, 10 * 60 * 1000);
 
   // Fire ticket.sla_breached once per ticket, for webhook subscribers.
   function scanSlaBreaches() {
@@ -3210,7 +3217,7 @@ function startAutoCloser() {
     }
     if (dirty) saveStore();
   }
-  setInterval(scanSlaBreaches, 5 * 60 * 1000);
+  slaBreachTimer = setInterval(scanSlaBreaches, 5 * 60 * 1000);
 }
 
 // ── Auth handler ──────────────────────────────────────────────────────────────
@@ -4820,7 +4827,93 @@ process.on("unhandledRejection", (reason) => {
   console.error("[NeuroDesk] unhandledRejection:", reason);
 });
 
+// ── Bloqueo de instancia única + apagado ordenado (desde v14.42) ────────────
+// Incidente 2026-09-10: un proceso viejo que no murió a tiempo tras el pkill
+// del deploy siguió corriendo con una copia en memoria desactualizada del
+// store, y su poller de correo (setInterval) volvió a llamar saveStore(),
+// sobrescribiendo el archivo completo y borrando cambios hechos por el
+// proceso nuevo desde entonces. writeStoreToDisk() no hace merge — escribe
+// TODO el store en memoria — así que cualquier proceso vivo con una copia
+// vieja es peligroso. Este bloque reduce la ventana de dos formas: (1) el
+// proceso se apaga de inmediato al recibir SIGTERM/SIGINT en vez de poder
+// seguir vivo varios minutos (p. ej. a mitad de un poll IMAP), y (2) si pese
+// a todo dos procesos llegan a convivir, el segundo lo detecta y lo grita en
+// el log en vez de arrancar en silencio.
+function isPidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === "EPERM"; // existe pero es de otro usuario: lo tratamos como vivo
+  }
+}
+
+function checkStaleProcessLock() {
+  try {
+    const raw = fs.readFileSync(LOCK_PATH, "utf8").trim();
+    const pid = parseInt(raw, 10);
+    if (pid && pid !== process.pid && isPidAlive(pid)) {
+      console.error(
+        `[NeuroDesk] ⚠️ Ya hay un proceso NeuroDesk corriendo con PID ${pid} sobre el mismo store (${STORE_PATH}). ` +
+        `Dos procesos escribiendo el mismo archivo pueden pisarse datos entre sí — mata el PID ${pid} antes de seguir.`
+      );
+    }
+  } catch (_) {
+    // No hay lock previo, o no se pudo leer — no es motivo para no arrancar.
+  }
+}
+
+function writeProcessLock() {
+  try {
+    fs.writeFileSync(LOCK_PATH, String(process.pid));
+  } catch (err) {
+    console.error("[NeuroDesk] No se pudo escribir el lock de proceso:", err.message);
+  }
+}
+
+function releaseProcessLock() {
+  try {
+    const raw = fs.readFileSync(LOCK_PATH, "utf8").trim();
+    if (parseInt(raw, 10) === process.pid) fs.unlinkSync(LOCK_PATH);
+  } catch (_) {
+    // Ya no existe, o es de otro proceso — no tocarlo.
+  }
+}
+
+let shuttingDown = false;
+// Separado de gracefulShutdown() para poder probar la limpieza (timers, lock)
+// en tests sin matar el proceso de Jest — gracefulShutdown() es la que
+// realmente se registra en SIGTERM/SIGINT y sí llama a process.exit().
+function shutdownCleanup() {
+  if (emailPollerTimer) clearInterval(emailPollerTimer);
+  if (autoCloserTimer) clearInterval(autoCloserTimer);
+  if (slaBreachTimer) clearInterval(slaBreachTimer);
+  emailPollerTimer = null;
+  autoCloserTimer = null;
+  slaBreachTimer = null;
+  releaseProcessLock();
+}
+
+function gracefulShutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[NeuroDesk] Señal ${signal} recibida — apagando de forma ordenada.`);
+  shutdownCleanup();
+  server.close(() => process.exit(0));
+  // No esperar indefinidamente a que el servidor cierre las conexiones vivas
+  // (SSE incluido) — matar timers ya elimina el riesgo real de sobrescribir
+  // el store; forzamos la salida poco después por si algo queda colgado.
+  setTimeout(() => process.exit(0), 2000).unref();
+}
+
+if (!process.env.ND_TEST) {
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+}
+
 function startServer() {
+  checkStaleProcessLock();
+  writeProcessLock();
   const isSocket = Number.isNaN(Number(PORT));
   const onListening = () => {
     const target = isSocket ? PORT : `${HOST}:${PORT}`;
@@ -4865,6 +4958,13 @@ if (process.env.ND_TEST === "1") {
     store,
     invalidateHistoryIndex,
     createApiKey,
+    LOCK_PATH,
+    isPidAlive,
+    checkStaleProcessLock,
+    writeProcessLock,
+    releaseProcessLock,
+    shutdownCleanup,
+    getTimers: () => ({ emailPollerTimer, autoCloserTimer, slaBreachTimer }),
     pollEmails,
     getTicketById,
     computeEmailKey,
