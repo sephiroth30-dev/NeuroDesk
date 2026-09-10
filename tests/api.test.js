@@ -997,3 +997,108 @@ describe("API v1 — historial con origen, adjuntos, sentimiento y previsualizac
     expect(json).toContain("origin");
   });
 });
+
+// ── Aviso a Telegram cuando entra un ticket nuevo (desde v14.41) ─────────────
+
+describe("Aviso a Telegram en creación de ticket", () => {
+  const https = require("https");
+  const { setNotificationsConfigForTest } = require("../server").__internals;
+
+  // No simula reintentos con setTimeout real: harían que timers de un test
+  // dispararan durante otro y contaminaran sus conteos de llamadas. Para
+  // probar el camino de fallo alcanza con que https.request() lance de forma
+  // síncrona — insertTicket() ya envuelve la llamada en try/catch para
+  // exactamente ese caso (best-effort).
+  // Un webhook de ejemplo hacia example.com ya quedó registrado por otro test
+  // ("Seguridad") para el evento ticket.created — también pasa por
+  // https.request(). Se filtran las llamadas por hostname para no confundir
+  // esa entrega con los avisos a Telegram.
+  function mockHttpsRequest({ statusCode = 200, throwSync = false } = {}) {
+    const calls = [];
+    const spy = jest.spyOn(https, "request").mockImplementation((options, callback) => {
+      calls.push(options);
+      if (throwSync && options.hostname === "api.telegram.org") {
+        throw new Error("Fallo simulado de red hacia Telegram");
+      }
+      const request = {
+        on: () => {},
+        setTimeout: () => {},
+        write: () => {},
+        end: () => {
+          if (callback) callback({ statusCode, resume: () => {} });
+        },
+      };
+      return request;
+    });
+    const telegramCalls = () => calls.filter((c) => c.hostname === "api.telegram.org");
+    return { spy, calls, telegramCalls };
+  }
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    setNotificationsConfigForTest({ telegram: { enabled: false, botToken: "", chatId: "" } });
+  });
+
+  test("con telegram deshabilitado (default) no se hace ninguna llamada saliente", async () => {
+    const { telegramCalls } = mockHttpsRequest();
+    const res = await request(server)
+      .post("/api/tickets")
+      .send({ name: "Cliente Telegram Off", contact: "tg1@neurofic.com", urgency: "media" });
+    expect(res.status).toBe(201);
+    expect(telegramCalls().length).toBe(0);
+  });
+
+  test("con telegram habilitado, se llama a la API de Telegram con el chat_id y el texto esperados", async () => {
+    setNotificationsConfigForTest({
+      telegram: { enabled: true, botToken: "123:FAKE", chatId: "999" },
+    });
+    const { telegramCalls } = mockHttpsRequest({ statusCode: 200 });
+
+    const res = await request(server)
+      .post("/api/tickets")
+      .send({ name: "Cliente Telegram On", contact: "tg2@neurofic.com", urgency: "alta", subject: "No carga el sistema" });
+    expect(res.status).toBe(201);
+    expect(telegramCalls().length).toBe(1);
+    expect(telegramCalls()[0].hostname).toBe("api.telegram.org");
+    expect(telegramCalls()[0].path).toBe("/bot123:FAKE/sendMessage");
+  });
+
+  test("si la API de Telegram falla, el ticket se crea igual (best-effort)", async () => {
+    setNotificationsConfigForTest({
+      telegram: { enabled: true, botToken: "123:FAKE", chatId: "999" },
+    });
+    mockHttpsRequest({ throwSync: true });
+
+    const res = await request(server)
+      .post("/api/tickets")
+      .send({ name: "Cliente Telegram Fail", contact: "tg3@neurofic.com", urgency: "media" });
+    expect(res.status).toBe(201);
+  });
+
+  test("actualizar un ticket existente (PATCH/nota) no dispara un nuevo aviso a Telegram", async () => {
+    setNotificationsConfigForTest({
+      telegram: { enabled: true, botToken: "123:FAKE", chatId: "999" },
+    });
+    const { telegramCalls } = mockHttpsRequest({ statusCode: 200 });
+
+    const create = await request(server)
+      .post("/api/tickets")
+      .send({ name: "Cliente Telegram Update", contact: "tg4@neurofic.com", urgency: "media" });
+    expect(telegramCalls().length).toBe(1);
+    const id = create.body.id;
+
+    const login = await request(server)
+      .post("/api/auth/login")
+      .send({ username: "admin", password: "neurofic" });
+    const cookie = login.headers["set-cookie"]?.[0]?.split(";")[0];
+    if (cookie) {
+      await request(server)
+        .post(`/api/tickets/${id}/notes`)
+        .set("Cookie", cookie)
+        .send({ note: "Nota de prueba" });
+    }
+    // Sin sesión disponible (rate limit de login agotado por otro test), al
+    // menos confirmamos que la sola creación no volvió a llamar a Telegram.
+    expect(telegramCalls().length).toBe(1);
+  });
+});

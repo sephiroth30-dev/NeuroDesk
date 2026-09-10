@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NeuroDesk — Neurofic</title>
-    <link rel="stylesheet" href="/tokens.css?v=14.40" />
-    <link rel="stylesheet" href="/styles.css?v=14.40" />
+    <link rel="stylesheet" href="/tokens.css?v=14.41" />
+    <link rel="stylesheet" href="/styles.css?v=14.41" />
   </head>
   <body>
     <aside class="sidebar" id="sidebar">
@@ -1099,6 +1099,49 @@
               /></label>
             </div>
 
+            <!-- Telegram -->
+            <div style="margin-top: 22px; margin-bottom: 10px">
+              <strong style="font-size: 0.84rem; color: var(--graphite)"
+                >Aviso a Telegram (ticket nuevo)</strong
+              >
+              <p style="font-size: 0.78rem; color: var(--muted); margin-top: 4px">
+                Envía un mensaje a un chat de Telegram cada vez que entra un ticket nuevo (solo en
+                creación, no en cada cambio de estado). Crea un bot con
+                <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>
+                para obtener el Token, y envíale un mensaje al bot para poder leer tu Chat ID en
+                <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code>.
+              </p>
+            </div>
+            <label class="toggleRow">
+              <span>Activar aviso a Telegram</span>
+              <input id="telegramEnabled" type="checkbox" />
+            </label>
+            <div class="formGrid">
+              <label
+                >Bot Token
+                <div class="passwordWrapper">
+                  <input
+                    id="telegramBotToken"
+                    type="password"
+                    placeholder="123456789:ABCdefGhIJKlmnOPQRstuVWXyz"
+                    autocomplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    class="eyeBtn"
+                    id="toggleTelegramBotToken"
+                    title="Mostrar/ocultar token"
+                  ></button>
+                </div>
+              </label>
+              <label
+                >Chat ID<input
+                  id="telegramChatId"
+                  type="text"
+                  placeholder="123456789"
+              /></label>
+            </div>
+
             <!-- App URL -->
             <div style="margin-top: 22px; margin-bottom: 10px">
               <strong style="font-size: 0.84rem; color: var(--graphite)">URL de la aplicación</strong>
@@ -1768,7 +1811,7 @@
       </div>
     </div>
 
-    <script src="/app.js?v=14.40" defer></script>
+    <script src="/app.js?v=14.41" defer></script>
     <script>
       // Mobile sidebar drawer — no dependency on app.js load order
       (function () {

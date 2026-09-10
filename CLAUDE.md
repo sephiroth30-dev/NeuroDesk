@@ -1,6 +1,6 @@
 # NeuroDesk — Reglas de Producción
 
-**Versión actual en producción: v14.40**
+**Versión actual en producción: v14.41**
 
 ## ⚠️ ESTE PROYECTO ESTÁ EN PRODUCCIÓN
 
@@ -368,6 +368,38 @@ la mayor parte; v14.40 cierra 4 gaps concretos, documentados en `API.md`.
   `description`, `subject`, `resolutionNote`, `customFields`, `silent` que el código sí
   aceptaba). Al añadir o cambiar un campo de un endpoint v1, actualizar el spec en el
   mismo cambio, no después.
+
+## Aviso a Telegram en creación de ticket (desde v14.41)
+
+El usuario quería un aviso más inmediato que el correo cuando entra un ticket nuevo,
+sin depender de webhooks genéricos ni de Zapier/n8n. Se agregó una llamada directa a
+la API de Telegram (`https://api.telegram.org/bot<token>/sendMessage`) **desde el
+propio backend**, en el único punto por el que pasan las 5 rutas de creación de
+ticket: `insertTicket()` (`server.js`).
+
+**Reglas para no romper este patrón:**
+
+- **Best-effort siempre**: `sendTelegramNotification(ticket)` se llama envuelta en
+  `try/catch` dentro de `insertTicket()`, exactamente igual que
+  `sendTicketNotification("received", ...)`. Un fallo de Telegram (token inválido,
+  sin red, rate limit de Telegram) **nunca** debe impedir que el ticket se cree — solo
+  se loguea con `console.error`.
+- **Solo dispara en creación**, no en cambios de estado ni respuestas — a propósito,
+  para no saturar de mensajes. Si se quiere avisar también de SLA vencido o
+  reapertura, es un cambio aparte y explícito, no agregarlo silenciosamente aquí.
+- **Config en `store.config.notifications_config.telegram`** (`{enabled, botToken,
+  chatId}`), mismo patrón que `smtp` — **nunca** en variables de entorno ni en un
+  `.env` nuevo. El `botToken` se enmascara como `"••••••••"` en cualquier `GET`/`PUT`
+  de `/api/notifications/config` (igual que `smtp.pass`), y `saveNotificationsConfig()`
+  reconoce ese sentinela para no sobrescribir el token real con la máscara.
+- La llamada HTTP reutiliza la forma de `deliverWebhook()` (`https.request` +
+  timeout de 10s + reintentos con backoff 2s/4s hasta 3 intentos) — no introducir un
+  segundo mecanismo de HTTP saliente si se agregan más integraciones de este tipo.
+- El usuario aún no tenía token/chat_id al desplegar esta versión — la función queda
+  activa pero inofensiva (`enabled: false` por defecto) hasta que genere un bot con
+  **@BotFather**, obtenga el `chat_id` visitando
+  `https://api.telegram.org/bot<TOKEN>/getUpdates`, y los pegue en
+  **Configuración → Notificaciones → Aviso a Telegram**.
 
 ## Antes de cada entrega, verificar
 

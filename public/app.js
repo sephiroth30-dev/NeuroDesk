@@ -2198,6 +2198,7 @@ function initPasswordToggle(inputId, btnId) {
 
 initPasswordToggle("emailPassword", "toggleEmailPassword");
 initPasswordToggle("smtpPass", "toggleSmtpPass");
+initPasswordToggle("telegramBotToken", "toggleTelegramBotToken");
 initPasswordToggle("cpCurrent", "toggleCpCurrent");
 initPasswordToggle("cpNew", "toggleCpNew");
 initPasswordToggle("cpConfirm", "toggleCpConfirm");
@@ -2393,6 +2394,9 @@ async function loadNotificationsSettings() {
     document.querySelector("#smtpUser").value = cfg.smtp?.user || "";
     document.querySelector("#smtpPass").value = cfg.smtp?.pass ? "••••••••" : "";
     document.querySelector("#smtpFrom").value = cfg.smtp?.from || "";
+    document.querySelector("#telegramEnabled").checked = cfg.telegram?.enabled || false;
+    document.querySelector("#telegramBotToken").value = cfg.telegram?.botToken ? "••••••••" : "";
+    document.querySelector("#telegramChatId").value = cfg.telegram?.chatId || "";
     document.querySelector("#adminEmailsList").value = cfg.adminEmails || "";
     document.querySelector("#appUrl").value = cfg.app_url || "";
     const templates = cfg.templates || {};
@@ -2421,6 +2425,11 @@ document.querySelector("#notificationsConfigForm")?.addEventListener("submit", a
       pass: document.querySelector("#smtpPass").value,
       from: document.querySelector("#smtpFrom").value.trim(),
     },
+    telegram: {
+      enabled: document.querySelector("#telegramEnabled").checked,
+      botToken: document.querySelector("#telegramBotToken").value,
+      chatId: document.querySelector("#telegramChatId").value.trim(),
+    },
     adminEmails: document.querySelector("#adminEmailsList").value.trim(),
     app_url: document.querySelector("#appUrl").value.trim(),
     templates: {
@@ -2442,7 +2451,7 @@ document.querySelector("#notificationsConfigForm")?.addEventListener("submit", a
     await requestJson("/api/notifications/config", { method: "PUT", body: JSON.stringify(body) });
     result.style.display = "block";
     result.style.color = "var(--ok)";
-    result.textContent = "Configuración SMTP guardada correctamente.";
+    result.textContent = "Configuración guardada correctamente.";
   } catch (err) {
     result.style.display = "block";
     result.style.color = "var(--danger)";

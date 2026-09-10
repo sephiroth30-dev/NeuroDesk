@@ -835,6 +835,61 @@ function publicWebhook(w) {
   };
 }
 
+// Aviso a Telegram cuando entra un ticket nuevo (desde v14.41). Best-effort: un
+// fallo aquí nunca debe impedir que el ticket se cree — mismo espíritu que
+// sendTicketNotification, solo se loguea el error. Reutiliza la forma de
+// deliverWebhook (https.request + timeout + reintentos con backoff), sin tocar
+// el store (no hay nada que persistir, a diferencia de un webhook registrado).
+function telegramMessageText(ticket) {
+  const lines = [
+    `🎫 Ticket nuevo: ${ticket.id} - ${ticket.subject || "(sin asunto)"}`,
+    `De: ${ticket.name} (${ticket.contact || "sin correo"})`,
+    `Urgencia: ${ticket.urgency}`,
+    `Área: ${ticket.area}`,
+  ];
+  const url = ticketUrl(ticket.id);
+  if (url) lines.push(url);
+  return lines.join("\n");
+}
+
+function sendTelegramNotification(ticket) {
+  const cfg = notificationsConfig.telegram;
+  if (!cfg?.enabled || !cfg.botToken || !cfg.chatId) return;
+  const body = JSON.stringify({
+    chat_id: cfg.chatId,
+    text: telegramMessageText(ticket),
+  });
+  const attempt = (tryNum) => {
+    const request = https.request(
+      {
+        hostname: "api.telegram.org",
+        port: 443,
+        path: `/bot${cfg.botToken}/sendMessage`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+        },
+      },
+      (response) => {
+        response.resume();
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          if (tryNum < 3) { setTimeout(() => attempt(tryNum + 1), 2000 * tryNum); return; }
+          console.error(`[NeuroDesk] Telegram: respuesta ${response.statusCode} al notificar ticket ${ticket.id}`);
+        }
+      }
+    );
+    request.on("error", (err) => {
+      if (tryNum < 3) { setTimeout(() => attempt(tryNum + 1), 2000 * tryNum); return; }
+      console.error("[NeuroDesk] Telegram error:", err.message);
+    });
+    request.setTimeout(10000, () => request.destroy());
+    request.write(body);
+    request.end();
+  };
+  attempt(1);
+}
+
 function deliverWebhook(hook, event, payload) {
   const body = JSON.stringify({ event, deliveredAt: new Date().toISOString(), data: payload });
   const signature = crypto.createHmac("sha256", hook.secret).update(body).digest("hex");
@@ -927,6 +982,11 @@ const DEFAULT_NOTIFICATIONS_CONFIG = {
     user: "",
     pass: "",
     from: "NeuroDesk <no-reply@example.com>",
+  },
+  telegram: {
+    enabled: false,
+    botToken: "",
+    chatId: "",
   },
   adminEmails: "",
   app_url: "",
@@ -1457,6 +1517,11 @@ function insertTicket(ticket) {
   sendTicketNotification("received", ticket).catch((err) =>
     console.error("[NeuroDesk] Notification error (received):", err.message)
   );
+  try {
+    sendTelegramNotification(ticket);
+  } catch (err) {
+    console.error("[NeuroDesk] Telegram error:", err.message);
+  }
   return ticket;
 }
 
@@ -2091,6 +2156,10 @@ function loadNotificationsConfig() {
         JSON.parse(JSON.stringify(DEFAULT_NOTIFICATIONS_CONFIG.smtp)),
         saved.smtp || {}
       ),
+      telegram: Object.assign(
+        JSON.parse(JSON.stringify(DEFAULT_NOTIFICATIONS_CONFIG.telegram)),
+        saved.telegram || {}
+      ),
       adminEmails: typeof saved.adminEmails === "string" ? saved.adminEmails : "",
       app_url: typeof saved.app_url === "string" ? saved.app_url : "",
       templates: {
@@ -2138,6 +2207,11 @@ function saveNotificationsConfig(incoming) {
   const smtp = incoming.smtp || {};
   const pass =
     smtp.pass === "••••••••" ? notificationsConfig.smtp.pass : String(smtp.pass || "").trim();
+  const telegram = incoming.telegram || {};
+  const botToken =
+    telegram.botToken === "••••••••"
+      ? notificationsConfig.telegram.botToken
+      : String(telegram.botToken || "").trim();
   notificationsConfig = {
     smtp: {
       enabled: smtp.enabled === true || smtp.enabled === "true",
@@ -2147,6 +2221,11 @@ function saveNotificationsConfig(incoming) {
       user: String(smtp.user || "").trim(),
       pass,
       from: String(smtp.from || "").trim(),
+    },
+    telegram: {
+      enabled: telegram.enabled === true || telegram.enabled === "true",
+      botToken,
+      chatId: String(telegram.chatId || "").trim(),
     },
     adminEmails: String(incoming.adminEmails || "").trim(),
     app_url: String(incoming.app_url || "").trim().replace(/\/$/, ""),
@@ -3849,6 +3928,7 @@ async function handleApi(req, res) {
   if (req.method === "GET" && req.url === "/api/notifications/config") {
     const safe = JSON.parse(JSON.stringify(notificationsConfig));
     if (safe.smtp?.pass) safe.smtp.pass = "••••••••";
+    if (safe.telegram?.botToken) safe.telegram.botToken = "••••••••";
     sendJson(res, 200, safe);
     return;
   }
@@ -3859,6 +3939,7 @@ async function handleApi(req, res) {
       const saved = saveNotificationsConfig(body);
       const safe = JSON.parse(JSON.stringify(saved));
       if (safe.smtp?.pass) safe.smtp.pass = "••••••••";
+      if (safe.telegram?.botToken) safe.telegram.botToken = "••••••••";
       sendJson(res, 200, safe);
     } catch {
       sendJson(res, 400, { error: "No se pudo guardar la configuración de notificaciones." });
@@ -4801,6 +4882,7 @@ if (process.env.ND_TEST === "1") {
     setNotificationsConfigForTest(overrides) {
       Object.assign(notificationsConfig, overrides);
       if (overrides.smtp) Object.assign(notificationsConfig.smtp, overrides.smtp);
+      if (overrides.telegram) Object.assign(notificationsConfig.telegram, overrides.telegram);
       smtpTransporter = null; // force getSmtpTransporter() to rebuild with the new config
     },
   };
