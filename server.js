@@ -303,8 +303,8 @@ function statement(sql) {
   }
   if (compact.startsWith("INSERT INTO ticket_history")) {
     return {
-      run: (id, ticketId, note, status, createdAt) => {
-        store.ticketHistory.push({ id, ticketId, note, status, createdAt });
+      run: (id, ticketId, note, status, createdAt, origin) => {
+        store.ticketHistory.push({ id, ticketId, note, status, createdAt, origin });
         invalidateHistoryIndex();
         saveStore();
         return { changes: 1 };
@@ -1030,7 +1030,7 @@ const updateTicketPositionStmt = db.prepare(
 const deleteTicketStmt = db.prepare("DELETE FROM tickets WHERE id = ?");
 const deleteTicketHistoryStmt = db.prepare("DELETE FROM ticket_history WHERE ticket_id = ?");
 const insertTicketHistoryStmt = db.prepare(
-  "INSERT INTO ticket_history (id, ticket_id, note, status, created_at) VALUES (?, ?, ?, ?, ?)"
+  "INSERT INTO ticket_history (id, ticket_id, note, status, created_at, origin) VALUES (?, ?, ?, ?, ?, ?)"
 );
 const listTicketHistoryStmt = db.prepare(
   "SELECT id, note, status, created_at AS createdAt FROM ticket_history WHERE ticket_id = ? ORDER BY created_at DESC"
@@ -1474,7 +1474,7 @@ function getTickets() {
   });
 }
 
-function addTicketHistory(ticketId, note, status) {
+function addTicketHistory(ticketId, note, status, origin = "system") {
   const text = String(note || "")
     .trim()
     .slice(0, 4000);
@@ -1484,7 +1484,8 @@ function addTicketHistory(ticketId, note, status) {
     ticketId,
     text,
     status,
-    new Date().toISOString()
+    new Date().toISOString(),
+    origin
   );
 }
 
@@ -1603,7 +1604,7 @@ function updateTicketFullInner(id, data) {
       saveStore();
     }
   }
-  if (resolutionNote) addTicketHistory(id, resolutionNote, status);
+  if (resolutionNote) addTicketHistory(id, resolutionNote, status, "agent_note");
   notifyClients("ticketsChanged", { action: "updated", id });
   const ticket = getTicketById(id);
   if (ticket) {
@@ -2819,7 +2820,7 @@ async function pollEmails(options = {}) {
               decision = classifyThreadAction(candidate, matchKind);
 
               if (decision.action === "attach-reply") {
-                addTicketHistory(candidate.id, `Respuesta del cliente:\n${bodyText}`, candidate.status);
+                addTicketHistory(candidate.id, `Respuesta del cliente:\n${bodyText}`, candidate.status, "client_email");
                 if (rememberThreadId(candidate, parsed.messageId)) saveStore();
                 notifyClients("ticketsChanged", { action: "updated", id: candidate.id });
                 finalizeEmail(keys, { kind: "reply", ticketId: candidate.id });
@@ -2845,8 +2846,8 @@ async function pollEmails(options = {}) {
                 const escalationMsg = newUrgency !== prevUrgency
                   ? `⚠️ Ticket reabierto por el cliente — prioridad escalada de "${prevUrgency}" a "${newUrgency}". Cliente insatisfecho con la solución entregada.`
                   : `⚠️ Ticket reabierto por el cliente. Cliente insatisfecho con la solución entregada.`;
-                addTicketHistory(candidate.id, escalationMsg, "abierto");
-                addTicketHistory(candidate.id, `Respuesta del cliente:\n${bodyText}`, "abierto");
+                addTicketHistory(candidate.id, escalationMsg, "abierto", "system");
+                addTicketHistory(candidate.id, `Respuesta del cliente:\n${bodyText}`, "abierto", "client_email");
                 notifyClients("ticketsChanged", { action: "updated", id: candidate.id });
                 const reopened = getTicketById(candidate.id);
                 if (reopened) {
@@ -2867,7 +2868,7 @@ async function pollEmails(options = {}) {
                 candidate.resolvedAt = null;
                 rememberThreadId(candidate, parsed.messageId);
                 saveStore();
-                addTicketHistory(candidate.id, `El cliente respondió tras la resolución:\n${bodyText}`, "abierto");
+                addTicketHistory(candidate.id, `El cliente respondió tras la resolución:\n${bodyText}`, "abierto", "client_email");
                 notifyClients("ticketsChanged", { action: "updated", id: candidate.id });
                 const reopened = getTicketById(candidate.id);
                 if (reopened) sendTicketNotification("status_changed", reopened, { oldStatus: "resuelto" }).catch(() => {});
@@ -2917,7 +2918,7 @@ async function pollEmails(options = {}) {
                 try {
                   fs.mkdirSync(ticketAttachDir, { recursive: true });
                   fs.writeFileSync(path.join(ticketAttachDir, safeName), att.content);
-                  savedAttachments.push({ name: att.filename || safeName, file: safeName, type: att.contentType, source: "client" });
+                  savedAttachments.push({ name: att.filename || safeName, file: safeName, type: att.contentType, source: "client", size: att.content.length, uploadedAt: new Date().toISOString() });
                 } catch (_) {}
               }
             }
@@ -2939,13 +2940,15 @@ async function pollEmails(options = {}) {
               addTicketHistory(
                 candidate.id,
                 `El cliente escribió en el mismo hilo pidiendo algo distinto; se creó el ticket ${ticket.id} para no perder la solicitud.\n\n${bodyText}`,
-                candidate.status
+                candidate.status,
+                "client_email"
               );
               notifyClients("ticketsChanged", { action: "updated", id: candidate.id });
               addTicketHistory(
                 ticket.id,
                 `Mensaje recibido en el mismo hilo de correo que ${candidate.id}. Se creó como ticket nuevo para no perder la solicitud.`,
-                ticket.status
+                ticket.status,
+                "system"
               );
             }
 
@@ -3096,7 +3099,8 @@ function startAutoCloser() {
       addTicketHistory(
         ticket.id,
         "Cerrado automáticamente después de 24 h en estado resuelto.",
-        "cerrado"
+        "cerrado",
+        "system"
       );
       const snapshot = { ...ticket };
       sendTicketNotification("status_changed", snapshot, { oldStatus }).catch(() => {});
@@ -3550,7 +3554,7 @@ async function handleApi(req, res) {
       const attNote = emailAttachments.length > 0
         ? `\n[${emailAttachments.length} archivo(s) adjunto(s): ${emailAttachments.map(a => a.filename).join(", ")}]`
         : "";
-      addTicketHistory(id, `Respuesta enviada al cliente:\n${message}${attNote}`, rawTicket.status);
+      addTicketHistory(id, `Respuesta enviada al cliente:\n${message}${attNote}`, rawTicket.status, "agent_reply");
       notifyClients("ticketsChanged", { action: "updated", id });
       sendJson(res, 200, { ok: true });
     } catch (err) {
@@ -3579,7 +3583,7 @@ async function handleApi(req, res) {
       const buffer = Buffer.from(b64, "base64");
       if (buffer.length > 8_000_000) { sendJson(res, 400, { error: "Archivo muy grande (máx 8 MB)." }); return; }
       fs.writeFileSync(path.join(ticketAttachDir, safeName), buffer);
-      const newAtt = { name: origName, file: safeName, type: mimeType || "application/octet-stream", source: "agent" };
+      const newAtt = { name: origName, file: safeName, type: mimeType || "application/octet-stream", source: "agent", size: buffer.length, uploadedAt: new Date().toISOString() };
       let attachments = [];
       try { attachments = rawTicket.attachments ? JSON.parse(rawTicket.attachments) : []; } catch (_) {}
       if (!Array.isArray(attachments)) attachments = [];
@@ -3622,7 +3626,7 @@ async function handleApi(req, res) {
       const note = String(body.note || "").trim().slice(0, 4000);
       if (!note) { sendJson(res, 400, { error: "La nota no puede estar vacía." }); return; }
       // Push directly so isQuickNote flag is preserved in the JSON store
-      const entry = { id: crypto.randomUUID(), ticketId: id, note, status: rawTicket.status, createdAt: new Date().toISOString(), isQuickNote: true };
+      const entry = { id: crypto.randomUUID(), ticketId: id, note, status: rawTicket.status, createdAt: new Date().toISOString(), isQuickNote: true, origin: "agent_note" };
       store.ticketHistory.push(entry);
       invalidateHistoryIndex();
       saveStore();
@@ -4059,6 +4063,12 @@ function serializeTicket(ticket, { includeHistory = false } = {}) {
     reopenedByClient: !!ticket.reopenedByClient,
     aiCategory: ticket.aiCategory || null,
     aiSentiment: ticket.aiSentiment || null,
+    aiSentimentScore: ticket.aiSentimentScore ?? null,
+    attachments: (ticket.attachments || []).map((a) => ({
+      filename: a.name || "",
+      size: a.size ?? null,
+      uploadedAt: a.uploadedAt || null,
+    })),
     sla: {
       limitHours: sla.limitHours,
       elapsedHours: sla.elapsedHours,
@@ -4076,6 +4086,9 @@ function serializeTicket(ticket, { includeHistory = false } = {}) {
       status: h.status,
       createdAt: h.createdAt,
       isQuickNote: !!h.isQuickNote,
+      // Entradas anteriores a v14.40 no tienen "origin" — nunca se reescribe
+      // historial existente, se sirven como "unknown" en vez de adivinar.
+      origin: h.origin || "unknown",
     }));
   }
   return out;
@@ -4145,6 +4158,39 @@ function buildOpenApiSpec() {
       createdAt: { type: "string", format: "date-time" },
       resolvedAt: { type: "string", format: "date-time", nullable: true },
       reopenedByClient: { type: "boolean" },
+      aiCategory: { type: "string", nullable: true },
+      aiSentiment: { type: "string", nullable: true },
+      aiSentimentScore: { type: "number", nullable: true },
+      attachments: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            filename: { type: "string" },
+            size: { type: "number", nullable: true },
+            uploadedAt: { type: "string", format: "date-time", nullable: true },
+          },
+        },
+      },
+      history: {
+        type: "array",
+        description: "Solo presente en GET /api/v1/tickets/{id}",
+        items: {
+          type: "object",
+          properties: {
+            note: { type: "string" },
+            status: { type: "string", enum: ticketStatuses },
+            createdAt: { type: "string", format: "date-time" },
+            isQuickNote: { type: "boolean" },
+            origin: {
+              type: "string",
+              enum: ["client_email", "agent_note", "agent_reply", "system", "unknown"],
+              description:
+                "Quién generó esta entrada del historial. 'unknown' son entradas creadas antes de v14.40, que nunca se reescriben.",
+            },
+          },
+        },
+      },
       sla: {
         type: "object",
         properties: {
@@ -4256,14 +4302,22 @@ function buildOpenApiSpec() {
                     urgency: { type: "string", enum: ["baja", "media", "alta", "critica"] },
                     assignedTo: { type: "string" },
                     area: { type: "string" },
-                    resolution: { type: "string", description: "Obligatorio al pasar a resuelto o cerrado" },
+                    subject: { type: "string" },
+                    description: { type: "string" },
+                    resolution: { type: "string", description: "Obligatorio (o resolutionNote) al pasar a resuelto o cerrado" },
+                    resolutionNote: { type: "string", description: "Nota de historial al cambiar de estado; también sirve para cumplir el requisito de resuelto/cerrado" },
                     workedHours: { type: "number" },
+                    customFields: { type: "object", additionalProperties: true },
+                    silent: { type: "boolean", description: "true = no enviar el correo de notificación de cambio al cliente" },
                   },
                 },
               },
             },
           },
-          responses: { 200: { description: "Ticket actualizado" } },
+          responses: {
+            200: { description: "Ticket actualizado" },
+            400: { description: "Datos inválidos (p. ej. falta resolution/resolutionNote al pasar a resuelto o cerrado)" },
+          },
         },
       },
       "/api/v1/tickets/{id}/notes": {
@@ -4282,6 +4336,28 @@ function buildOpenApiSpec() {
           responses: { 201: { description: "Nota agregada" } },
         },
       },
+      "/api/v1/tickets/{id}/reply/preview": {
+        post: {
+          summary: "Previsualizar una respuesta al cliente sin enviarla",
+          description:
+            "Compone el asunto/texto/HTML tal como se enviarían con POST .../reply, sin enviar correo ni tocar el ticket. " +
+            "Pensado para que un agente muestre 'esto es lo que voy a enviar, ¿confirmas?' antes de llamar al endpoint real.",
+          operationId: "previewReplyToTicket",
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { type: "object", required: ["message"], properties: { message: { type: "string" } } },
+              },
+            },
+          },
+          responses: {
+            200: { description: "Vista previa del correo (to, subject, text, html)" },
+            400: { description: "Falta 'message' o el ticket no tiene correo de contacto" },
+          },
+        },
+      },
       "/api/v1/tickets/{id}/reply": {
         post: {
           summary: "Responder al cliente por correo",
@@ -4295,7 +4371,11 @@ function buildOpenApiSpec() {
               },
             },
           },
-          responses: { 200: { description: "Respuesta enviada" } },
+          responses: {
+            200: { description: "Respuesta enviada" },
+            400: { description: "Falta 'message' o el ticket no tiene correo de contacto" },
+            502: { description: "No se pudo enviar el correo (fallo SMTP)" },
+          },
         },
       },
       "/api/v1/stats": {
@@ -4453,8 +4533,8 @@ async function handleApiV1(req, res) {
     return;
   }
 
-  // Routes below operate on a single ticket: /tickets/:id[/notes|/reply]
-  const ticketMatch = route.match(/^\/tickets\/([^/]+)(\/notes|\/reply)?$/);
+  // Routes below operate on a single ticket: /tickets/:id[/notes|/reply|/reply/preview]
+  const ticketMatch = route.match(/^\/tickets\/([^/]+)(\/notes|\/reply\/preview|\/reply)?$/);
   if (ticketMatch) {
     const id = decodeURIComponent(ticketMatch[1]);
     const sub = ticketMatch[2] || "";
@@ -4506,12 +4586,32 @@ async function handleApiV1(req, res) {
       if (!note) { sendApiError(res, 400, "validation_error", "El campo 'note' es obligatorio.", rateHeaders); return; }
       store.ticketHistory.push({
         id: crypto.randomUUID(), ticketId: id, note, status: raw.status,
-        createdAt: new Date().toISOString(), isQuickNote: true,
+        createdAt: new Date().toISOString(), isQuickNote: true, origin: "agent_note",
       });
       invalidateHistoryIndex();
       saveStore();
       notifyClients("ticketsChanged", { action: "updated", id });
       ok(201, { ok: true, ticketId: id });
+      return;
+    }
+
+    // POST /api/v1/tickets/:id/reply/preview — compone el correo tal como se
+    // enviaría, sin enviarlo ni tocar el ticket. Pensado para que un agente le
+    // muestre al usuario "esto es lo que voy a enviar" antes de confirmar el
+    // POST .../reply real.
+    if (req.method === "POST" && sub === "/reply/preview") {
+      if (!requireScope("tickets:write")) return;
+      if (!raw.contact) { sendApiError(res, 400, "validation_error", "El ticket no tiene correo de contacto.", rateHeaders); return; }
+      let body;
+      try { body = await readBody(req); } catch { sendApiError(res, 400, "validation_error", "JSON inválido.", rateHeaders); return; }
+      const message = String(body.message || "").trim().slice(0, 4000);
+      if (!message) { sendApiError(res, 400, "validation_error", "El campo 'message' es obligatorio.", rateHeaders); return; }
+      ok(200, {
+        to: raw.contact,
+        subject: `Re: ${raw.subject || raw.id}`,
+        text: message,
+        html: textToHtml(message),
+      });
       return;
     }
 
@@ -4530,7 +4630,7 @@ async function handleApiV1(req, res) {
       if (rememberThreadId(raw, msgId)) dirty = true;
       if (raw.reopenedByClient) { raw.reopenedByClient = false; dirty = true; }
       if (dirty) saveStore();
-      addTicketHistory(id, `Respuesta enviada al cliente (API):\n${message}`, raw.status);
+      addTicketHistory(id, `Respuesta enviada al cliente (API):\n${message}`, raw.status, "agent_reply");
       notifyClients("ticketsChanged", { action: "updated", id });
       ok(200, { ok: true, ticketId: id, messageId: msgId });
       return;
@@ -4682,6 +4782,8 @@ if (process.env.ND_TEST === "1") {
   // client, without a real mailbox.
   module.exports.__internals = {
     store,
+    invalidateHistoryIndex,
+    createApiKey,
     pollEmails,
     getTicketById,
     computeEmailKey,

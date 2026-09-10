@@ -146,11 +146,29 @@ Igual que el objeto de la lista, más el arreglo `history`:
   "subject": "Firma correo",
   "status": "en_proceso",
   "urgency": "baja",
+  "aiSentimentScore": 62,
+  "attachments": [ { "filename": "captura.png", "size": 88213, "uploadedAt": "2026-09-01T10:00:00.000Z" } ],
   "sla": { "limitHours": 24, "elapsedHours": 3.2, "remainingHours": 20.8, "breached": false,
            "paused": false, "finished": false, "outsideBusinessHours": false },
-  "history": [ { "note": "...", "status": "en_proceso", "createdAt": "...", "isQuickNote": true } ]
+  "history": [
+    { "note": "...", "status": "en_proceso", "createdAt": "...", "isQuickNote": true, "origin": "agent_note" }
+  ]
 }
 ```
+
+`history[].origin` dice quién generó la entrada, para que un agente pueda reconstruir
+la conversación real (no solo un log genérico de notas):
+
+| Valor | Significado |
+|---|---|
+| `client_email` | Correo recibido del cliente (respuesta o mensaje nuevo en el hilo) |
+| `agent_note` | Nota interna (panel o `POST .../notes`), no notifica al cliente |
+| `agent_reply` | Respuesta enviada al cliente (panel o `POST .../reply`) |
+| `system` | Generado automáticamente (cierre por inactividad, escalado de urgencia, etc.) |
+| `unknown` | Entrada creada antes de v14.40 — nunca se reescribe historial existente |
+
+`attachments` es solo metadata (nombre, tamaño, fecha) — no expone el archivo en sí ni
+la ruta interna en disco.
 
 ---
 
@@ -187,7 +205,7 @@ curl -X PATCH -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/js
 ```
 
 Campos: `status`, `urgency`, `area`, `assignedTo`, `subject`, `description`,
-`resolution`, `resolutionNote`, `workedHours`, `customFields`.
+`resolution`, `resolutionNote`, `workedHours`, `customFields`, `silent`.
 
 Al pasar a `resuelto` o `cerrado` es obligatorio `resolution` o `resolutionNote`.
 Agrega `"silent": true` para no enviar el correo de notificación al cliente.
@@ -206,9 +224,34 @@ curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/jso
 
 ---
 
+## `POST /api/v1/tickets/{id}/reply/preview` — previsualizar respuesta sin enviarla
+
+Requiere `tickets:write`. Pensado para un agente que primero te muestra "esto es lo
+que voy a enviar, ¿confirmas?" antes de llamar al endpoint real de abajo — compone
+el correo exactamente igual (mismo asunto, mismo texto/HTML) pero **no envía nada
+ni toca el ticket ni su historial**.
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  https://soporte.easystem.co/api/v1/tickets/ND-1075/reply/preview \
+  -d '{ "message": "Hola Leydi, ya quedó actualizada la firma." }'
+```
+
+```json
+{
+  "to": "leydi@neurofic.com",
+  "subject": "Re: Firma correo",
+  "text": "Hola Leydi, ya quedó actualizada la firma.",
+  "html": "<div style=\"...\">Hola Leydi, ya quedó actualizada la firma.…</div>"
+}
+```
+
+---
+
 ## `POST /api/v1/tickets/{id}/reply` — responder al cliente
 
-Requiere `tickets:write` y que el ticket tenga correo de contacto.
+Requiere `tickets:write` y que el ticket tenga correo de contacto. Envía el correo de
+verdad — usa `.../reply/preview` primero si quieres confirmar el texto antes.
 
 ```bash
 curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
@@ -217,7 +260,27 @@ curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/jso
 ```
 
 Registra el `Message-ID` como ancla del hilo, así las respuestas del cliente
-vuelven a este ticket en vez de crear uno nuevo.
+vuelven a este ticket en vez de crear uno nuevo. La entrada de historial queda con
+`"origin": "agent_reply"`.
+
+---
+
+## Patrón recomendado: agente con confirmación del usuario
+
+Para un agente conversacional (p. ej. una sesión de Claude con esta API como
+herramienta) que **nunca actúe sin que el humano confirme**:
+
+1. `GET /api/v1/inbox` o `GET /api/v1/tickets/{id}` para leer el estado y el
+   `history[]` completo (usa `origin` para distinguir qué dijo el cliente).
+2. El agente redacta la acción propuesta (una respuesta, un cambio de estado) y se la
+   muestra al usuario **en la conversación**, no en NeuroDesk.
+3. Si es una respuesta al cliente, `POST .../reply/preview` para mostrar el correo
+   exacto que se enviaría.
+4. Solo tras la confirmación explícita del usuario, `POST .../reply` (envía de
+   verdad) o `PATCH /api/v1/tickets/{id}` (cambia estado/campos).
+
+La API no necesita un modo especial para esto — el paso de confirmación vive en la
+conversación con el agente, no en NeuroDesk.
 
 ---
 

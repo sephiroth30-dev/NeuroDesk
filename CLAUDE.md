@@ -1,6 +1,6 @@
 # NeuroDesk — Reglas de Producción
 
-**Versión actual en producción: v14.39**
+**Versión actual en producción: v14.40**
 
 ## ⚠️ ESTE PROYECTO ESTÁ EN PRODUCCIÓN
 
@@ -334,6 +334,40 @@ teléfono era imposible cambiar el estado de un ticket desde el tablero.
   .cardFooter .statusSelect { display: none; }` (oculta un select si queda dentro de
   `.cardFooter`) — el select táctil se colocó **fuera** de `.cardFooter`, en su propio
   `.cardStatusSelect`, precisamente para no chocar con esa regla.
+
+## API v1 enriquecida para agentes (desde v14.40)
+
+El usuario quiere poder "hablarle" a NeuroDesk desde un agente de IA (vía token
+Bearer): preguntar por sus tickets, recibir sugerencias, y — solo con su confirmación
+explícita en la conversación, nunca de forma autónoma — responder a un cliente o
+cambiar el estado de un ticket. La superficie `/api/v1/*` (desde v14.34) ya cubría
+la mayor parte; v14.40 cierra 4 gaps concretos, documentados en `API.md`.
+
+**Reglas para no reintroducir los gaps:**
+
+- **`history[].origin`**: toda entrada nueva de `store.ticketHistory` debe indicar
+  quién la generó — `"client_email" | "agent_note" | "agent_reply" | "system"` — para
+  que un agente pueda distinguir el correo real del cliente de una nota interna o de
+  una respuesta ya enviada. Se pasa como 4º argumento a `addTicketHistory(ticketId,
+  note, status, origin)`, o como campo `origin` en los `push` directos a
+  `store.ticketHistory` (notas rápidas). **Nunca reescribir historial existente** sin
+  este campo — `serializeTicket()` sirve `origin: "unknown"` para entradas viejas en
+  vez de adivinar, y así debe seguir.
+- **`serializeTicket()`** expone `aiSentimentScore` (ya vive en el ticket crudo) y
+  `attachments` como metadata (`filename, size, uploadedAt` — nunca el nombre interno
+  del archivo en disco, que es el que usan las rutas de descarga). Cualquier campo
+  nuevo que se quiera exponer a un agente pasa por aquí, no por otra serialización ad
+  hoc.
+- **`POST /api/v1/tickets/{id}/reply/preview`**: compone el correo (to/subject/text/html)
+  tal como se enviaría, **sin** llamar a `sendEmail()` ni tocar `ticketHistory`. Es el
+  mecanismo para que un agente muestre "esto es lo que voy a enviar, ¿confirmas?" antes
+  de llamar al `POST .../reply` real — el flujo de confirmación vive en la conversación
+  con el agente, no como un modo especial de la API.
+- **`openapi.json` (`buildOpenApiSpec()`) debe reflejar exactamente lo que el handler
+  acepta** — v14.40 corrigió un desalineamiento real (el `PATCH` documentado omitía
+  `description`, `subject`, `resolutionNote`, `customFields`, `silent` que el código sí
+  aceptaba). Al añadir o cambiar un campo de un endpoint v1, actualizar el spec en el
+  mismo cambio, no después.
 
 ## Antes de cada entrega, verificar
 

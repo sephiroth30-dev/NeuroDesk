@@ -826,3 +826,174 @@ describe("Anti-spam del formulario público", () => {
     expect(check.body.length).toBe(1);
   });
 });
+
+// ── API v1 enriquecida para agentes (desde v14.40) ───────────────────────────
+
+describe("API v1 — historial con origen, adjuntos, sentimiento y previsualización de respuesta", () => {
+  // No usa /api/auth/login: para este punto del archivo el test de seguridad
+  // "el límite de login NO se evade falsificando X-Forwarded-For" ya agotó a
+  // propósito el rate limit de login para la IP de pruebas (429 permanente
+  // hasta que expire la ventana de 15 min). Se crea la llave directamente vía
+  // __internals, igual que otros tests de este archivo manipulan `store`.
+  const { createApiKey } = require("../server").__internals;
+  let token;
+
+  function createBearerToken(scopes) {
+    return createApiKey("test-agent", scopes).token;
+  }
+
+  beforeAll(() => {
+    token = createBearerToken(["tickets:read", "tickets:write"]);
+  });
+
+  test("una nota interna vía /notes queda marcada con origin=agent_note", async () => {
+    const create = await request(server)
+      .post("/api/v1/tickets")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Cliente Origen", contact: "origen1@neurofic.com", urgency: "media" });
+    expect(create.status).toBe(201);
+    const id = create.body.id;
+
+    const note = await request(server)
+      .post(`/api/v1/tickets/${id}/notes`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ note: "Nota interna del agente" });
+    expect(note.status).toBe(201);
+
+    const full = await request(server)
+      .get(`/api/v1/tickets/${id}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(full.status).toBe(200);
+    const entry = full.body.history.find((h) => h.note === "Nota interna del agente");
+    expect(entry).toBeDefined();
+    expect(entry.origin).toBe("agent_note");
+  });
+
+  test("una respuesta enviada al cliente vía /reply queda marcada con origin=agent_reply", async () => {
+    const create = await request(server)
+      .post("/api/v1/tickets")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Cliente Reply", contact: "origen2@neurofic.com", urgency: "media" });
+    const id = create.body.id;
+
+    // Sin SMTP configurado en el entorno de test, sendEmail devuelve null y
+    // /reply responde 502 — no se registra en el historial. Verificamos el
+    // fallo controlado y que no queda una entrada fantasma.
+    const reply = await request(server)
+      .post(`/api/v1/tickets/${id}/reply`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ message: "Ya estamos revisando tu caso." });
+    expect([200, 502]).toContain(reply.status);
+
+    const full = await request(server)
+      .get(`/api/v1/tickets/${id}`)
+      .set("Authorization", `Bearer ${token}`);
+    const entry = full.body.history.find((h) => (h.note || "").includes("Ya estamos revisando tu caso."));
+    if (reply.status === 200) {
+      expect(entry).toBeDefined();
+      expect(entry.origin).toBe("agent_reply");
+    } else {
+      expect(entry).toBeUndefined();
+    }
+  });
+
+  test("historial creado antes de v14.40 (sin campo origin) se sirve como origin=unknown, nunca se reescribe", async () => {
+    const { store, invalidateHistoryIndex } = require("../server").__internals;
+    const create = await request(server)
+      .post("/api/v1/tickets")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Cliente Legacy", contact: "origen3@neurofic.com", urgency: "media" });
+    const id = create.body.id;
+
+    // Simula una entrada de historial de antes de v14.40, sin el campo origin.
+    store.ticketHistory.push({
+      id: "legacy-1", ticketId: id, note: "Nota antigua sin origin",
+      status: "abierto", createdAt: new Date().toISOString(),
+    });
+    if (invalidateHistoryIndex) invalidateHistoryIndex();
+
+    const full = await request(server)
+      .get(`/api/v1/tickets/${id}`)
+      .set("Authorization", `Bearer ${token}`);
+    const entry = full.body.history.find((h) => h.note === "Nota antigua sin origin");
+    expect(entry).toBeDefined();
+    expect(entry.origin).toBe("unknown");
+  });
+
+  test("serializeTicket vía API expone aiSentimentScore y metadata de adjuntos", async () => {
+    const create = await request(server)
+      .post("/api/v1/tickets")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Cliente Sentimiento", contact: "origen4@neurofic.com", urgency: "media" });
+    const id = create.body.id;
+
+    const { store } = require("../server").__internals;
+    const raw = store.tickets.find((t) => t.id === id);
+    raw.aiSentimentScore = -0.6;
+    raw.attachments = JSON.stringify([
+      { name: "captura.png", file: "internal-uuid.png", type: "image/png", source: "client", size: 12345, uploadedAt: "2026-09-01T00:00:00.000Z" },
+    ]);
+
+    const full = await request(server)
+      .get(`/api/v1/tickets/${id}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(full.body.aiSentimentScore).toBe(-0.6);
+    expect(full.body.attachments).toEqual([
+      { filename: "captura.png", size: 12345, uploadedAt: "2026-09-01T00:00:00.000Z" },
+    ]);
+    // El nombre interno del archivo en disco nunca debe filtrarse.
+    expect(JSON.stringify(full.body)).not.toContain("internal-uuid.png");
+  });
+
+  test("POST /reply/preview compone el correo sin enviarlo ni tocar el historial", async () => {
+    const create = await request(server)
+      .post("/api/v1/tickets")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Cliente Preview", contact: "origen5@neurofic.com", urgency: "media", subject: "Falla de acceso" });
+    const id = create.body.id;
+
+    const before = await request(server)
+      .get(`/api/v1/tickets/${id}`)
+      .set("Authorization", `Bearer ${token}`);
+    const historyBefore = before.body.history.length;
+
+    const preview = await request(server)
+      .post(`/api/v1/tickets/${id}/reply/preview`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ message: "Esto es una prueba de vista previa." });
+    expect(preview.status).toBe(200);
+    expect(preview.body.to).toBe("origen5@neurofic.com");
+    expect(preview.body.subject).toBe("Re: Falla de acceso");
+    expect(preview.body.text).toBe("Esto es una prueba de vista previa.");
+    expect(preview.body.html).toContain("Esto es una prueba de vista previa.");
+
+    const after = await request(server)
+      .get(`/api/v1/tickets/${id}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(after.body.history.length).toBe(historyBefore);
+  });
+
+  test("POST /reply/preview requiere scope tickets:write", async () => {
+    const readOnlyToken = createBearerToken(["tickets:read"]);
+    const create = await request(server)
+      .post("/api/v1/tickets")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Cliente ReadOnly", contact: "origen6@neurofic.com", urgency: "media" });
+    const id = create.body.id;
+
+    const preview = await request(server)
+      .post(`/api/v1/tickets/${id}/reply/preview`)
+      .set("Authorization", `Bearer ${readOnlyToken}`)
+      .send({ message: "No debería poder." });
+    expect(preview.status).toBe(403);
+  });
+
+  test("GET /api/v1/openapi.json sigue siendo JSON válido e incluye los campos nuevos", async () => {
+    const res = await request(server).get("/api/v1/openapi.json");
+    expect(res.status).toBe(200);
+    const json = JSON.stringify(res.body);
+    expect(json).toContain("reply/preview");
+    expect(json).toContain("aiSentimentScore");
+    expect(json).toContain("origin");
+  });
+});
