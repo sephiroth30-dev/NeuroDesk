@@ -1,6 +1,6 @@
 # NeuroDesk — Reglas de Producción
 
-**Versión actual en producción: v14.44**
+**Versión actual en producción: v14.45**
 
 ## ⚠️ ESTE PROYECTO ESTÁ EN PRODUCCIÓN
 
@@ -534,6 +534,51 @@ un relay que las quita), sin ningún intento de recuperación.
   historial "fantasma" de un test anterior. `tests/email-matching.test.js` lo hace
   en su `beforeEach` — replicar el patrón en cualquier archivo de test nuevo que
   manipule `store.ticketHistory` directamente.
+
+## Detección activa de procesos zombie invisibles al lock (desde v14.45)
+
+**Incidente real (2026-09-23):** dos tickets cerrados manualmente reaparecieron
+horas después como `"abierto"`, sin `reopenedByClient`. Se descartó el pipeline de
+correo (`classifyThreadAction()` estructuralmente no puede reabrir un ticket
+`cerrado` sin dejar rastro — verificado rama por rama) y los timers de auto-cierre/
+SLA (ninguno escribe `status: "abierto"` en ningún camino). Causa confirmada: el
+mismo patrón de v14.42, pero con un hueco real en esa mitigación — **el lock de PID
+solo detecta procesos que ESCRIBIERON el lock**. Un proceso vivo desde ANTES de que
+existiera `writeProcessLock()` (de un deploy previo a v14.42) nunca lo escribió, así
+que `checkStaleProcessLock()` no podía verlo — quedaba libre para seguir llamando
+`saveStore()` con una copia de memoria de hace días/semanas, revirtiendo lo que
+cualquier proceso nuevo escribiera.
+
+**Qué se corrigió:**
+
+- `killOtherServerProcesses()`, llamada al inicio de `startServer()` (antes de
+  `checkStaleProcessLock()`): busca directamente en el sistema operativo
+  (`pgrep -f __filename`) cualquier otro proceso corriendo este mismo `server.js`,
+  **sin depender del lock file en absoluto**, y le manda `SIGTERM` de forma activa
+  — no solo loguea como hacía `checkStaleProcessLock()`. Verificado con dos procesos
+  reales: el segundo mata al primero antes de terminar de arrancar.
+- Best-effort real: si `pgrep` no existe, no hay coincidencias (el caso normal —
+  `execSync` lanza con exit code 1), o cualquier otro fallo, el arranque **nunca**
+  se interrumpe.
+- El lock de PID (`checkStaleProcessLock`/`writeProcessLock`) se mantiene como
+  registro/diagnóstico adicional — la detección real ya no depende solo de él.
+
+**Reglas para no reintroducirlo:**
+
+- `childProcess.execSync(...)` se llama **a través del objeto del módulo**
+  (`childProcess.execSync`), nunca destructurado (`const { execSync } = ...`) —
+  destructurar rompe el mockeo en tests (`jest.spyOn(childProcess, "execSync")`
+  no afecta una copia ya destructurada de la referencia). Mismo patrón que
+  `https.request` en `deliverWebhook`/`sendTelegramNotification`.
+- Si en producción **ahora mismo** hay un ticket que se revierte solo, no esperar al
+  próximo deploy — ningún cambio de código mata un proceso que ya está vivo. Hay
+  que matarlo a mano en el servidor: `ps aux | grep -i node`, identificar todos los
+  procesos sirviendo `soporte.easystem.co` y matarlos todos, dejando que LiteSpeed
+  levante uno limpio.
+- Esto sigue sin ser una solución matemáticamente perfecta (`writeStoreToDisk()`
+  sigue sin merge) — es una segunda capa que cierra el hueco específico de "proceso
+  más viejo que el propio mecanismo de detección". Ver también la sección de v14.42
+  para el resto de las reglas sobre timers y `saveStore()`.
 
 ## Antes de cada entrega, verificar
 

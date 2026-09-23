@@ -1112,6 +1112,7 @@ describe("Apagado ordenado y bloqueo de instancia única", () => {
   const {
     LOCK_PATH,
     isPidAlive,
+    killOtherServerProcesses,
     checkStaleProcessLock,
     writeProcessLock,
     releaseProcessLock,
@@ -1175,5 +1176,46 @@ describe("Apagado ordenado y bloqueo de instancia única", () => {
     expect(timers.emailPollerTimer).toBeNull();
     expect(timers.autoCloserTimer).toBeNull();
     expect(timers.slaBreachTimer).toBeNull();
+  });
+
+  describe("killOtherServerProcesses (incidente 2026-09-23 — zombie invisible al lock)", () => {
+    const childProcess = require("child_process");
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    test("con pgrep devolviendo un PID vivo distinto del propio, le manda SIGTERM", () => {
+      const otherPid = 424242;
+      jest.spyOn(childProcess, "execSync").mockReturnValue(`${otherPid}\n${process.pid}\n`);
+      const killSpy = jest.spyOn(process, "kill").mockImplementation(() => {});
+
+      killOtherServerProcesses();
+
+      expect(killSpy).toHaveBeenCalledWith(otherPid, "SIGTERM");
+      // Nunca debe intentar matarse a sí mismo.
+      expect(killSpy).not.toHaveBeenCalledWith(process.pid, expect.anything());
+    });
+
+    test("si pgrep no encuentra nada (lanza, como en el caso normal), no falla ni mata nada", () => {
+      jest.spyOn(childProcess, "execSync").mockImplementation(() => {
+        const err = new Error("Command failed");
+        err.status = 1;
+        throw err;
+      });
+      const killSpy = jest.spyOn(process, "kill").mockImplementation(() => {});
+
+      expect(() => killOtherServerProcesses()).not.toThrow();
+      expect(killSpy).not.toHaveBeenCalled();
+    });
+
+    test("si pgrep no está instalado (execSync lanza ENOENT), el arranque no se interrumpe", () => {
+      jest.spyOn(childProcess, "execSync").mockImplementation(() => {
+        const err = new Error("spawnSync pgrep ENOENT");
+        err.code = "ENOENT";
+        throw err;
+      });
+      expect(() => killOtherServerProcesses()).not.toThrow();
+    });
   });
 });

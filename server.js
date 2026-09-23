@@ -4,6 +4,7 @@ process.env.TZ = process.env.TZ || "America/Bogota";
 
 const http = require("http");
 const https = require("https");
+const childProcess = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -4931,6 +4932,39 @@ function isPidAlive(pid) {
   }
 }
 
+// Incidente 2026-09-23: dos tickets cerrados manualmente reaparecieron como
+// "abierto" horas después, sin reopenedByClient — un proceso zombie de ANTES
+// de que existiera writeProcessLock() (es decir, de un deploy previo a v14.42)
+// nunca escribió el lock file, así que checkStaleProcessLock() de abajo no
+// podía verlo: solo compara contra lo que hay en LOCK_PATH, y ese zombie nunca
+// puso nada ahí. Este chequeo busca directamente en el sistema operativo
+// cualquier otro proceso corriendo este mismo server.js, sin depender del
+// lock — y lo mata de forma activa (SIGTERM) en vez de solo advertir. Best
+// effort: si `pgrep` no existe o no hay coincidencias, nunca debe impedir que
+// este proceso arranque.
+function killOtherServerProcesses() {
+  try {
+    const out = childProcess.execSync(`pgrep -f ${JSON.stringify(__filename)}`, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    const pids = out
+      .split("\n")
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((pid) => pid && pid !== process.pid);
+    for (const pid of pids) {
+      console.error(
+        `[NeuroDesk] ⚠️ Proceso huérfano PID ${pid} detectado corriendo este mismo server.js ` +
+        `(invisible al lock de PID — probablemente de antes de v14.42). Enviando SIGTERM antes de arrancar.`
+      );
+      try { process.kill(pid, "SIGTERM"); } catch (_) {}
+    }
+  } catch (_) {
+    // pgrep no instalado, sin coincidencias (exit code 1 — el caso normal), o
+    // cualquier otro fallo: nunca debe bloquear el arranque de este proceso.
+  }
+}
+
 function checkStaleProcessLock() {
   try {
     const raw = fs.readFileSync(LOCK_PATH, "utf8").trim();
@@ -4995,6 +5029,7 @@ if (!process.env.ND_TEST) {
 }
 
 function startServer() {
+  killOtherServerProcesses();
   checkStaleProcessLock();
   writeProcessLock();
   const isSocket = Number.isNaN(Number(PORT));
@@ -5044,6 +5079,7 @@ if (process.env.ND_TEST === "1") {
     maybeRecoverStalePoll,
     LOCK_PATH,
     isPidAlive,
+    killOtherServerProcesses,
     checkStaleProcessLock,
     writeProcessLock,
     releaseProcessLock,
