@@ -147,6 +147,7 @@ Igual que el objeto de la lista, más el arreglo `history`:
   "status": "en_proceso",
   "urgency": "baja",
   "aiSentimentScore": 62,
+  "possibleDuplicateOf": null,
   "attachments": [ { "filename": "captura.png", "size": 88213, "uploadedAt": "2026-09-01T10:00:00.000Z" } ],
   "sla": { "limitHours": 24, "elapsedHours": 3.2, "remainingHours": 20.8, "breached": false,
            "paused": false, "finished": false, "outsideBusinessHours": false },
@@ -169,6 +170,11 @@ la conversación real (no solo un log genérico de notas):
 
 `attachments` es solo metadata (nombre, tamaño, fecha) — no expone el archivo en sí ni
 la ruta interna en disco.
+
+`possibleDuplicateOf` (desde v14.44): ID de otro ticket probablemente relacionado —
+mismo contacto + mismo asunto (sin prefijos `Re:`/`Fwd:`) pero **sin** ninguna cabecera
+de correo (`In-Reply-To`/`References`) que lo confirme. Es una señal débil para
+revisión humana: nunca fusiona ni reabre nada automáticamente. `null` cuando no aplica.
 
 ---
 

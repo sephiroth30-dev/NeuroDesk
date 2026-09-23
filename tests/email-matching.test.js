@@ -137,6 +137,11 @@ beforeEach(() => {
   internals.store.ticketHistory.length = 0;
   internals.store.processedEmails.length = 0;
   internals.store.emailQuarantine.length = 0;
+  // getHistoryIndex() cachea un Map por ticketId — truncar el array arriba no
+  // lo invalida por sí solo. Sin esto, un ticket sembrado en un test con un ID
+  // que por azar coincide con el ID generado dinámicamente en un test anterior
+  // puede leer entradas de historial "fantasma" de ese test anterior.
+  internals.invalidateHistoryIndex();
 });
 
 afterAll((done) => {
@@ -555,5 +560,226 @@ describe("Errores de conexión IMAP (incidente 2026-09-01)", () => {
     const result = await pollOnce();
     expect(result.created).toBe(1);
     expect(ticketsFor(contact).length).toBe(1);
+  });
+});
+
+describe("Auto-recuperación del sondeo vía /api/health (incidente 2026-09-23)", () => {
+  test("con lastPoll viejo (más del doble del intervalo), /api/health dispara un sondeo", async () => {
+    internals.setEmailConfigForTest({ pollIntervalMinutes: 5 });
+    internals.emailPollStatus.lastPoll = new Date(Date.now() - 15 * 60 * 1000).toISOString(); // 15 min, > 2×5
+    internals.emailPollStatus.polling = false;
+
+    const contact = "dormido@neurofic.com";
+    addToMailbox({
+      from: contact,
+      subject: "Llegó mientras el proceso dormía",
+      date: new Date(),
+      messageId: `sleepy-${crypto.randomUUID()}@cliente.com`,
+      text: "Contenido de prueba",
+    });
+
+    internals.maybeRecoverStalePoll();
+    // pollEmails() es async y fire-and-forget dentro de maybeRecoverStalePoll —
+    // esperar a que termine antes de comprobar.
+    while (internals.emailPollStatus.polling) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(ticketsFor(contact).length).toBe(1);
+  });
+
+  test("con lastPoll reciente, /api/health NO dispara un sondeo extra", async () => {
+    internals.setEmailConfigForTest({ pollIntervalMinutes: 5 });
+    internals.emailPollStatus.lastPoll = new Date(Date.now() - 30 * 1000).toISOString(); // 30s, muy reciente
+    internals.emailPollStatus.polling = false;
+
+    const contact = "reciente@neurofic.com";
+    addToMailbox({
+      from: contact,
+      subject: "No debería procesarse todavía",
+      date: new Date(),
+      messageId: `fresh-${crypto.randomUUID()}@cliente.com`,
+      text: "Contenido de prueba",
+    });
+
+    internals.maybeRecoverStalePoll();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(ticketsFor(contact).length).toBe(0);
+  });
+
+  test("con el correo deshabilitado, no intenta nada aunque lastPoll esté viejo", () => {
+    internals.setEmailConfigForTest({ enabled: false });
+    internals.emailPollStatus.lastPoll = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    internals.emailPollStatus.polling = false;
+    expect(() => internals.maybeRecoverStalePoll()).not.toThrow();
+    expect(internals.emailPollStatus.polling).toBe(false);
+    enableEmailPolling(); // deja el config como lo esperan los demás tests
+  });
+
+  test("si ya hay un sondeo en curso, no dispara uno segundo", () => {
+    internals.setEmailConfigForTest({ pollIntervalMinutes: 5 });
+    internals.emailPollStatus.lastPoll = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    internals.emailPollStatus.polling = true;
+    expect(() => internals.maybeRecoverStalePoll()).not.toThrow();
+    internals.emailPollStatus.polling = false; // limpieza para no afectar otros tests
+  });
+});
+
+describe("Fallback de matching por asunto+remitente (desde v14.44)", () => {
+  test("correo sin cabeceras de hilo, mismo contacto y asunto Re: normalizado igual, ticket ABIERTO → se anexa, no crea uno nuevo", async () => {
+    const contact = "sinheaders@neurofic.com";
+    internals.store.tickets.push({
+      id: "ND-9101",
+      name: "Cliente Sin Headers",
+      contact,
+      area: "Correo",
+      urgency: "media",
+      status: "abierto",
+      source: "email",
+      subject: "Solicitud de acceso",
+      description: "...",
+      resolution: "",
+      customFields: "{}",
+      attachments: "[]",
+      workedHours: null,
+      position: -1,
+      createdAt: new Date().toISOString(),
+    });
+
+    // Sin messageId, inReplyTo ni references — el cliente de correo del
+    // remitente no las manda (o un relay las quitó).
+    addToMailbox({
+      from: contact,
+      subject: "Re: Solicitud de acceso",
+      date: new Date(),
+      text: "¿Alguna novedad con esto?",
+    });
+
+    const result = await pollOnce();
+    expect(result.created).toBe(0);
+
+    const original = internals.getTicketById("ND-9101");
+    expect(original.status).toBe("abierto");
+    const lastNote = original.history[original.history.length - 1];
+    expect(lastNote.note).toContain("¿Alguna novedad con esto?");
+  });
+
+  test("mismo escenario pero ticket RESUELTO → crea ticket nuevo con possibleDuplicateOf, sin reabrir ni alertar", async () => {
+    const contact = "resuelto-sinheaders@neurofic.com";
+    internals.store.tickets.push({
+      id: "ND-9102",
+      name: "Cliente Resuelto",
+      contact,
+      area: "Correo",
+      urgency: "media",
+      status: "resuelto",
+      source: "email",
+      subject: "Problema de acceso a SIIGO",
+      description: "...",
+      resolution: "listo",
+      customFields: "{}",
+      attachments: "[]",
+      workedHours: null,
+      position: -1,
+      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      resolvedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+
+    addToMailbox({
+      from: contact,
+      subject: "Re: Problema de acceso a SIIGO",
+      date: new Date(),
+      text: "Gracias, pero sigue sin funcionar",
+    });
+
+    const result = await pollOnce();
+    expect(result.created).toBe(1);
+
+    const original = internals.getTicketById("ND-9102");
+    expect(original.status).toBe("resuelto"); // nunca se reabre solo
+    expect(original.reopenedByClient).toBeFalsy(); // nunca alerta
+
+    const created = ticketsFor(contact).find((t) => t.id !== "ND-9102");
+    expect(created).toBeTruthy();
+    expect(created.possibleDuplicateOf).toBe("ND-9102");
+  });
+
+  test("con In-Reply-To presente pero que no calza con nada, NO cae al fallback de asunto (sigue sin match)", async () => {
+    const contact = "headerspresentes@neurofic.com";
+    internals.store.tickets.push({
+      id: "ND-9103",
+      name: "Cliente Headers",
+      contact,
+      area: "Correo",
+      urgency: "media",
+      status: "abierto",
+      source: "email",
+      subject: "Consulta general",
+      description: "...",
+      resolution: "",
+      customFields: "{}",
+      attachments: "[]",
+      workedHours: null,
+      position: -1,
+      createdAt: new Date().toISOString(),
+    });
+
+    // Tiene cabeceras de hilo, pero no referencian nada que conozcamos — el
+    // hilo real es distinto, aunque el asunto normalizado coincida.
+    addToMailbox({
+      from: contact,
+      subject: "Re: Consulta general",
+      date: new Date(),
+      messageId: `otro-${crypto.randomUUID()}@cliente.com`,
+      inReplyTo: `desconocido-${crypto.randomUUID()}@otro-dominio.com`,
+      references: [`desconocido2-${crypto.randomUUID()}@otro-dominio.com`],
+      text: "Esto es de un hilo completamente distinto",
+    });
+
+    const result = await pollOnce();
+    expect(result.created).toBe(1); // no se anexó al ND-9103
+
+    const original = internals.getTicketById("ND-9103");
+    const createdSecond = ticketsFor(contact).find((t) => t.id !== "ND-9103");
+    expect(createdSecond.possibleDuplicateOf).toBeFalsy(); // no es el fallback débil, es "none"
+    expect(original.history.length).toBe(0); // nada se anexó al original
+  });
+
+  test("normalizeSubjectForMatching quita prefijos Re:/Fwd: anidados", () => {
+    // Vía comportamiento observable: dos asuntos con distintos prefijos
+    // anidados deben matchear igual en el fallback.
+    const contact = "anidado@neurofic.com";
+    internals.store.tickets.push({
+      id: "ND-9104",
+      name: "Cliente Anidado",
+      contact,
+      area: "Correo",
+      urgency: "media",
+      status: "abierto",
+      source: "email",
+      subject: "Consulta",
+      description: "...",
+      resolution: "",
+      customFields: "{}",
+      attachments: "[]",
+      workedHours: null,
+      position: -1,
+      createdAt: new Date().toISOString(),
+    });
+
+    addToMailbox({
+      from: contact,
+      subject: "Re: Fwd: RE: Consulta",
+      date: new Date(),
+      text: "Nested prefixes",
+    });
+
+    return pollOnce().then((result) => {
+      expect(result.created).toBe(0);
+      const original = internals.getTicketById("ND-9104");
+      expect(original.history.some((h) => h.note.includes("Nested prefixes"))).toBe(true);
+    });
   });
 });

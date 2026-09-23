@@ -2571,7 +2571,20 @@ const THREAD_MATCH_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // hilo más viejo => 
 //   reference         — only appears in the accumulated References header
 // Sender must match the ticket's contact in every case. Ties go to the most
 // recently created ticket, never array order.
-function matchEmailThread({ ticketIdInSubject, inReplyTo, references, fromEmail }) {
+// Quita prefijos Re:/Fwd:/Fw:/RV: (cualquier combinación anidada, sin distinguir
+// mayúsculas) — solo para COMPARAR asuntos en el fallback de matching de abajo.
+// Nunca se usa para sobrescribir ticket.subject, que el usuario ve tal cual llegó.
+function normalizeSubjectForMatching(subject) {
+  let s = String(subject || "").trim();
+  let prev;
+  do {
+    prev = s;
+    s = s.replace(/^(re|rv|fwd?|fw)\s*:\s*/i, "").trim();
+  } while (s !== prev);
+  return s.toLowerCase();
+}
+
+function matchEmailThread({ ticketIdInSubject, inReplyTo, references, fromEmail, subject }) {
   const senderEmail = String(fromEmail || "").toLowerCase();
   if (ticketIdInSubject) {
     const found = store.tickets.find(
@@ -2586,7 +2599,30 @@ function matchEmailThread({ ticketIdInSubject, inReplyTo, references, fromEmail 
   const inReplyToIds = extractMessageIds(inReplyTo);
   const referenceIds = extractMessageIds(references);
   const allIds = new Set([...inReplyToIds, ...referenceIds]);
-  if (allIds.size === 0) return { ticket: null, matchKind: "none" };
+  if (allIds.size === 0) {
+    // Sin ninguna cabecera de hilo que comparar (el cliente de correo del
+    // remitente no las manda, o un relay corporativo las quitó) — último
+    // recurso, desde v14.44: mismo contacto + asunto normalizado igual a un
+    // ticket existente. Señal más débil que un Message-ID exacto, así que
+    // classifyThreadAction() nunca la trata igual que "direct"/"direct-resolution"
+    // (nunca dispara reopen-alert, nunca reabre solo). Se restringe a los
+    // últimos THREAD_MATCH_MAX_AGE_MS para no enganchar un ticket viejo con
+    // asunto genérico repetido ("Consulta", "Ayuda", etc.).
+    const normalizedSubject = normalizeSubjectForMatching(subject);
+    if (normalizedSubject) {
+      const subjectCandidates = store.tickets.filter((t) => {
+        if (String(t.contact || "").toLowerCase() !== senderEmail) return false;
+        if (normalizeSubjectForMatching(t.subject) !== normalizedSubject) return false;
+        const refMs = t.resolvedAt ? new Date(t.resolvedAt).getTime() : new Date(t.createdAt || 0).getTime();
+        return Date.now() - refMs <= THREAD_MATCH_MAX_AGE_MS;
+      });
+      if (subjectCandidates.length) {
+        subjectCandidates.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        return { ticket: subjectCandidates[0], matchKind: "subject-fallback" };
+      }
+    }
+    return { ticket: null, matchKind: "none" };
+  }
   const directParent = inReplyToIds[inReplyToIds.length - 1] || "";
 
   const candidates = store.tickets.filter((t) => {
@@ -2624,6 +2660,15 @@ function classifyThreadAction(ticket, matchKind) {
   const active = isActiveStatus(ticket.status);
   const resolvedMs = ticket.resolvedAt ? new Date(ticket.resolvedAt).getTime() : null;
   const ageMs = Date.now() - (resolvedMs ?? new Date(ticket.createdAt || 0).getTime());
+
+  if (matchKind === "subject-fallback") {
+    // Señal débil (mismo contacto + asunto normalizado, sin ninguna cabecera
+    // de hilo) — nunca reabre un ticket resuelto/cerrado por sí sola, nunca
+    // dispara la alerta de "cliente insatisfecho". Si no está activo, el
+    // llamador crea un ticket nuevo y lo marca con possibleDuplicateOf para
+    // que un humano decida fusionar, en vez de adivinar automáticamente.
+    return active ? { action: "attach-reply" } : { action: "cross-reference-new" };
+  }
 
   if (matchKind === "subject") {
     if (active) return { action: "attach-reply" };
@@ -2756,6 +2801,29 @@ async function markSeen(client, uid) {
   try {
     await client.messageFlagsAdd(uid, ["\\Seen"]);
   } catch (_) {}
+}
+
+// Auto-recuperación del sondeo de correo (desde v14.43). En hosting compartido
+// LiteSpeed recicla el proceso Node por inactividad — sin tráfico HTTP, el
+// setInterval de startEmailPoller() muere con el proceso, y los correos que
+// lleguen mientras tanto no se procesan hasta que alguien haga una petición
+// que relance el proceso. Cualquier request a /api/health (pensado para pings
+// externos de monitoreo/cron) dispara esto: si el último sondeo quedó viejo
+// (más del doble del intervalo configurado), lo recupera de inmediato en vez
+// de esperar al próximo tick del timer. No sustituye mantener el proceso
+// despierto con un ping externo — solo acorta la espera cuando igual se durmió.
+function maybeRecoverStalePoll() {
+  try {
+    if (!emailConfig.enabled || emailPollStatus.polling) return;
+    const intervalMs = (emailConfig.pollIntervalMinutes || 5) * 60 * 1000;
+    const staleAfterMs = intervalMs * 2;
+    const lastPollMs = emailPollStatus.lastPoll ? new Date(emailPollStatus.lastPoll).getTime() : 0;
+    if (!lastPollMs || Date.now() - lastPollMs > staleAfterMs) {
+      pollEmails().catch(() => {});
+    }
+  } catch (err) {
+    console.error("[NeuroDesk] Error en auto-recuperación de sondeo:", err.message);
+  }
 }
 
 async function pollEmails(options = {}) {
@@ -2899,6 +2967,7 @@ async function pollEmails(options = {}) {
               inReplyTo: parsed.inReplyTo,
               references: parsed.references,
               fromEmail,
+              subject,
             });
 
             let decision = null;
@@ -3021,6 +3090,12 @@ async function pollEmails(options = {}) {
             insertTicket(ticket);
             const rawNew = store.tickets.find((t) => t.id === ticket.id);
             if (rawNew && rememberThreadId(rawNew, parsed.messageId)) saveStore();
+            if (rawNew && candidate && matchKind === "subject-fallback") {
+              // Señal débil: no se fusiona ni se reabre solo — se deja visible
+              // para que un humano decida (Configuración → panel, o vía API).
+              rawNew.possibleDuplicateOf = candidate.id;
+              saveStore();
+            }
 
             if (candidate && decision && decision.action === "cross-reference-new") {
               addTicketHistory(
@@ -3374,6 +3449,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "GET" && req.url === "/api/health") {
+    maybeRecoverStalePoll();
     sendJson(res, 200, { ok: true, version: packageInfo.version, store: STORE_PATH });
     return;
   }
@@ -4152,6 +4228,7 @@ function serializeTicket(ticket, { includeHistory = false } = {}) {
     aiCategory: ticket.aiCategory || null,
     aiSentiment: ticket.aiSentiment || null,
     aiSentimentScore: ticket.aiSentimentScore ?? null,
+    possibleDuplicateOf: ticket.possibleDuplicateOf || null,
     attachments: (ticket.attachments || []).map((a) => ({
       filename: a.name || "",
       size: a.size ?? null,
@@ -4249,6 +4326,12 @@ function buildOpenApiSpec() {
       aiCategory: { type: "string", nullable: true },
       aiSentiment: { type: "string", nullable: true },
       aiSentimentScore: { type: "number", nullable: true },
+      possibleDuplicateOf: {
+        type: "string",
+        nullable: true,
+        description:
+          "ID de un ticket probablemente relacionado (mismo contacto + asunto normalizado, sin cabeceras de hilo de correo que lo confirmen). Señal débil para revisión humana — nunca se fusiona ni se reabre automáticamente.",
+      },
       attachments: {
         type: "array",
         items: {
@@ -4958,6 +5041,7 @@ if (process.env.ND_TEST === "1") {
     store,
     invalidateHistoryIndex,
     createApiKey,
+    maybeRecoverStalePoll,
     LOCK_PATH,
     isPidAlive,
     checkStaleProcessLock,

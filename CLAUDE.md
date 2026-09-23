@@ -1,6 +1,6 @@
 # NeuroDesk — Reglas de Producción
 
-**Versión actual en producción: v14.42**
+**Versión actual en producción: v14.44**
 
 ## ⚠️ ESTE PROYECTO ESTÁ EN PRODUCCIÓN
 
@@ -458,6 +458,82 @@ eso) — fue un *race condition* real de este código:
   balanceo de carga), esto necesitaría un rediseño real de la persistencia (base de
   datos con locking, o coordinación entre procesos) — no asumir que sigue siendo
   seguro con >1 proceso escribiendo el mismo `STORE_PATH` a la vez.
+
+## Sondeo de correo dormido por reciclado de proceso (desde v14.43)
+
+El usuario reportó tickets de correo que "llegan tarde, como si el servidor se
+quedara dormido" — más en horas sin tráfico. Causa: `startEmailPoller()` depende
+por completo de que el proceso Node siga vivo (`pollEmails()` al arrancar + cada
+`pollIntervalMinutes` vía `setInterval`, sin cron externo ni keep-alive). LiteSpeed
+recicla procesos `lsnode` inactivos en hosting compartido — sin tráfico HTTP, el
+proceso muere y el `setInterval` con él; los correos que lleguen mientras tanto no
+se pierden (no se marcan `\Seen`) pero tampoco se procesan hasta que una petición
+HTTP relance el proceso.
+
+**Qué se corrigió:**
+
+- `maybeRecoverStalePoll()` (llamada desde `GET /api/health`): si
+  `emailPollStatus.lastPoll` es más viejo que `2×pollIntervalMinutes` y el correo
+  está habilitado, dispara `pollEmails()` de inmediato — cualquier petición HTTP
+  (no solo abrir el panel) recupera el sondeo atrasado sin esperar al próximo tick.
+- **Esto no reemplaza mantener el proceso despierto** — sin tráfico periódico, el
+  proceso se sigue reciclando igual. Falta el paso operativo: un Cron Job de hPanel
+  (Avanzado → Cron Jobs) haciendo `curl -s https://soporte.easystem.co/api/health`
+  cada 3-5 min, o un servicio externo gratuito (UptimeRobot, cron-job.org) si no hay
+  acceso a hPanel. **Pendiente de que el usuario lo configure** — no es algo que se
+  resuelva solo con código.
+
+**Reglas para no reintroducirlo:** cualquier nuevo timer que dependa del proceso
+vivo (como `emailPollerTimer`) debería tener, idealmente, un mecanismo de
+auto-recuperación similar si su ausencia puede perder trabajo — no asumir que el
+proceso nunca se recicla en este hosting.
+
+## Fallback de matching por asunto+remitente (desde v14.44)
+
+Llegó un reporte externo (de una sesión sin acceso al código) alegando que el
+threading de correo no existía y que se creaban tickets duplicados masivamente al
+responder. Se verificó cada afirmación contra el código real antes de tocar nada:
+la mayoría eran falsas (threading, `reopenedByClient` e IDs estables ya funcionaban
+desde v14.37/v14.34) — pero **dos** eran reales: el asunto nunca se normalizaba
+(`Re:`/`Fwd:` no se limpiaban) y `matchEmailThread` se rendía de inmediato si el
+correo no traía `In-Reply-To`/`References` (cliente de correo que no las manda, o
+un relay que las quita), sin ningún intento de recuperación.
+
+**Qué se corrigió:**
+
+- `normalizeSubjectForMatching()`: quita prefijos `Re:`/`Fwd:`/`Fw:`/`RV:`
+  anidados, **solo para comparar** — nunca sobrescribe `ticket.subject`, que el
+  usuario sigue viendo tal cual llegó.
+- `matchEmailThread()`: cuando no hay ninguna cabecera de hilo que comparar
+  (`allIds.size === 0`, antes retornaba `"none"` de inmediato), como último recurso
+  busca un ticket del mismo `contact` con el mismo asunto normalizado, dentro de
+  `THREAD_MATCH_MAX_AGE_MS`. Nuevo `matchKind: "subject-fallback"`.
+- **Regla de oro (aprendida del incidente de v14.36):** un match por asunto es una
+  señal más débil que un Message-ID exacto. `classifyThreadAction()` para
+  `"subject-fallback"` solo hace `attach-reply` si el ticket sigue activo — **nunca**
+  reabre un ticket `resuelto`/`cerrado` por esta vía, y nunca dispara
+  `reopenedByClient`. En vez de eso, el ticket nuevo se crea como siempre y queda
+  marcado con `possibleDuplicateOf: "<id>"` (expuesto en `serializeTicket()` y en
+  `openapi.json`) para que un humano decida si fusionar — nunca automático.
+- **Este camino solo se activa si NO hay ninguna cabecera de hilo.** Si
+  `In-Reply-To`/`References` existen pero no calzan con nada conocido, sigue siendo
+  `matchKind: "none"` tal cual — eso sí es (probablemente) un hilo distinto de
+  verdad, no hay que "rescatarlo" por asunto.
+
+**Reglas para no reintroducirlo:**
+
+- No convertir `"subject-fallback"` en una señal fuerte — si algún día se necesita
+  fusionar automáticamente, que sea un endpoint explícito de merge con confirmación
+  del usuario (fuera de alcance de v14.44 a propósito), nunca aumentando la
+  confianza de este matchKind.
+- Al truncar `store.ticketHistory`/`store.tickets` directamente en tests (en vez de
+  vía las funciones normales), llamar también a `invalidateHistoryIndex()` —
+  `getHistoryIndex()` cachea un `Map` por `ticketId` que un truncado de array no
+  invalida por sí solo; con IDs de ticket que se repiten entre tests (uno sembrado a
+  mano, otro generado dinámicamente por `getNextTicketId()`), esto puede filtrar
+  historial "fantasma" de un test anterior. `tests/email-matching.test.js` lo hace
+  en su `beforeEach` — replicar el patrón en cualquier archivo de test nuevo que
+  manipule `store.ticketHistory` directamente.
 
 ## Antes de cada entrega, verificar
 
