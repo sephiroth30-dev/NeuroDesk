@@ -2585,6 +2585,42 @@ function normalizeSubjectForMatching(subject) {
   return s.toLowerCase();
 }
 
+// Backfill de un solo uso (desde v14.46): possibleDuplicateOf solo se rellena
+// hacia adelante (v14.44), en creación de ticket vía correo sin cabeceras de
+// hilo. Los tickets ya existentes antes de v14.44 se quedaron sin la etiqueta —
+// esta función la agrega retroactivamente, reutilizando la misma
+// normalizeSubjectForMatching() del fallback real, sin duplicar la lógica.
+// Nunca toca status/history/reopenedByClient — solo agrega la etiqueta
+// informativa. Idempotente: un ticket que ya tiene possibleDuplicateOf se salta.
+function backfillPossibleDuplicates() {
+  let updated = 0;
+  withBatchedSave(() => {
+    const sorted = [...store.tickets].sort(
+      (a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+    );
+    for (let i = 0; i < sorted.length; i++) {
+      const ticket = sorted[i];
+      if (ticket.possibleDuplicateOf) continue;
+      const normalized = normalizeSubjectForMatching(ticket.subject);
+      const contact = String(ticket.contact || "").toLowerCase();
+      if (!normalized || !contact) continue;
+      let match = null;
+      for (let j = i - 1; j >= 0; j--) {
+        const candidate = sorted[j];
+        if (String(candidate.contact || "").toLowerCase() !== contact) continue;
+        if (normalizeSubjectForMatching(candidate.subject) !== normalized) continue;
+        match = candidate;
+        break;
+      }
+      if (match) {
+        ticket.possibleDuplicateOf = match.id;
+        updated++;
+      }
+    }
+  });
+  return { checked: store.tickets.length, updated };
+}
+
 function matchEmailThread({ ticketIdInSubject, inReplyTo, references, fromEmail, subject }) {
   const senderEmail = String(fromEmail || "").toLowerCase();
   if (ticketIdInSubject) {
@@ -3840,6 +3876,17 @@ async function handleApi(req, res) {
     return;
   }
 
+  // ── Backfill de possibleDuplicateOf (desde v14.46) ───────────────────────────
+  // El campo se rellena hacia adelante desde v14.44 (solo en creación de ticket
+  // vía correo, cuando no hay cabeceras de hilo). Los duplicados ya existentes
+  // antes de v14.44 se quedaron sin la etiqueta — este endpoint la agrega
+  // retroactivamente, de un solo uso, sin tocar status/history/reopenedByClient.
+  if (req.method === "POST" && req.url === "/api/admin/backfill-duplicate-hints") {
+    const result = backfillPossibleDuplicates();
+    sendJson(res, 200, result);
+    return;
+  }
+
   // ── Webhook management (panel only, session-authenticated) ──────────────────
   if (req.method === "GET" && req.url === "/api/webhooks") {
     sendJson(res, 200, {
@@ -5077,6 +5124,7 @@ if (process.env.ND_TEST === "1") {
     invalidateHistoryIndex,
     createApiKey,
     maybeRecoverStalePoll,
+    backfillPossibleDuplicates,
     LOCK_PATH,
     isPidAlive,
     killOtherServerProcesses,

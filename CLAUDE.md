@@ -1,6 +1,6 @@
 # NeuroDesk — Reglas de Producción
 
-**Versión actual en producción: v14.45**
+**Versión actual en producción: v14.46**
 
 ## ⚠️ ESTE PROYECTO ESTÁ EN PRODUCCIÓN
 
@@ -579,6 +579,33 @@ cualquier proceso nuevo escribiera.
   sigue sin merge) — es una segunda capa que cierra el hueco específico de "proceso
   más viejo que el propio mecanismo de detección". Ver también la sección de v14.42
   para el resto de las reglas sobre timers y `saveStore()`.
+
+## Backfill de possibleDuplicateOf (desde v14.46)
+
+`possibleDuplicateOf` (v14.44) solo se rellena **hacia adelante**, en el momento de
+crear un ticket vía correo sin cabeceras de hilo — los tickets creados antes de
+v14.44 (o por cualquier otra vía, como la API/formulario) se quedan sin la etiqueta
+aunque compartan contacto + asunto con uno anterior. `backfillPossibleDuplicates()`
+(`server.js`) corre una vez sobre todo `store.tickets` y la agrega retroactivamente.
+
+**Reglas para no reintroducir el bug de un merge automático real:**
+
+- Este endpoint (`POST /api/admin/backfill-duplicate-hints`, sesión requerida)
+  **solo etiqueta** — nunca toca `status`, `history`, `resolvedAt` ni
+  `reopenedByClient`. Un endpoint de fusión de verdad (mezclar historial de dos
+  tickets en uno) sigue **fuera de alcance a propósito** — mismo motivo que en
+  v14.44: mal elegido el ID a fusionar, mezcla dos conversaciones reales.
+- Cada ticket apunta al match **inmediatamente anterior** (por `createdAt`), nunca
+  al primero de la cadena — así una cadena de respuestas A→B→C→D queda
+  B→A, C→B, D→C, no todos apuntando a A. Reutiliza
+  `normalizeSubjectForMatching()` (v14.44) — no duplicar esa lógica de limpieza de
+  asunto en otro sitio.
+- Idempotente por diseño (`if (ticket.possibleDuplicateOf) continue`) — correrlo
+  más de una vez nunca reescribe una etiqueta ya puesta, ni por un humano ni por el
+  propio backfill.
+- No se dispara solo en ningún arranque ni deploy — es un endpoint que el usuario
+  llama explícitamente cuando quiere, para evitar sorpresas repetidas en cada
+  reinicio del proceso.
 
 ## Antes de cada entrega, verificar
 

@@ -176,6 +176,10 @@ mismo contacto + mismo asunto (sin prefijos `Re:`/`Fwd:`) pero **sin** ninguna c
 de correo (`In-Reply-To`/`References`) que lo confirme. Es una señal débil para
 revisión humana: nunca fusiona ni reabre nada automáticamente. `null` cuando no aplica.
 
+Este campo solo se rellena hacia adelante, en tickets creados después de v14.44. Para
+etiquetar retroactivamente tickets más antiguos, hay un endpoint de un solo uso fuera
+de esta API pública (panel, sesión requerida): `POST /api/admin/backfill-duplicate-hints`.
+
 ---
 
 ## `POST /api/v1/tickets` — crear

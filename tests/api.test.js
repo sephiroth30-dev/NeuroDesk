@@ -1219,3 +1219,88 @@ describe("Apagado ordenado y bloqueo de instancia única", () => {
     });
   });
 });
+
+// ── Backfill de possibleDuplicateOf (desde v14.46) ───────────────────────────
+
+describe("Backfill de possibleDuplicateOf", () => {
+  const { store: internalStore, backfillPossibleDuplicates } = require("../server").__internals;
+
+  beforeEach(() => {
+    internalStore.tickets.length = 0;
+  });
+
+  function seedTicket(id, contact, subject, createdAt, possibleDuplicateOf) {
+    internalStore.tickets.push({
+      id,
+      name: "Cliente",
+      contact,
+      area: "Correo",
+      urgency: "media",
+      status: "abierto",
+      source: "email",
+      subject,
+      description: "...",
+      resolution: "",
+      customFields: "{}",
+      attachments: "[]",
+      workedHours: null,
+      position: -1,
+      createdAt,
+      ...(possibleDuplicateOf ? { possibleDuplicateOf } : {}),
+    });
+  }
+
+  test("marca cada respuesta con el ticket ANTERIOR más reciente que comparte contacto + asunto normalizado", () => {
+    const contact = "contador.neurofic@gmail.com";
+    seedTicket("ND-1045", contact, "Fwd: Solicitud usuario de Microsoft", "2026-06-01T00:00:00.000Z");
+    seedTicket("ND-1157", contact, "Re: Fwd: Solicitud usuario de Microsoft", "2026-09-22T10:00:00.000Z");
+    seedTicket("ND-1158", contact, "Re: Re: Fwd: Solicitud usuario de Microsoft", "2026-09-22T11:00:00.000Z");
+
+    const result = backfillPossibleDuplicates();
+    expect(result.updated).toBe(2);
+
+    expect(internalStore.tickets.find((t) => t.id === "ND-1157").possibleDuplicateOf).toBe("ND-1045");
+    expect(internalStore.tickets.find((t) => t.id === "ND-1158").possibleDuplicateOf).toBe("ND-1157");
+    expect(internalStore.tickets.find((t) => t.id === "ND-1045").possibleDuplicateOf).toBeUndefined();
+  });
+
+  test("no toca tickets sin ningún match (contacto o asunto distinto)", () => {
+    seedTicket("ND-2001", "a@neurofic.com", "Consulta de acceso", "2026-01-01T00:00:00.000Z");
+    seedTicket("ND-2002", "b@neurofic.com", "Otro tema totalmente distinto", "2026-01-02T00:00:00.000Z");
+
+    const result = backfillPossibleDuplicates();
+    expect(result.updated).toBe(0);
+    expect(internalStore.tickets.find((t) => t.id === "ND-2001").possibleDuplicateOf).toBeUndefined();
+    expect(internalStore.tickets.find((t) => t.id === "ND-2002").possibleDuplicateOf).toBeUndefined();
+  });
+
+  test("es idempotente: correrlo dos veces no cambia el resultado", () => {
+    const contact = "jefeasistencial.neurofic@gmail.com";
+    seedTicket("ND-3001", contact, "Cambio de usuario Windows", "2026-01-01T00:00:00.000Z");
+    seedTicket("ND-3002", contact, "Re: Cambio de usuario Windows", "2026-01-02T00:00:00.000Z");
+
+    const first = backfillPossibleDuplicates();
+    expect(first.updated).toBe(1);
+    const second = backfillPossibleDuplicates();
+    expect(second.updated).toBe(0); // ya estaba marcado, se salta
+    expect(internalStore.tickets.find((t) => t.id === "ND-3002").possibleDuplicateOf).toBe("ND-3001");
+  });
+
+  test("no toca status, history ni reopenedByClient de ningún ticket", () => {
+    const contact = "monitoreo.neurofic@gmail.com";
+    seedTicket("ND-4001", contact, "Falla de red", "2026-01-01T00:00:00.000Z");
+    seedTicket("ND-4002", contact, "Re: Falla de red", "2026-01-02T00:00:00.000Z");
+    internalStore.tickets.find((t) => t.id === "ND-4001").status = "resuelto";
+
+    backfillPossibleDuplicates();
+
+    const original = internalStore.tickets.find((t) => t.id === "ND-4001");
+    expect(original.status).toBe("resuelto"); // sin cambios
+    expect(original.reopenedByClient).toBeFalsy();
+  });
+
+  test("POST /api/admin/backfill-duplicate-hints requiere sesión y devuelve el conteo", async () => {
+    const unauth = await request(server).post("/api/admin/backfill-duplicate-hints");
+    expect(unauth.status).toBe(401);
+  });
+});
